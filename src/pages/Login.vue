@@ -1,7 +1,7 @@
 <template>
   <div class="app">
-    <div v-if="state.account.id">
-      <p>안녕하세요? {{ state.account.name }}님!</p>
+    <div v-if="state.currentMember.id">
+      <p>안녕하세요? {{ state.currentMember.name }}님!</p>
       <button @click="logout()">로그아웃</button>
     </div>
     <div v-else>
@@ -24,12 +24,14 @@
 
 <script>
 import axios from "axios";
-import { reactive } from "vue";
+import {reactive} from "vue";
+import {useRouter} from "vue-router";
 
 export default {
   setup() {
+    const router = useRouter();
     const state = reactive({
-      account: { id: null, name: "" },
+      currentMember: { id: 0, account: "" },
       form: {
         loginId: "",
         loginPw: "",
@@ -43,42 +45,41 @@ export default {
       };
 
       axios
-        .post("/api/auth/login", args)
-        .then(() => {
-          alert("로그인에 성공했습니다.");
-          state.account = { id: 1, name: state.form.loginId }; // 예시
-        })
-        .catch(() => {
-          alert("로그인에 실패했습니다. 계정 정보를 확인해주세요.");
-        });
+          .post("/api/auth/login", args)
+          .then((response) => {
+            // 서버에서 응답 받은 데이터 처리
+            const { message, redirect } = response.data;  // message와 redirect 추출
+            alert(message);  // 메시지 표시
+
+            if (redirect) {
+              router.push(redirect).then(() => {
+                location.reload();  // 경로 변경 후 강제로 새로 고침
+              });
+            }
+
+            // 로그인 상태 업데이트
+            state.currentMember = {
+              id: response.data.id,
+              account: response.data.account,
+            };
+          })
+          .catch(() => {
+            alert("로그인에 실패했습니다. 계정 정보를 확인해주세요.");
+          });
     };
+
 
     const logout = () => {
       axios
-        .get("/api/auth/logout")
-        .then(() => {
-          alert("로그아웃하였습니다.");
-          state.account = { id: null, name: "" };
-        })
-        .catch(() => {
-          alert("로그아웃 중 오류가 발생했습니다.");
-        });
+          .get("/api/auth/logout")
+          .then(() => {
+            alert("로그아웃하였습니다.");
+            state.currentMember = { id: 0, account: "" };
+          })
+          .catch(() => {
+            alert("로그아웃 중 오류가 발생했습니다.");
+          });
     };
-
-    const checkLoginStatus = () => {
-      axios
-        .get("/api/account")
-        .then((res) => {
-          if (res.data) {
-            state.account = res.data;
-          }
-        })
-        .catch(() => {
-          console.log("로그인 상태 확인 실패");
-        });
-    };
-
-    checkLoginStatus();
 
     return { state, submit, logout };
   },

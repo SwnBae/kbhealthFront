@@ -13,7 +13,7 @@
 </template>
 
 <script>
-import axios from "axios";
+// import axios from "axios";
 import {reactive} from "vue";
 import Card from "@/components/Card";
 
@@ -25,9 +25,10 @@ export default {
       items: []
     })
 
-    axios.get("/api/items").then(({data}) => {
-      state.items = data;
-    });
+
+    // axios.get("/api/items").then(({data}) => {
+    //   state.items = data;
+    // });
 
     return {state}
   }

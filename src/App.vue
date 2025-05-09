@@ -1,16 +1,16 @@
 <template>
-  <Header/>
-  <RouterView/>
-  <Footer/>
+  <Header />
+  <RouterView />
+  <Footer />
 </template>
 
 <script>
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import store from "@/scripts/store";
+import userStore from "@/scripts/store";
 import axios from "axios";
-import {watch} from "vue";
-import {useRoute} from "vue-router/dist/vue-router";
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
 
 export default {
   name: 'App',
@@ -19,21 +19,30 @@ export default {
     Header
   },
   setup() {
-    const check = () => {
-      axios.get("/api/account/check").then(({data}) => {
-        console.log(data);
-        store.commit("setAccount", data || 0);
-      })
+    const router = useRouter();
+
+    // 로그인 상태 체크 및 상태 관리
+    const check = async () => {
+      try {
+        const { data } = await axios.get("/api/auth/check");
+        if (!data) {
+          router.push("/login");  // 로그인되지 않으면 로그인 페이지로 리디렉션
+        } else {
+          userStore.commit("setCurrentMember", data);  // 로그인한 사용자 정보 저장
+        }
+      } catch (error) {
+        router.push("/login");  // 오류 발생 시 로그인 페이지로 리디렉션
+      }
     };
 
-    const route = useRoute();
-
-    watch(route, () => {
-      check();
-    })
+    onMounted(() => {
+      check();  // 앱이 처음 마운트될 때만 체크
+    });
   }
-}
+};
 </script>
+
+
 
 <style>
 .bd-placeholder-img {
