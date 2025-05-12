@@ -2,46 +2,60 @@
   <div v-if="isLoading">로딩 중...</div>
   <div v-else-if="!profile">로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</div>
   <div v-else class="profile">
-    <h2>{{ profile.userName }}님의 프로필</h2>
 
-    <!-- 프로필 정보 출력 -->
-    <div class="profile-info">
-      <p><strong>회원 ID:</strong> {{ profile.memberId }}</p>
-      <p><strong>총 점수:</strong> {{ profile.totalScore }}</p>
-      <p><strong>기본 점수:</strong> {{ profile.baseScore }}</p>
-      <p><strong>프로필 이미지:</strong> <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" /></p>
-      <p><strong>팔로잉 수:</strong> <span @click="openFollowModal('following')">{{ profile.followingCount }}</span></p>
-      <p><strong>팔로워 수:</strong> <span @click="openFollowModal('follower')">{{ profile.followerCount }}</span></p>
+    <!-- 좌측: 유저 정보 카드 -->
+    <aside class="profile-sidebar">
+      <div class="profile-info-card">
+        <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
+        <h2>{{ profile.userName }}</h2>
+        <div class="score-box">
+          <div class="score-item">
+            <span>총 점수</span>
+            <strong>{{ profile.totalScore }}</strong>
+          </div>
+          <div class="score-item">
+            <span>기본 점수</span>
+            <strong>{{ profile.baseScore }}</strong>
+          </div>
+        </div>
 
-      <!-- Follow/Unfollow Button -->
-      <div v-if="!isCurrentUser">
-        <button
-            v-if="!profile.following"
-            @click="toggleFollow"
-            class="follow-button">
-          팔로우
-        </button>
-        <button
-            v-else
-            @click="toggleFollow"
-            class="unfollow-button">
-          언팔로우
-        </button>
+        <div class="profile-stats">
+          <div class="stat-item" @click="openFollowModal('following')">
+            <strong>팔로잉</strong><br/>
+            {{ profile.followingCount }}
+          </div>
+          <div class="stat-item" @click="openFollowModal('follower')">
+            <strong>팔로워</strong><br/>
+            {{ profile.followerCount }}
+          </div>
+        </div>
+        <div v-if="!isCurrentUser">
+          <button v-if="!profile.following" @click="toggleFollow" class="follow-button">팔로우</button>
+          <button v-else @click="toggleFollow" class="unfollow-button">언팔로우</button>
+        </div>
       </div>
 
-    </div>
+      <!-- 그래프 영역 -->
+      <div class="profile-graphs">
+        <div class="card">
+          <h3>오늘의 영양 달성률</h3>
+          <NutritionRadar :data="profile.todayAchievement" />
+        </div>
+        <div class="card">
+          <h3>최근 10일 간 점수</h3>
+          <ScoreLineChart :series="profile.last10DaysScores" />
+        </div>
+      </div>
+    </aside>
 
-    <!-- 오늘의 영양 달성률과 최근 10일간 점수 출력 (가로로 나란히 배치) -->
-    <div class="charts">
-      <div class="nutrition-achievement">
-        <h3>오늘의 영양 달성률</h3>
-        <NutritionRadar :data="profile.todayAchievement" />
+    <!-- 우측 영역 -->
+    <section class="profile-main">
+      <!-- 📌 향후 게시물 피드 영역 -->
+      <div class="card">
+        <h3>개인 게시물 (예정)</h3>
+        <p>향후 여기에 게시물이 들어갈 예정입니다.</p>
       </div>
-      <div class="last-10-days-scores">
-        <h3>최근 10일 간 점수</h3>
-        <ScoreLineChart :series="profile.last10DaysScores" />
-      </div>
-    </div>
+    </section>
 
     <!-- 팔로잉/팔로워 모달 -->
     <div v-if="showModal" class="modal" @click.self="closeModal">
@@ -58,6 +72,8 @@
     </div>
   </div>
 </template>
+
+
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
@@ -159,6 +175,8 @@ onMounted(() => {
 <style scoped>
 /* 전체 프로필 컨테이너 */
 .profile {
+  display: flex;
+  gap: 2rem;
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
@@ -166,81 +184,107 @@ onMounted(() => {
   color: #333;
 }
 
-/* 프로필 정보 카드 */
-.profile-info {
-  background-color: #f9f9f9;
+/* 좌측 영역 (유저 정보 카드 및 그래프) */
+.profile-sidebar {
+  width: 30%;
+  height: 80vh;  /* 높이를 제한하여 스크롤을 적용 */
+  overflow-y: auto;  /* 세로 스크롤 */
+  padding-right: 1rem;
+}
+
+.score-box {
+  display: flex;
+  justify-content: space-around;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #fafafa;
+  border-radius: 0.75rem;
+  border: 1px solid #eee;
+  font-size: 1.1rem;
+}
+
+.score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #333;
+}
+
+.score-item strong {
+  font-size: 1.6rem;
+  color: #000;
+}
+
+
+/* 유저 정보 카드 스타일 */
+.profile-info-card {
+  background-color: #fff;
   border: 1px solid #ddd;
   border-radius: 1rem;
   padding: 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  text-align: center;
   margin-bottom: 2rem;
-  display: grid;
+}
+
+/* 팔로우 */
+.profile-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.stat-item {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.stat-item:hover {
+  background-color: #f0f0f0;
+  color: #007bff;
+}
+
+/* 그래프 영역 */
+.profile-graphs {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
-.profile-info p {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.profile-info strong {
-  display: inline-block;
-  width: 120px;
-}
-
-/* 프로필 이미지 스타일 */
-.profile-image {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #ccc;
-}
-
-/* 차트 섹션 */
-.charts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2rem;
-  justify-content: space-between;
-}
-
-.nutrition-achievement,
-.last-10-days-scores {
-  flex: 1 1 48%;
-  background-color: #ffffff;
+/* 카드 스타일 */
+.card {
+  background-color: #fff;
   border: 1px solid #ddd;
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  min-height: 400px;
+  margin-bottom: 1rem;
+}
+
+/* 오른쪽 전체 영역 */
+.profile-main {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.charts {
-  display: flex;
-  flex-wrap: wrap;
   gap: 2rem;
-  justify-content: center;
+  height: 80vh;  /* 높이를 제한하여 스크롤을 적용 */
+  overflow-y: auto;  /* 세로 스크롤 */
 }
 
-/* 반응형 대응 */
-@media (max-width: 768px) {
-  .charts {
-    flex-direction: column;
-  }
-
-  .nutrition-achievement,
-  .last-10-days-scores {
-    flex: 1 1 100%;
-  }
-
-  .profile-info {
-    padding: 1.5rem;
-  }
+/* 게시물 카드 */
+.profile-main .card {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1rem;
 }
 
 /* 모달 스타일 */
@@ -320,4 +364,3 @@ button:hover {
   background-color: #0056b3;
 }
 </style>
-
