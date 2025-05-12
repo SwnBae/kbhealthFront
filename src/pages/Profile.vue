@@ -29,8 +29,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import {ref, onMounted, watch} from 'vue';
 import axios from 'axios';
+import {useRoute} from 'vue-router';
 import userStore from "@/scripts/store";
 
 // 차트 컴포넌트 import
@@ -39,13 +40,15 @@ import ScoreLineChart from "@/components/ScoreLineChart.vue";
 
 const profile = ref(null);
 const isLoading = ref(true); // 로딩 상태를 관리하는 변수
+const route = useRoute(); // 현재 라우터 정보 가져오기
 
 const check = async () => {
   try {
     const {data} = await axios.get(`/api/auth/check`);
     if (data) {
       userStore.commit("setCurrentMember", data);
-      await fetchProfile(data.account); // 프로필 데이터를 가져오는 함수 호출
+      const account = route.params.account || data.account; // 파라미터 account 또는 로그인한 사용자의 account 사용
+      await fetchProfile(account); // 프로필 데이터를 가져오는 함수 호출
     } else {
       profile.value = null;
     }
@@ -65,6 +68,11 @@ const fetchProfile = async (account) => {
     profile.value = null;
   }
 };
+
+// 라우터 파라미터 변경 시에도 프로필을 갱신
+watch(() => route.params.account, () => {
+  check(); // account 파라미터가 변경되면 프로필을 다시 불러오기
+});
 
 onMounted(() => {
   check(); // 앱이 처음 마운트될 때만 check() 호출
@@ -143,7 +151,6 @@ onMounted(() => {
   justify-content: center; /* 중앙 정렬로 여백을 줄임 */
 }
 
-
 /* 반응형 대응 */
 @media (max-width: 768px) {
   .charts {
@@ -160,8 +167,3 @@ onMounted(() => {
   }
 }
 </style>
-
-
-
-
-

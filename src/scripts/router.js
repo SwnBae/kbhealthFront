@@ -14,7 +14,7 @@ const routes = [
     { path: '/register', component: Register },
     { path: '/cart', component: Cart },
     { path: '/order', component: Order },
-    { path: '/profile', component: Profile },
+    { path: '/profile/:account?', component: Profile },
     { path: '/diet-record', component: DietRecord },
     { path: '/exercise-record', component: ExerciseRecord }
 ];
