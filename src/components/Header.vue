@@ -16,6 +16,7 @@
                 <li><router-link to="/profile" class="text-white" @click="reloadToProfile">내 계정정보</router-link></li>
                 <li><router-link to="/diet-record" class="text-white">식단기록</router-link></li>
                 <li><router-link to="/exercise-record" class="text-white">운동기록</router-link></li>
+                <li><router-link to="/ranking" class="text-white">랭킹</router-link></li>
                 <li><a class="text-white" @click="logout()">로그아웃</a></li>
               </template>
               <li v-else>

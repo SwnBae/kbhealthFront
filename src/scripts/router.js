@@ -5,6 +5,8 @@ import Register from "@/pages/Register";
 import Profile from "@/pages/Profile";
 import DietRecord from "@/pages/DietRecord";
 import ExerciseRecord from "@/pages/ExerciseRecord";
+import Ranking from "@/pages/Ranking";
+
 import { createRouter, createWebHistory } from "vue-router/dist/vue-router";
 
 const routes = [
@@ -14,7 +16,8 @@ const routes = [
     { path: '/cart', component: Cart },
     { path: '/profile/:account?', component: Profile },
     { path: '/diet-record', component: DietRecord },
-    { path: '/exercise-record', component: ExerciseRecord }
+    { path: '/exercise-record', component: ExerciseRecord },
+    { path: '/ranking', component: Ranking }
 ];
 
 const router = createRouter({
