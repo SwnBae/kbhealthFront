@@ -13,7 +13,7 @@
                 </router-link>
               </li>
               <template v-if="userStore.state.currentMember.id">
-                <li><router-link to="/profile" class="text-white">내 계정정보</router-link></li>
+                <li><router-link to="/profile" class="text-white" @click="reloadToProfile">내 계정정보</router-link></li>
                 <li><router-link to="/diet-record" class="text-white">식단기록</router-link></li>
                 <li><router-link to="/exercise-record" class="text-white">운동기록</router-link></li>
                 <li><a class="text-white" @click="logout()">로그아웃</a></li>
@@ -132,6 +132,11 @@ export default {
       const navbar = this.$refs.navbarHeader;
       const bsCollapse = new bootstrap.Collapse(navbar);
       bsCollapse.toggle();  // 클릭 시 토글 (열고 닫기)
+    },
+    reloadToProfile() {
+      router.push("/profile").then(() => {
+        location.reload(); // 프로필 페이지로 이동 후 새로고침
+      });
     }
   }
 };

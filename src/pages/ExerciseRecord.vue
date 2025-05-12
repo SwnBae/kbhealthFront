@@ -4,6 +4,7 @@
 
     <!-- 검색 옵션 -->
     <div class="search-options">
+      <input v-model="search.exerciseKeyword" placeholder="운동 이름 검색" />
       <input v-model="search.startDate" type="date" />
       <input v-model="search.endDate" type="date" />
       <button @click="searchExerciseRecords">검색</button>
@@ -102,6 +103,7 @@ const editForm = ref({
 const search = ref({
   startDate: '',
   endDate: '',
+  exerciseKeyword: '',
 });
 
 const fetchExerciseRecords = async () => {
@@ -112,12 +114,14 @@ const fetchExerciseRecords = async () => {
 const searchExerciseRecords = async () => {
   const { data } = await axios.get('/api/records/exercise/search', {
     params: {
-      startDate: search.value.startDate,
-      endDate: search.value.endDate,
+      exerciseKeyword: search.value.exerciseKeyword,  // 운동 이름
+      startDate: search.value.startDate,        // 시작 날짜
+      endDate: search.value.endDate,            // 끝 날짜
     },
   });
   records.value = data;
 };
+
 
 const addExerciseRecord = async () => {
   await axios.post('/api/records/exercise', form.value);
@@ -182,10 +186,14 @@ const filteredRecords = computed(() => {
     const startDate = search.value.startDate ? new Date(search.value.startDate) : null;
     const endDate = search.value.endDate ? new Date(search.value.endDate) : null;
 
-    return (!startDate || recordDate >= startDate) &&
+    const isInRange = (!startDate || recordDate >= startDate) &&
         (!endDate || recordDate <= endDate);
+    const matchesKeyword = !search.value.exerciseKeyword || record.exerciseName.includes(search.value.exerciseKeyword);
+
+    return isInRange && matchesKeyword;
   });
 });
+
 
 onMounted(() => {
   fetchExerciseRecords();

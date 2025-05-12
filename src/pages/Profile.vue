@@ -10,8 +10,25 @@
       <p><strong>총 점수:</strong> {{ profile.totalScore }}</p>
       <p><strong>기본 점수:</strong> {{ profile.baseScore }}</p>
       <p><strong>프로필 이미지:</strong> <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" /></p>
-      <p><strong>팔로잉 수:</strong> {{ profile.followingCount }}</p>
-      <p><strong>팔로워 수:</strong> {{ profile.followerCount }}</p>
+      <p><strong>팔로잉 수:</strong> <span @click="openFollowModal('following')">{{ profile.followingCount }}</span></p>
+      <p><strong>팔로워 수:</strong> <span @click="openFollowModal('follower')">{{ profile.followerCount }}</span></p>
+
+      <!-- Follow/Unfollow Button -->
+      <div v-if="!isCurrentUser">
+        <button
+            v-if="!profile.following"
+            @click="toggleFollow"
+            class="follow-button">
+          팔로우
+        </button>
+        <button
+            v-else
+            @click="toggleFollow"
+            class="unfollow-button">
+          언팔로우
+        </button>
+      </div>
+
     </div>
 
     <!-- 오늘의 영양 달성률과 최근 10일간 점수 출력 (가로로 나란히 배치) -->
@@ -25,30 +42,47 @@
         <ScoreLineChart :series="profile.last10DaysScores" />
       </div>
     </div>
+
+    <!-- 팔로잉/팔로워 모달 -->
+    <div v-if="showModal" class="modal" @click.self="closeModal">
+      <div class="modal-content">
+        <h3>{{ modalTitle }} 목록</h3>
+        <ul>
+          <li v-for="user in followList" :key="user.followId" @click="goToProfile(user.account)">
+            <img :src="user.profileImageUrl" alt="profile image" class="modal-profile-image" />
+            <span>{{ user.userName }} | 총 점수: {{ user.totalScore }} | 최근 10일 점수: {{ user.baseScore }}</span>
+          </li>
+        </ul>
+        <button @click="closeModal">닫기</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import {ref, onMounted, watch} from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
-import {useRoute} from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import userStore from "@/scripts/store";
-
-// 차트 컴포넌트 import
 import NutritionRadar from "@/components/NutritionRadar.vue";
 import ScoreLineChart from "@/components/ScoreLineChart.vue";
 
 const profile = ref(null);
-const isLoading = ref(true); // 로딩 상태를 관리하는 변수
-const route = useRoute(); // 현재 라우터 정보 가져오기
+const isLoading = ref(true);
+const route = useRoute();
+const router = useRouter(); // 라우터 사용
+const showModal = ref(false); // 모달 상태
+const modalTitle = ref(''); // 모달 제목 (팔로잉 / 팔로워)
+const followList = ref([]); // 팔로잉 / 팔로워 리스트
+const isCurrentUser = ref(false); // 현재 사용자가 자신을 보고 있는지 여부
 
 const check = async () => {
   try {
-    const {data} = await axios.get(`/api/auth/check`);
+    const { data } = await axios.get(`/api/auth/check`);
     if (data) {
       userStore.commit("setCurrentMember", data);
-      const account = route.params.account || data.account; // 파라미터 account 또는 로그인한 사용자의 account 사용
-      await fetchProfile(account); // 프로필 데이터를 가져오는 함수 호출
+      const account = route.params.account || data.account;
+      await fetchProfile(account);
     } else {
       profile.value = null;
     }
@@ -61,23 +95,66 @@ const check = async () => {
 
 const fetchProfile = async (account) => {
   try {
-    const {data} = await axios.get(`/api/profile/${account}`);
+    const { data } = await axios.get(`/api/profile/${account}`);
     profile.value = data;
+    isCurrentUser.value = data.memberId === userStore.state.currentMember.id; // 현재 사용자 프로필인지 확인
   } catch (error) {
     console.error("프로필 데이터를 가져오는 데 실패했습니다.", error);
     profile.value = null;
   }
 };
 
-// 라우터 파라미터 변경 시에도 프로필을 갱신
+const openFollowModal = async (type) => {
+  modalTitle.value = type === 'following' ? '팔로잉' : '팔로워';
+  try {
+    const { data } = await axios.get(`/api/follow/${type}List/${profile.value.memberId}`);
+    followList.value = data;
+  } catch (error) {
+    console.error(`${modalTitle.value} 목록을 가져오는 데 실패했습니다.`, error);
+    followList.value = [];
+  }
+  showModal.value = true;
+};
+
+const closeModal = () => {
+  showModal.value = false;
+};
+
+const goToProfile = (account) => {
+  router.push(`/profile/${account}`).then(() => {
+    location.reload(); // 프로필 페이지로 이동 후 새로고침
+  }).catch((error) => {
+    console.error('Error navigating to profile:', error);
+  });
+};
+
+// 팔로우/언팔로우 버튼 기능
+const toggleFollow = async () => {
+  try {
+    if (profile.value.following) {
+      await axios.delete(`/api/follow/following/${profile.value.memberId}`);
+      profile.value.following = false;
+    } else {
+      await axios.post(`/api/follow/following/${profile.value.memberId}`);
+      profile.value.following = true;
+    }
+
+    fetchProfile(route.params.account);
+  } catch (error) {
+    console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
+  }
+};
+
 watch(() => route.params.account, () => {
-  check(); // account 파라미터가 변경되면 프로필을 다시 불러오기
+  check();
 });
 
 onMounted(() => {
-  check(); // 앱이 처음 마운트될 때만 check() 호출
+  check();
 });
 </script>
+
+
 
 <style scoped>
 /* 전체 프로필 컨테이너 */
@@ -136,19 +213,18 @@ onMounted(() => {
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  min-height: 400px; /* ⬆ 최소 높이 증가 */
+  min-height: 400px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* ⬅ 차트를 중앙에 정렬 */
-  width: 100%;
+  justify-content: center;
 }
 
 .charts {
   display: flex;
   flex-wrap: wrap;
   gap: 2rem;
-  justify-content: center; /* 중앙 정렬로 여백을 줄임 */
+  justify-content: center;
 }
 
 /* 반응형 대응 */
@@ -166,4 +242,82 @@ onMounted(() => {
     padding: 1.5rem;
   }
 }
+
+/* 모달 스타일 */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  max-width: 600px;
+  width: 100%;
+}
+
+.modal-profile-image {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.modal ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.modal li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+
+.modal li:hover {
+  background-color: #f0f0f0;
+  border-radius: 5px;
+  padding: 0.5rem;
+}
+
+/* 팔로우/언팔로우 버튼 색상 */
+.follow-button {
+  background-color: #007bff; /* 파랑 */
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.follow-button:hover {
+  background-color: #0056b3; /* 파랑 - hover 상태 */
+}
+
+.unfollow-button {
+  background-color: #ff4d4d; /* 빨강 */
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.unfollow-button:hover {
+  background-color: #e60000; /* 빨강 - hover 상태 */
+}
+
+button:hover {
+  background-color: #0056b3;
+}
 </style>
+
