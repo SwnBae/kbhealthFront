@@ -25,7 +25,7 @@
             <span v-if="index === 0" class="medal gold">🥇</span>
             <span v-if="index === 1" class="medal silver">🥈</span>
             <span v-if="index === 2" class="medal bronze">🥉</span>
-            {{ ranking.userName }}
+            <span :class="{'bold-rank': index < 3}">{{ ranking.userName }}</span>
           </td>
           <td>{{ rankingType === 'total' ? ranking.totalScore : ranking.baseScore }}</td>
         </tr>
@@ -77,7 +77,6 @@ export default {
 /* 구글 폰트 설정: Roboto */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 
-/* 컨테이너 스타일 */
 .ranking-container {
   margin: 20px;
   font-family: 'Roboto', sans-serif;
@@ -88,7 +87,6 @@ export default {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-/* 제목 스타일 */
 .title {
   font-size: 28px;
   text-align: center;
@@ -97,7 +95,6 @@ export default {
   color: #1877f2;
 }
 
-/* 랭킹 옵션 버튼 스타일 */
 .ranking-options {
   display: flex;
   justify-content: center;
@@ -126,7 +123,6 @@ export default {
   transform: scale(1.05);
 }
 
-/* 테이블 스타일 */
 .table {
   width: 100%;
   margin-top: 20px;
@@ -155,7 +151,6 @@ export default {
   background-color: #f1f2f6;
 }
 
-/* 메달 아이콘 스타일 */
 .medal {
   font-size: 18px;
   margin-left: 5px;
@@ -173,7 +168,11 @@ export default {
   color: #CD7F32;
 }
 
-/* 데이터가 없을 경우 */
+.bold-rank {
+  font-weight: 700;
+  color: #1877f2;
+}
+
 p {
   text-align: center;
   font-size: 18px;
