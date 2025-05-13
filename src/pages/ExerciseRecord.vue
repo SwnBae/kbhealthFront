@@ -1,105 +1,116 @@
 <template>
-  <div class="exercise-record">
+  <div class="exercise-record-wrapper">
     <h2 class="header">Exercise Record</h2>
 
     <!-- 검색 옵션 -->
-    <div class="search-options">
-      <input v-model="search.startDate" type="date" />
-      <input v-model="search.endDate" type="date" />
-      <input v-model="search.exerciseKeyword" placeholder="운동 이름 검색" />
-      <button @click="searchExerciseRecords">검색</button>
+    <div class="search-options animate-on-scroll">
+      <input class="search-input" v-model="searchInput.startDate" type="date" />
+      <input class="search-input" v-model="searchInput.endDate" type="date" />
+      <input class="search-input" v-model="searchInput.exerciseKeyword" placeholder="운동 이름" @keyup.enter="searchExerciseRecords" />
+      <button class="search-button" @click="searchExerciseRecords">검색</button>
     </div>
 
     <!-- 기록 추가 버튼 -->
-    <div class="add-button-wrapper">
-      <button @click="showAddExerciseForm = true">기록 추가</button>
-    </div>
-
-    <!-- 기록 추가 모달 -->
-    <div v-if="showAddExerciseForm" class="modal">
-      <div class="modal-content">
-        <span class="close" @click="showAddExerciseForm = false">&times;</span>
-        <h3 class="modal-header">운동 기록 수정</h3>
-
-        <input v-model="form.exerciseName" placeholder="운동 이름" />
-        <input v-model.number="form.durationMinutes" type="number" placeholder="소요 시간(분)" min="0" />
-        <input v-model.number="form.caloriesBurned" type="number" placeholder="소모 칼로리(kcal)" min="0" />
-
-        <select v-model="form.exerciseType">
-          <option disabled value="">운동 종류 선택</option>
-          <option value="CARDIO">유산소</option>
-          <option value="WEIGHT">무산소</option>
-          <option value="YOGA">요가</option>
-          <option value="SWIMMING">수영</option>
-        </select>
-
-        <button @click="addExerciseRecord">추가</button>
-      </div>
-    </div>
-
-    <!-- 기록 수정 모달 -->
-    <div v-if="showEditExerciseForm" class="modal">
-      <div class="modal-content">
-        <span class="close" @click="showEditExerciseForm = false">&times;</span>
-
-        <h3 class="modal-header">운동 기록 수정</h3>
-
-        <input v-model="editForm.exerciseName" placeholder="운동 이름" />
-        <input v-model.number="editForm.durationMinutes" type="number" placeholder="소요 시간(분)" min="0" />
-        <input v-model.number="editForm.caloriesBurned" type="number" placeholder="소모 칼로리(kcal)" min="0" />
-
-        <select v-model="editForm.exerciseType">
-          <option disabled value="">운동 종류 선택</option>
-          <option value="CARDIO">유산소</option>
-          <option value="WEIGHT">무산소</option>
-          <option value="YOGA">요가</option>
-          <option value="SWIMMING">수영</option>
-        </select>
-
-        <button @click="updateExerciseRecord">수정</button>
-      </div>
+    <div class="add-record-btn-container animate-on-scroll">
+      <button class="add-record-btn" @click="showAddExerciseForm = true">기록 추가</button>
     </div>
 
     <!-- 기록 목록 -->
-    <ul>
-      <li v-for="record in filteredRecords" :key="record.id" :class="getRecordClass(record)">
-        <div class="record-left">
+    <div class="exercise-records-container">
+      <div v-for="record in displayedRecords" :key="record.id"
+           class="exercise-record-card animate-on-scroll"
+           :class="record.exercised ? 'completed' : 'not-completed'">
+        <div class="exercise-info">
+          <div class="exercise-name">{{ record.exerciseName }}</div>
+          <div class="exercise-details">
+            <span class="exercise-type">{{ formatExerciseType(record.exerciseType) }}</span>
+            <span class="exercise-duration">{{ record.durationMinutes }}분</span>
+            <span class="record-date">{{ formatDate(record.lastModifyDate) }}</span>
+          </div>
+        </div>
+
+        <div class="record-completion">
           <input
               type="checkbox"
               v-model="record.exercised"
               @change="toggleExerciseCompletion(record)"
               :disabled="!isToday(record.lastModifyDate)"
+              class="completion-checkbox"
           />
-          <div class="record-info">
-            <div class="record-title">{{ record.exerciseName }}</div>
-            <div class="record-details">
-              <div class="detail-item">
-                <label>시간</label>
-                <span>{{ record.durationMinutes }}분</span>
-              </div>
-              <div class="detail-item">
-                <label>종류</label>
-                <span>{{ record.exerciseType }}</span>
-              </div>
-              <div class="detail-item">
-                <label>날짜</label>
-                <span>{{ formatDate(record.lastModifyDate) }}</span>
-              </div>
-            </div>
-          </div>
+          <span class="completion-label">{{ record.exercised ? '완료' : '미완료' }}</span>
         </div>
+
+        <!-- 오늘일 경우에만 수정/삭제 버튼 표시 -->
         <div class="record-actions" v-if="isToday(record.lastModifyDate)">
-          <button @click="openEditModal(record)">수정</button>
-          <button @click="deleteExerciseRecord(record.id)">삭제</button>
+          <button class="edit-btn" @click="openEditModal(record)">수정</button>
+          <button class="delete-btn" @click="deleteExerciseRecord(record.id)">삭제</button>
         </div>
-      </li>
-    </ul>
+      </div>
+
+      <div v-if="displayedRecords.length === 0" class="no-records animate-on-scroll">
+        <p>기록된 운동이 없습니다.</p>
+      </div>
+    </div>
+
+    <!-- 기록 추가 모달 -->
+    <transition name="fade-modal">
+      <div v-if="showAddExerciseForm" class="modal">
+        <div class="modal-content">
+          <span class="close" @click="showAddExerciseForm = false">&times;</span>
+
+          <h3 class="modal-header">운동 기록 추가</h3>
+
+          <input class="input-text" v-model="form.exerciseName" placeholder="운동 이름" />
+          <input class="input-number" v-model.number="form.durationMinutes" type="number" placeholder="소요 시간(분)" min="0" />
+          <input class="input-number" v-model.number="form.caloriesBurned" type="number" placeholder="소모 칼로리(kcal)" min="0" />
+
+          <select class="select-menu" v-model="form.exerciseType">
+            <option disabled value="">운동 종류 선택</option>
+            <option value="CARDIO">유산소</option>
+            <option value="WEIGHT">무산소</option>
+            <option value="YOGA">요가</option>
+            <option value="SWIMMING">수영</option>
+          </select>
+
+          <button class="submit-btn" @click="addExerciseRecord">추가</button>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 기록 수정 모달 -->
+    <transition name="fade-modal">
+      <div v-if="showEditExerciseForm" class="modal">
+        <div class="modal-content">
+          <span class="close" @click="showEditExerciseForm = false">&times;</span>
+
+          <h3 class="modal-header">운동 기록 수정</h3>
+
+          <input class="input-text" v-model="editForm.exerciseName" placeholder="운동 이름" />
+          <input class="input-number" v-model.number="editForm.durationMinutes" type="number" placeholder="소요 시간(분)" min="0" />
+          <input class="input-number" v-model.number="editForm.caloriesBurned" type="number" placeholder="소모 칼로리(kcal)" min="0" />
+
+          <select class="select-menu" v-model="editForm.exerciseType">
+            <option disabled value="">운동 종류 선택</option>
+            <option value="CARDIO">유산소</option>
+            <option value="WEIGHT">무산소</option>
+            <option value="YOGA">요가</option>
+            <option value="SWIMMING">수영</option>
+          </select>
+
+          <button class="submit-btn" @click="updateExerciseRecord">수정</button>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import axios from 'axios';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
 
 const records = ref([]);
 const showAddExerciseForm = ref(false);
@@ -109,55 +120,94 @@ const form = ref({
   exerciseName: '',
   durationMinutes: 0,
   caloriesBurned: 0,
-  exerciseType: '',
+  exerciseType: 'CARDIO',
 });
 
 const editForm = ref({
+  id: '',
   exerciseName: '',
   durationMinutes: 0,
   caloriesBurned: 0,
-  exerciseType: '',
+  exerciseType: 'CARDIO',
 });
 
-const search = ref({
+// 입력용 검색 상태 (UI에 바인딩)
+const searchInput = ref({
+  exerciseKeyword: '',
   startDate: '',
   endDate: '',
-  exerciseKeyword: '',
 });
+
+// 실제 적용되는 검색 상태 (검색 버튼 클릭 시에만 업데이트)
+const appliedSearch = ref({
+  exerciseKeyword: '',
+  startDate: '',
+  endDate: '',
+  isSearched: false // 검색 버튼이 클릭되었는지 여부
+});
+
+// 스크롤 애니메이션 관찰자 설정
+const observeFeedAnimation = () => {
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  const scrollObserver = new IntersectionObserver(
+      entries => entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("in-view");
+      }),
+      { threshold: 0.1 }
+  );
+  elements.forEach(el => scrollObserver.observe(el));
+};
 
 const fetchExerciseRecords = async () => {
   const { data } = await axios.get('/api/records/exercise');
-  records.value = data;
+  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
+  await nextTick();
+  observeFeedAnimation();
 };
-
-const getRecordClass = (record) => {
-  return record.exercised ? 'completed' : 'not-completed';  // 완료된 운동은 'completed', 완료되지 않으면 'not-completed'
-};
-
 
 const searchExerciseRecords = async () => {
+  // 검색 버튼 클릭 시 입력값을 적용된 검색 상태로 복사
+  appliedSearch.value = {
+    exerciseKeyword: searchInput.value.exerciseKeyword,
+    startDate: searchInput.value.startDate,
+    endDate: searchInput.value.endDate,
+    isSearched: true
+  };
+
+  // API 호출을 통한 서버 검색
   const { data } = await axios.get('/api/records/exercise/search', {
     params: {
-      exerciseKeyword: search.value.exerciseKeyword,  // 운동 이름
-      startDate: search.value.startDate,        // 시작 날짜
-      endDate: search.value.endDate,            // 끝 날짜
+      exerciseKeyword: searchInput.value.exerciseKeyword,
+      startDate: searchInput.value.startDate,
+      endDate: searchInput.value.endDate,
     },
   });
-  records.value = data;
+  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
+  await nextTick();
+  observeFeedAnimation();
 };
-
 
 const addExerciseRecord = async () => {
   await axios.post('/api/records/exercise', form.value);
   resetForm();
   showAddExerciseForm.value = false;
   await fetchExerciseRecords();
+
+  // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
+  if (appliedSearch.value.isSearched) {
+    await searchExerciseRecords();
+  }
 };
 
 const updateExerciseRecord = async () => {
   await axios.put(`/api/records/exercise/${editForm.value.id}`, editForm.value);
   showEditExerciseForm.value = false;
   await fetchExerciseRecords();
+
+  // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
+  if (appliedSearch.value.isSearched) {
+    await searchExerciseRecords();
+  }
 };
 
 const deleteExerciseRecord = async (id) => {
@@ -165,6 +215,11 @@ const deleteExerciseRecord = async (id) => {
   if (isToday(record.lastModifyDate)) {
     await axios.delete(`/api/records/exercise/${id}`);
     await fetchExerciseRecords();
+
+    // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
+    if (appliedSearch.value.isSearched) {
+      await searchExerciseRecords();
+    }
   }
 };
 
@@ -180,7 +235,12 @@ const toggleExerciseCompletion = async (record) => {
     } else {
       await axios.put(`/api/records/exercise/${record.id}/uncomplete`);
     }
-    await fetchExerciseRecords(); // 업데이트 후 목록 새로고침
+    await fetchExerciseRecords();
+
+    // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
+    if (appliedSearch.value.isSearched) {
+      await searchExerciseRecords();
+    }
   } catch (e) {
     console.error(e);
   }
@@ -193,31 +253,49 @@ const isToday = (dateStr) => {
 };
 
 const formatDate = (dateTimeStr) => {
-  return new Date(dateTimeStr).toLocaleDateString();
+  return dayjs(dateTimeStr).fromNow(); // 상대적 시간 표시 (예: "3시간 전")
+};
+
+const formatExerciseType = (exerciseType) => {
+  const types = {
+    'CARDIO': '유산소',
+    'WEIGHT': '무산소',
+    'YOGA': '요가',
+    'SWIMMING': '수영'
+  };
+  return types[exerciseType] || exerciseType;
 };
 
 const resetForm = () => {
   form.value = {
     exerciseName: '',
     durationMinutes: 0,
-    exerciseType: '',
+    caloriesBurned: 0,
+    exerciseType: 'CARDIO',
   };
 };
 
-const filteredRecords = computed(() => {
+// 표시할 레코드 계산 (검색 버튼 클릭 시에만 필터링)
+const displayedRecords = computed(() => {
+  // 검색이 적용되지 않았으면 모든 기록 표시
+  if (!appliedSearch.value.isSearched) {
+    return records.value;
+  }
+
+  // 검색이 적용된 경우 필터링
   return records.value.filter(record => {
     const recordDate = new Date(record.lastModifyDate);
-    const startDate = search.value.startDate ? new Date(search.value.startDate) : null;
-    const endDate = search.value.endDate ? new Date(search.value.endDate) : null;
+    const startDate = appliedSearch.value.startDate ? new Date(appliedSearch.value.startDate) : null;
+    const endDate = appliedSearch.value.endDate ? new Date(appliedSearch.value.endDate) : null;
 
     const isInRange = (!startDate || recordDate >= startDate) &&
         (!endDate || recordDate <= endDate);
-    const matchesKeyword = !search.value.exerciseKeyword || record.exerciseName.includes(search.value.exerciseKeyword);
+    const matchesKeyword = !appliedSearch.value.exerciseKeyword ||
+        record.exerciseName.includes(appliedSearch.value.exerciseKeyword);
 
     return isInRange && matchesKeyword;
   });
 });
-
 
 onMounted(() => {
   fetchExerciseRecords();
@@ -225,242 +303,313 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.modal-header {
-  font-size: 20px;
-  font-weight: 600;
-  text-align: center;  /* 가운데 정렬 */
-  margin-bottom: 20px;  /* 아래쪽 여백 */
-  color: #333;  /* 텍스트 색상 */
-}
-
-
-.record-info {
-  display: flex;
-  gap: 20px; /* 제목과 내용을 일정 간격으로 배치 */
-  align-items: center; /* 세로 중앙 정렬 */
-}
-
-.record-title {
-  font-weight: 700; /* 굵게 */
-  font-size: 20px; /* 더 큰 글씨 */
-  color: #222;
-  flex-shrink: 0; /* 제목의 크기가 줄어들지 않도록 설정 */
-}
-
-.record-details {
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: #555;
-  justify-content: center; /* 내용을 가로로 가운데 정렬 */
-  flex-grow: 1; /* 내용이 남은 공간을 채우도록 설정 */
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  justify-content: center; /* 세로로 가운데 정렬 */
-}
-
-.detail-item label {
-  font-size: 11px;
-  color: #888;
-  margin-bottom: 2px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-}
-
-
-.header {
-  font-size: 28px;
-  font-weight: 600;
-  color: #222;
-  text-align: left;
-  margin-bottom: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #ccc;
-}
-
-.exercise-record {
-  max-width: 1200px;
+/* 기본 스타일 */
+.exercise-record-wrapper {
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f0f2f5;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.exercise-record h2 {
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 20px;
+/* 애니메이션 공통 스타일 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 1.2s ease;
 }
 
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 헤더 스타일 */
+.header {
+  font-size: 28px;
+  font-weight: bold;
+  color: #222;
+  text-align: left;
+  margin-bottom: 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6e6e6;
+}
+
+/* 검색 옵션 스타일 */
 .search-options {
   display: flex;
-  justify-content: center;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
-}
-
-.search-options input,
-.search-options button {
-  padding: 8px 12px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.search-options button {
-  background-color: #eee;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.search-options button:hover {
-  background-color: #ddd;
-}
-
-/* ✅ 기록 추가 버튼 중앙 정렬 */
-.add-button-wrapper {
-  text-align: center;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
-.add-button-wrapper > button {
-  padding: 8px 16px;
+.search-input {
+  padding: 10px 15px;
+  border-radius: 20px;
+  border: 1px solid #e6e6e6;
+  background-color: #f9f9f9;
+  color: #333;
   font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background-color: #eee;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 120px;
+}
+
+.search-input:focus {
+  border-color: #3f51b5;
+  background-color: #fff;
+  box-shadow: 0 0 5px rgba(63, 81, 181, 0.3);
+  outline: none;
+}
+
+.search-button {
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 20px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.3s ease;
 }
 
-.add-button-wrapper > button:hover {
-  background-color: #ddd;
+.search-button:hover {
+  background-color: #303f9f;
 }
 
-ul {
-  list-style: none;
-  padding: 0;
-  margin-top: 16px;
+/* 기록 추가 버튼 스타일 */
+.add-record-btn-container {
+  margin: 20px 0;
+  text-align: center;
 }
 
-li {
-  padding: 12px;
-  border-bottom: 1px solid #fff; /* ✅ 구분선 흰색 */
+.add-record-btn {
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 24px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 5px rgba(0,0,0,0.1);
+}
+
+.add-record-btn:hover {
+  background-color: #303f9f;
+  box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+/* 기록 카드 스타일 */
+.exercise-records-container {
+  margin-top: 20px;
+}
+
+.exercise-record-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+  padding: 16px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  transition: transform 0.7s ease, box-shadow 0.7s ease;
+}
+
+.exercise-record-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.exercise-record-card.completed {
+  border-left: 4px solid #2196F3;
+}
+
+.exercise-record-card.not-completed {
+  border-left: 4px solid #ff6b6b;
+}
+
+.exercise-info {
+  flex-grow: 1;
+}
+
+.exercise-name {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.exercise-details {
+  display: flex;
+  align-items: center;
+  color: #666;
+  font-size: 0.9rem;
   gap: 10px;
 }
 
-li.completed {
-  background-color: #e0f3ff;
-}
-li.not-completed {
-  background-color: #f8d7da; /* 빨간색 배경 */
+.exercise-type {
+  background-color: #f0f7f0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: #3f51b5;
+  font-weight: 500;
 }
 
-/* 수정 / 삭제 버튼 */
-li button {
-  margin-left: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background-color: #f5f5f5;
+.exercise-duration {
+  color: #666;
+}
+
+.record-date {
+  color: #999;
+  font-size: 0.85rem;
+}
+
+.record-completion {
+  display: flex;
+  align-items: center;
+  margin: 0 15px;
+}
+
+.completion-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
   cursor: pointer;
-  transition: background 0.2s;
 }
 
-li button:hover {
-  background-color: #e0e0e0;
+.completion-label {
+  font-size: 0.9rem;
+  color: #666;
 }
 
-/* ✅ 모달 스타일 + 애니메이션 */
+.record-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-btn, .delete-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.7s ease;
+  font-size: 0.9rem;
+}
+
+.edit-btn {
+  background-color: #f0f7f0;
+  color: #3f51b5;
+}
+
+.delete-btn {
+  background-color: #fff0f0;
+  color: #ff6b6b;
+}
+
+.edit-btn:hover {
+  background-color: #e0f2e0;
+}
+
+.delete-btn:hover {
+  background-color: #ffe0e0;
+}
+
+.no-records {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 1.1rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* 모달 스타일 */
 .modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
-  animation: fadeIn 0.3s ease-in-out;
-  z-index: 100;
+  z-index: 1000;
 }
 
 .modal-content {
   background: white;
   padding: 30px;
-  border-radius: 8px;
+  border-radius: 12px;
   max-width: 500px;
   width: 100%;
   position: relative;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  animation: scaleIn 0.3s ease-in-out; /* ✅ 추가 애니메이션 */
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
-.modal-content input,
-.modal-content select {
-  width: 100%;
-  margin-bottom: 12px;
-  padding: 10px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.modal-content button {
-  width: 100%;
-  padding: 10px;
-  background-color: #f0f0f0;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.modal-content button:hover {
-  background-color: #ddd;
+.modal-header {
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
 }
 
 .close {
   position: absolute;
-  top: 12px;
-  right: 16px;
-  font-size: 22px;
+  top: 15px;
+  right: 20px;
+  font-size: 28px;
   cursor: pointer;
+  color: #999;
+  transition: color 0.7s ease;
 }
 
-/* ✅ 애니메이션 정의 */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.close:hover {
+  color: #333;
 }
 
-@keyframes scaleIn {
-  0% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+/* 입력 필드 스타일 */
+.select-menu, .input-number, .input-text {
+  width: 100%;
+  padding: 12px 15px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+  transition: border-color 0.7s ease;
+}
+
+.select-menu:focus, .input-number:focus, .input-text:focus {
+  border-color: #3f51b5;
+  outline: none;
+}
+
+.submit-btn {
+  width: 100%;
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 15px;
+  transition: background-color 0.7s ease;
+}
+
+.submit-btn:hover {
+  background-color: #303f9f;
+}
+
+/* 애니메이션 */
+.fade-modal-enter-active, .fade-modal-leave-active {
+  transition: opacity 0.7s ease;
+}
+.fade-modal-enter-from, .fade-modal-leave-to {
+  opacity: 0;
 }
 </style>
-

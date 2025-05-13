@@ -1,13 +1,17 @@
-
-<!-- Profile.vue -->
 <template>
-  <div v-if="isLoading">로딩 중...</div>
-  <div v-else-if="!profile">로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</div>
-  <div v-else class="profile">
+  <div v-if="isLoading" class="loading-container animate-on-scroll">
+    <div class="loading-spinner"></div>
+    <p>로딩 중...</p>
+  </div>
+  <div v-else-if="!profile" class="not-logged-in animate-on-scroll">
+    <p>로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</p>
+  </div>
+  <div v-else class="profile-container">
     <!-- 좌측: 유저 정보 카드 -->
     <ProfileSidebar
         :profile="profile"
         :isCurrentUser="isCurrentUser"
+        class="animate-on-scroll"
         @edit-info="openEditInfoModal"
         @edit-body="openEditBodyModal"
         @toggle-follow="toggleFollow"
@@ -15,35 +19,41 @@
     />
 
     <!-- 우측 영역 -->
-    <ProfileMain />
+    <ProfileMain class="animate-on-scroll" />
 
     <!-- 모달 컴포넌트들 -->
-    <FollowModal
-        v-if="showModal"
-        :title="modalTitle"
-        :followList="followList"
-        @close="closeModal"
-        @go-to-profile="goToProfile"
-    />
+    <transition name="fade-modal">
+      <FollowModal
+          v-if="showModal"
+          :title="modalTitle"
+          :followList="followList"
+          @close="closeModal"
+          @go-to-profile="goToProfile"
+      />
+    </transition>
 
-    <EditInfoModal
-        v-if="showEditInfoModal"
-        v-model:editInfo="editInfo"
-        @close="showEditInfoModal = false"
-        @submit="submitEditInfo"
-    />
+    <transition name="fade-modal">
+      <EditInfoModal
+          v-if="showEditInfoModal"
+          v-model:editInfo="editInfo"
+          @close="showEditInfoModal = false"
+          @submit="submitEditInfo"
+      />
+    </transition>
 
-    <EditBodyModal
-        v-if="showEditBodyModal"
-        v-model:editBodyInfo="editBodyInfo"
-        @close="showEditBodyModal = false"
-        @submit="submitEditBodyInfo"
-    />
+    <transition name="fade-modal">
+      <EditBodyModal
+          v-if="showEditBodyModal"
+          v-model:editBodyInfo="editBodyInfo"
+          @close="showEditBodyModal = false"
+          @submit="submitEditBodyInfo"
+      />
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import axios from 'axios';
 import { useRoute, useRouter } from 'vue-router';
 import userStore from "@/scripts/store";
@@ -81,6 +91,18 @@ const editBodyInfo = ref({
   age: null
 });
 
+// 애니메이션 관련 함수
+const observeAnimations = () => {
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  const scrollObserver = new IntersectionObserver(
+      entries => entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("in-view");
+      }),
+      { threshold: 0.1 }
+  );
+  elements.forEach(el => scrollObserver.observe(el));
+};
+
 const check = async () => {
   try {
     const { data } = await axios.get(`/api/auth/check`);
@@ -95,6 +117,8 @@ const check = async () => {
     profile.value = null;
   } finally {
     isLoading.value = false;
+    await nextTick();
+    observeAnimations();
   }
 };
 
@@ -151,11 +175,11 @@ const submitEditInfo = async () => {
       ...editInfo.value
     };
     await axios.post('/api/profile/editinfo', payload);
-    alert('계정정보 수정 완료');
+    showSuccessNotification('계정정보 수정 완료');
     showEditInfoModal.value = false;
     location.reload();
   } catch (error) {
-    alert('계정정보 수정 실패');
+    showErrorNotification('계정정보 수정 실패');
     console.error(error);
   }
 };
@@ -168,13 +192,48 @@ const submitEditBodyInfo = async () => {
       ...editBodyInfo.value
     };
     await axios.post('/api/profile/editbodyinfo', payload);
-    alert('신체정보 수정 완료');
+    showSuccessNotification('신체정보 수정 완료');
     showEditBodyModal.value = false;
     location.reload();
   } catch (error) {
-    alert('신체정보 수정 실패');
+    showErrorNotification('신체정보 수정 실패');
     console.error(error);
   }
+};
+
+// 애니메이션된 알림 표시
+const showSuccessNotification = (message) => {
+  const notification = document.createElement('div');
+  notification.className = 'notification success-notification';
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.classList.add('show');
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 2000);
+  }, 10);
+};
+
+const showErrorNotification = (message) => {
+  const notification = document.createElement('div');
+  notification.className = 'notification error-notification';
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.classList.add('show');
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 2000);
+  }, 10);
 };
 
 const openFollowModal = async (type) => {
@@ -207,13 +266,16 @@ const toggleFollow = async () => {
     if (profile.value.following) {
       await axios.delete(`/api/follow/following/${profile.value.memberId}`);
       profile.value.following = false;
+      showSuccessNotification('언팔로우 되었습니다.');
     } else {
       await axios.post(`/api/follow/following/${profile.value.memberId}`);
       profile.value.following = true;
+      showSuccessNotification('팔로우 되었습니다.');
     }
 
     fetchProfile(route.params.account);
   } catch (error) {
+    showErrorNotification('팔로우/언팔로우 처리 중 오류가 발생했습니다.');
     console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
   }
 };
@@ -227,9 +289,9 @@ onMounted(() => {
 });
 </script>
 
-
 <style scoped>
-.profile {
+/* 기본 스타일 */
+.profile-container {
   display: flex;
   gap: 2rem;
   max-width: 1200px;
@@ -237,5 +299,92 @@ onMounted(() => {
   padding: 2rem;
   font-family: 'Segoe UI', sans-serif;
   color: #333;
+}
+
+/* 애니메이션 스타일 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 1.2s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 로딩 스타일 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #4caf50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.not-logged-in {
+  text-align: center;
+  padding: 40px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  max-width: 600px;
+  margin: 40px auto;
+}
+
+/* 모달 애니메이션 */
+.fade-modal-enter-active,
+.fade-modal-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-modal-enter-from,
+.fade-modal-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* 알림 스타일 */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+}
+
+.notification.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.success-notification {
+  background-color: #4caf50;
+}
+
+.error-notification {
+  background-color: #f44336;
 }
 </style>
