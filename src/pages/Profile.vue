@@ -3,10 +3,16 @@
   <div v-else-if="!profile">로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</div>
   <div v-else class="profile">
 
-    <!-- 좌측: 유저 정보 카드 -->
     <aside class="profile-sidebar">
       <div class="profile-info-card">
-        <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
+        <!-- 프로필 이미지와 수정 버튼 -->
+        <div class="profile-image-container" @mouseover="showEditIcon = true" @mouseleave="showEditIcon = false">
+          <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
+          <div v-if="showEditIcon && isCurrentUser" class="edit-icon" @click="triggerImageUpload">
+            <i class="fas fa-pencil-alt"></i> <!-- 연필 모양 아이콘 -->
+          </div>
+        </div>
+        <input type="file" ref="fileInput" @change="onImageChange" style="display: none" />
         <h2>{{ profile.userName }}</h2>
         <div class="score-box">
           <div class="score-item">
@@ -91,6 +97,7 @@ const showModal = ref(false); // 모달 상태
 const modalTitle = ref(''); // 모달 제목 (팔로잉 / 팔로워)
 const followList = ref([]); // 팔로잉 / 팔로워 리스트
 const isCurrentUser = ref(false); // 현재 사용자가 자신을 보고 있는지 여부
+const showEditIcon = ref(false);
 
 const check = async () => {
   try {
@@ -182,6 +189,16 @@ onMounted(() => {
   padding: 2rem;
   font-family: 'Segoe UI', sans-serif;
   color: #333;
+}
+
+.profile-image {
+  width: 50%;
+  max-width: 150px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 1rem;
+  display: block;
 }
 
 /* 좌측 영역 (유저 정보 카드 및 그래프) */

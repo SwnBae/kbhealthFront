@@ -4,9 +4,9 @@
 
     <!-- 검색 옵션 -->
     <div class="search-options">
-      <input v-model="search.exerciseKeyword" placeholder="운동 이름 검색" />
       <input v-model="search.startDate" type="date" />
       <input v-model="search.endDate" type="date" />
+      <input v-model="search.exerciseKeyword" placeholder="운동 이름 검색" />
       <button @click="searchExerciseRecords">검색</button>
     </div>
 

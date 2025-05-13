@@ -20,12 +20,25 @@
         </thead>
         <tbody>
         <tr v-for="(ranking, index) in rankings" :key="ranking.memberId">
-          <td>{{ index + 1 }}</td>
           <td>
-            <span v-if="index === 0" class="medal gold">🥇</span>
-            <span v-if="index === 1" class="medal silver">🥈</span>
-            <span v-if="index === 2" class="medal bronze">🥉</span>
-            <span :class="{'bold-rank': index < 3}">{{ ranking.userName }}</span>
+            <template v-if="index === 0">
+              <span class="medal gold">🥇</span>
+            </template>
+            <template v-else-if="index === 1">
+              <span class="medal silver">🥈</span>
+            </template>
+            <template v-else-if="index === 2">
+              <span class="medal bronze">🥉</span>
+            </template>
+            <template v-else>
+              {{ index + 1 }}
+            </template>
+          </td>
+          <td class="profile-cell">
+            <img :src="ranking.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+            <router-link :to="`/profile/${ranking.account}`" class="nickname-link">
+              <span :class="{'bold-rank': index < 3}">{{ ranking.userName }}</span>
+            </router-link>
           </td>
           <td>{{ rankingType === 'total' ? ranking.totalScore : ranking.baseScore }}</td>
         </tr>
@@ -169,9 +182,11 @@ export default {
 }
 
 .bold-rank {
-  font-weight: 700;
-  color: #1877f2;
+  font-family: 'Orbitron', sans-serif;  /* 특이한 글씨체 */
+  font-weight: 700;  /* 굵기 설정 */
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15);  /* 글씨 그림자 효과 */
 }
+
 
 p {
   text-align: center;
@@ -179,4 +194,30 @@ p {
   color: #333;
   font-weight: 500;
 }
+
+.profile-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+
+.profile-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ccc;
+}
+
+.nickname-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.nickname-link:hover {
+  text-decoration: underline;
+}
+
 </style>

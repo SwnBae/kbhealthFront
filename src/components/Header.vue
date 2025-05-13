@@ -70,7 +70,8 @@
             <ul class="list-group">
               <li v-for="member in searchResults" :key="member.memberId" class="list-group-item list-group-item-action"
                   @click="goToProfile(member.account)" data-bs-dismiss="modal">
-                {{ member.userName }} ({{ member.account }})
+                <img :src="member.profileImageUrl" alt="프로필 이미지" class="rounded-circle me-2" width="32" height="32" />
+                <span>{{ member.userName }} ({{ member.account }})</span>
               </li>
             </ul>
           </div>
