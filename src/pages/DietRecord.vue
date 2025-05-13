@@ -368,7 +368,7 @@ onMounted(() => {
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(40px);
-  transition: all 1.2s ease;
+  transition: all 3s ease;
 }
 
 .animate-on-scroll.in-view {
@@ -379,7 +379,7 @@ onMounted(() => {
 /* 검색창과 추가 버튼용 페이드인 애니메이션 */
 .fade-in-animation {
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 2s ease;
 }
 
 .fade-in-animation.fade-in-active {

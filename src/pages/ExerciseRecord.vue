@@ -3,7 +3,7 @@
     <h2 class="header">Exercise Record</h2>
 
     <!-- 검색 옵션 -->
-    <div class="search-options animate-on-scroll">
+    <div class="search-options fade-in-animation">
       <input class="search-input" v-model="searchInput.startDate" type="date" />
       <input class="search-input" v-model="searchInput.endDate" type="date" />
       <input class="search-input" v-model="searchInput.exerciseKeyword" placeholder="운동 이름" @keyup.enter="searchExerciseRecords" />
@@ -11,7 +11,7 @@
     </div>
 
     <!-- 기록 추가 버튼 -->
-    <div class="add-record-btn-container animate-on-scroll">
+    <div class="add-record-btn-container fade-in-animation">
       <button class="add-record-btn" @click="showAddExerciseForm = true">기록 추가</button>
     </div>
 
@@ -23,7 +23,7 @@
         <div class="exercise-info">
           <div class="exercise-name">{{ record.exerciseName }}</div>
           <div class="exercise-details">
-            <span class="exercise-type">{{ formatExerciseType(record.exerciseType) }}</span>
+            <span class="exercise-type" :class="getExerciseTypeClass(record.exerciseType)">{{ formatExerciseType(record.exerciseType) }}</span>
             <span class="exercise-duration">{{ record.durationMinutes }}분</span>
             <span class="record-date">{{ formatDate(record.lastModifyDate) }}</span>
           </div>
@@ -156,6 +156,11 @@ const observeFeedAnimation = () => {
       { threshold: 0.1 }
   );
   elements.forEach(el => scrollObserver.observe(el));
+
+  // 페이드 인 애니메이션 요소에도 클래스 추가
+  document.querySelectorAll(".fade-in-animation").forEach(el => {
+    el.classList.add("fade-in-active");
+  });
 };
 
 const fetchExerciseRecords = async () => {
@@ -266,6 +271,10 @@ const formatExerciseType = (exerciseType) => {
   return types[exerciseType] || exerciseType;
 };
 
+const getExerciseTypeClass = (exerciseType) => {
+  return `exercise-type-${exerciseType.toLowerCase()}`;
+};
+
 const resetForm = () => {
   form.value = {
     exerciseName: '',
@@ -311,16 +320,26 @@ onMounted(() => {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* 애니메이션 공통 스타일 */
+/* 애니메이션 공통 스타일 - 수정됨: 기록은 3초 딜레이로 표시 */
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(40px);
-  transition: all 1.2s ease;
+  transition: all 3s ease;
 }
 
 .animate-on-scroll.in-view {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 검색창과 추가 버튼용 페이드인 애니메이션 - 수정됨: 2초 딜레이로 표시 */
+.fade-in-animation {
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+.fade-in-animation.fade-in-active {
+  opacity: 1;
 }
 
 /* 헤더 스타일 */
@@ -414,7 +433,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.7s ease, box-shadow 0.7s ease;
+  transition: transform 0.6s ease, box-shadow 0.6s ease;
 }
 
 .exercise-record-card:hover {
@@ -449,12 +468,34 @@ onMounted(() => {
   gap: 10px;
 }
 
+/* 운동 유형별 색상 - 수정됨: 더 대중적인 색상으로 변경 */
 .exercise-type {
-  background-color: #f0f7f0;
   padding: 4px 10px;
   border-radius: 12px;
-  color: #3f51b5;
+  margin-right: 10px;
   font-weight: 500;
+}
+
+.exercise-type-cardio {
+  background-color: #ffebee; /* 밝은 레드 - 유산소 */
+  color: #e53935; /* 표준 레드 */
+}
+
+.exercise-type-weight {
+  background-color: #ede7f6; /* 밝은 퍼플 - 수영 */
+  color: #7b1fa2; /* 표준 퍼플 */
+
+}
+
+.exercise-type-yoga {
+  background-color: #e8f5e9; /* 밝은 그린 - 무산소 */
+  color: #388e3c; /* 표준 그린 */
+}
+
+.exercise-type-swimming {
+  background-color: #e3f2fd; /* 밝은 블루 - 요가 */
+  color: #1976d2; /* 표준 블루 */
+
 }
 
 .exercise-duration {
@@ -494,7 +535,7 @@ onMounted(() => {
   border-radius: 8px;
   border: none;
   cursor: pointer;
-  transition: all 0.7s ease;
+  transition: all 0.6s ease;
   font-size: 0.9rem;
 }
 
@@ -565,7 +606,7 @@ onMounted(() => {
   font-size: 28px;
   cursor: pointer;
   color: #999;
-  transition: color 0.7s ease;
+  transition: color 0.6s ease;
 }
 
 .close:hover {
@@ -580,7 +621,7 @@ onMounted(() => {
   border-radius: 8px;
   border: 1px solid #ddd;
   font-size: 14px;
-  transition: border-color 0.7s ease;
+  transition: border-color 0.6s ease;
 }
 
 .select-menu:focus, .input-number:focus, .input-text:focus {
@@ -598,7 +639,7 @@ onMounted(() => {
   cursor: pointer;
   font-weight: bold;
   margin-top: 15px;
-  transition: background-color 0.7s ease;
+  transition: background-color 0.6s ease;
 }
 
 .submit-btn:hover {
@@ -607,7 +648,7 @@ onMounted(() => {
 
 /* 애니메이션 */
 .fade-modal-enter-active, .fade-modal-leave-active {
-  transition: opacity 0.7s ease;
+  transition: opacity 0.6s ease;
 }
 .fade-modal-enter-from, .fade-modal-leave-to {
   opacity: 0;
