@@ -19,25 +19,59 @@ const props = defineProps({
   },
 });
 
-const lineData = {
-  labels: props.series.map(item => item.date), // 날짜 레이블
-  datasets: [
-    {
-      label: '점수',
-      data: props.series.map(item => item.totalScore), // 점수 데이터
-      borderColor: 'rgba(75, 192, 192, 1)',
-      borderWidth: 1,
-      tension: 0.1,
-    },
-  ],
-};
-
 const lineOptions = {
   responsive: true,
   plugins: {
     legend: {
       position: 'top',
+      labels: {
+        font: {
+          size: 14,
+          weight: 'bold',
+        },
+      },
+    },
+    tooltip: {
+      callbacks: {
+        label: (context) => `점수: ${context.raw}`,
+      },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        stepSize: 10,
+        font: {
+          size: 12,
+        },
+      },
+    },
+    x: {
+      ticks: {
+        font: {
+          size: 12,
+        },
+      },
     },
   },
 };
+
+const lineData = {
+  labels: props.series.map(item => item.date),
+  datasets: [
+    {
+      label: '점수',
+      data: props.series.map(item => item.totalScore),
+      borderColor: 'rgba(75, 192, 192, 1)',
+      backgroundColor: 'rgba(75, 192, 192, 0.2)',
+      pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+      pointBorderColor: '#fff',
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: 'rgba(75, 192, 192, 1)',
+      borderWidth: 2,
+    },
+  ],
+};
+
 </script>

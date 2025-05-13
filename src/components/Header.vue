@@ -145,6 +145,34 @@ export default {
 </script>
 
 <style scoped>
+/* 기존 부트스트랩 모달 애니메이션 */
+.modal.fade .modal-dialog {
+  animation: fadeInModal 0.5s ease-out;
+}
+
+/* 모달 열릴 때 애니메이션 */
+@keyframes fadeInModal {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 모달 닫힐 때 애니메이션 */
+@keyframes fadeOutModal {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
 header ul li a {
   cursor: pointer;
 }
@@ -160,4 +188,5 @@ header .navbar .cart {
   gap: 0.5rem;
   color: white;
 }
+
 </style>

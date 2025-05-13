@@ -1,6 +1,6 @@
 <template>
   <div class="diet-record">
-    <h2 class="header">🥗 식단 기록</h2>
+    <h2 class="header">Diet Record</h2>
 
     <!-- 검색 옵션 -->
     <div class="search-options">
@@ -22,9 +22,12 @@
 
         <h3 class="modal-header">식단 기록 수정</h3>
 
+        <input class="file-input" type="file" @change="handleImageUpload" />
         <!-- 음식 검색 및 선택 -->
-        <input class="search-input" v-model="editDietSearchKeyword" placeholder="음식 이름 검색" />
-        <button class="search-button" @click="searchDietsForEdit">검색</button>
+        <div class="search-container">
+          <input class="search-input-diet" v-model="editDietSearchKeyword" placeholder="음식 이름 검색" />
+          <button class="search-button-diet" @click="searchDietsForEdit">검색</button>
+        </div>
 
         <!-- 검색 결과 리스트 -->
         <ul class="search-result-list">
@@ -37,7 +40,6 @@
           {{ diet.menu }}
           </li>
         </ul>
-
 
         <input class="input-number" v-model="dietRecordToEdit.amount" type="number" placeholder="먹은 양" min="0" />
 
@@ -57,9 +59,12 @@
       <div class="modal-content">
         <span class="close" @click="showAddDietRecordForm = false">&times;</span>
 
-        <!-- 음식 검색 및 선택 -->
-        <input class="search-input" v-model="dietSearchKeyword" placeholder="음식 이름 검색" />
-        <button class="search-button" @click="searchDiets">검색</button>
+        <h3 class="modal-header">식단 기록 추가</h3>
+        <input class="file-input" type="file" @change="handleImageUpload" />
+        <div class="search-container">
+          <input class="search-input-diet" v-model="dietSearchKeyword" placeholder="음식 이름 검색" />
+          <button class="search-button-diet" @click="searchDiets">검색</button>
+        </div>
 
         <!-- 검색 결과 리스트 -->
         <ul class="search-result-list">
@@ -73,10 +78,7 @@
           </li>
         </ul>
 
-
-        <input class="file-input" type="file" @change="handleImageUpload" />
-
-        <input class="input-number" v-model="form.amount" type="number" placeholder="먹은 양" min="0" />
+        <input class="input-number" v-model="form.amount" type="number" placeholder="먹은 양 (g, ml)" min="0" />
 
         <select class="select-menu" v-model="form.mealType">
           <option value="BREAKFAST">아침</option>
@@ -117,7 +119,7 @@ const diets = ref([]);
 
 const form = ref({
   dietId: '',
-  amount: 0,
+  amount: null,
   mealType: 'BREAKFAST',
 });
 
@@ -160,7 +162,7 @@ const selectDietForEdit = (diet) => {
 
 const fetchDietRecords = async () => {
   const {data} = await axios.get('/api/records/diet');
-  records.value = data;
+  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
 };
 
 const searchDietRecords = async () => {
@@ -171,7 +173,7 @@ const searchDietRecords = async () => {
       endDate: search.value.endDate,
     },
   });
-  records.value = data;
+  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
 };
 
 const selectDiet = (diet) => {
@@ -198,6 +200,7 @@ const deleteDietRecord = async (id) => {
 
 const editDietRecord = (record) => {
   dietRecordToEdit.value = { ...record };
+  editDietSearchKeyword.value = record.dietMenu;
   showEditDietRecordForm.value = true;
 };
 
@@ -246,8 +249,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.modal-header {
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;  /* 가운데 정렬 */
+  margin-bottom: 20px;  /* 아래쪽 여백 */
+  color: #333;  /* 텍스트 색상 */
+}
+
 .diet-record {
-  max-width: 600px;
+  max-width: 1200px; /* 가로 기준으로 확대 */
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -258,18 +269,21 @@ onMounted(() => {
 
 .header {
   font-size: 28px;
-  font-weight: bold;
-  color: #1877f2;
-  text-align: center; /* 헤더 가운데 정렬 */
+  font-weight: 600;
+  color: #222; /* 차분한 딥 그레이 */
+  text-align: left; /* 좌상단 정렬 */
   margin-bottom: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 모던한 글씨체 유지 */
+  padding-bottom: 8px; /* 줄과 텍스트 사이 간격 */
+  border-bottom: 1px solid #ccc; /* 희미한 회색 줄 */
 }
 
 .search-options {
   display: flex;
-  justify-content: center; /* 가운데 정렬 */
-  flex-wrap: wrap; /* 줄바꿈 허용 (모바일 대응) */
-  gap: 10px; /* 요소 간 간격 */
-  margin-bottom: 20px; /* 아래 여백 */
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .search-options input, .search-options button {
@@ -277,19 +291,52 @@ onMounted(() => {
   border: 1px solid #ddd;
   border-radius: 8px;
   margin-right: 10px;
+  transition: background-color 0.3s ease;
+}
+
+.search-container {
+  display: flex; /* 한 줄로 배치 */
+  justify-content: space-between; /* 요소 간 간격을 자동으로 맞추기 */
+  align-items: center; /* 세로로 가운데 정렬 */
+  gap: 10px; /* 입력창과 버튼 사이에 간격 추가 */
 }
 
 .search-input {
   width: 180px;
+  padding: 10px 15px;
+  border-radius: 20px; /* 둥근 모서리 */
+  border: 1px solid #ddd; /* 얇은 테두리 */
+  background-color: #f7f7f7; /* 밝은 배경 */
+  color: #333; /* 글자 색 */
+  font-size: 14px; /* 글자 크기 */
+  transition: all 0.3s ease; /* 애니메이션 추가 */
 }
+
+.search-input-diet {
+  width: 370px;
+  padding: 10px 15px;
+  border-radius: 20px; /* 둥근 모서리 */
+  border: 1px solid #ddd; /* 얇은 테두리 */
+  background-color: #f7f7f7; /* 밝은 배경 */
+  color: #333; /* 글자 색 */
+  font-size: 14px; /* 글자 크기 */
+  transition: all 0.3s ease; /* 애니메이션 추가 */
+}
+
+.search-input-diet:focus {
+  border-color: #1877f2; /* 파란색 테두리 */
+  background-color: #fff; /* 포커스 시 흰색 배경 */
+  box-shadow: 0 0 5px rgba(24, 119, 242, 0.3); /* 파란색 그림자 */
+  outline: none; /* 기본 포커스 윤곽선 제거 */
+}
+
 
 .search-options input:nth-child(3) {
   width: 300px;
 }
 
-
 .search-button {
-  background-color: #1877f2;
+  background-color: #808080; /* 회색으로 변경 */
   color: white;
   border: none;
   border-radius: 8px;
@@ -297,7 +344,22 @@ onMounted(() => {
 }
 
 .search-button:hover {
-  background-color: #165eab;
+  background-color: #505050; /* 진해지는 효과 */
+}
+
+.search-button-diet{
+  background-color: #808080; /* 회색으로 변경 */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 10px 15px; /* 패딩을 늘려서 버튼 크기 키우기 */
+  font-size: 14px; /* 글자 크기 늘리기 */
+  width: auto; /* 내용에 맞춰 자동으로 버튼 크기 조정 */
+}
+
+.search-button-diet:hover {
+  background-color: #505050; /* 진해지는 효과 */
 }
 
 .add-record-btn-container {
@@ -306,7 +368,7 @@ onMounted(() => {
 }
 
 .add-record-btn {
-  background-color: #42b72a;
+  background-color: #808080; /* 회색 */
   color: white;
   border: none;
   padding: 12px 20px;
@@ -315,7 +377,7 @@ onMounted(() => {
 }
 
 .add-record-btn:hover {
-  background-color: #36a420;
+  background-color: #505050; /* 진해지는 효과 */
 }
 
 .diet-record-list {
@@ -362,6 +424,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+  animation: fadeIn 0.3s ease-in-out;
 }
 
 .modal-content {
@@ -371,6 +434,15 @@ onMounted(() => {
   max-width: 500px;
   width: 100%;
   position: relative;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .close {
@@ -390,89 +462,16 @@ onMounted(() => {
 }
 
 .submit-btn {
-  background-color: #42b72a;
+  background-color: #808080; /* 회색 */
   color: white;
   border: none;
-  padding: 12px 20px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
 }
 
 .submit-btn:hover {
-  background-color: #36a420;
-}
-
-.modal-content {
-  background: #ffffff;
-  padding: 40px 30px;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 480px;
-  position: relative;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.modal-header {
-  font-size: 20px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: #1877f2;
-  text-align: center;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
-
-.modal-content input,
-.modal-content select {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 16px;
-  font-size: 15px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-sizing: border-box;
-}
-
-.file-input::file-selector-button {
-  background-color: #1877f2;
-  color: white;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-right: 10px;
-}
-
-.file-input::file-selector-button:hover {
-  background-color: #165eab;
-}
-
-.submit-btn {
-  width: 100%;
-  background-color: #42b72a;
-  color: white;
-  border: none;
-  padding: 14px 20px;
-  font-size: 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  margin-top: 10px;
-}
-
-.submit-btn:hover {
-  background-color: #36a420;
-}
-
-.close {
-  font-size: 24px;
-  color: #888;
-  transition: color 0.2s ease;
-}
-
-.close:hover {
-  color: #333;
+  background-color: #505050; /* 진해지는 효과 */
 }
 
 .search-result-list {
@@ -495,6 +494,5 @@ onMounted(() => {
 .search-result-item:hover {
   background-color: #f0f2f5;
 }
-
-
 </style>
+
