@@ -3,17 +3,17 @@
   <div v-else-if="!profile">로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</div>
   <div v-else class="profile">
 
+    <!-- 좌측: 유저 정보 카드 -->
     <aside class="profile-sidebar">
       <div class="profile-info-card">
-        <!-- 프로필 이미지와 수정 버튼 -->
-        <div class="profile-image-container" @mouseover="showEditIcon = true" @mouseleave="showEditIcon = false">
-          <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
-          <div v-if="showEditIcon && isCurrentUser" class="edit-icon" @click="triggerImageUpload">
-            <i class="fas fa-pencil-alt"></i> <!-- 연필 모양 아이콘 -->
+        <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
+        <h2>{{ profile.userName }}</h2>
+        <div v-if="isCurrentUser">
+          <div class="edit-buttons">
+            <button @click="showEditInfoModal = true" class="edit-button">계정정보 수정</button>
+            <button @click="showEditBodyModal = true" class="edit-button">신체정보 수정</button>
           </div>
         </div>
-        <input type="file" ref="fileInput" @change="onImageChange" style="display: none" />
-        <h2>{{ profile.userName }}</h2>
         <div class="score-box">
           <div class="score-item">
             <span>총 점수</span>
@@ -76,6 +76,42 @@
         <button @click="closeModal">닫기</button>
       </div>
     </div>
+
+    <!-- 계정정보 수정 모달 -->
+    <div v-if="showEditInfoModal" class="modal" @click.self="showEditInfoModal = false">
+      <div class="modal-content">
+        <h3>계정정보 수정</h3>
+        <form @submit.prevent="submitEditInfo">
+          <label>닉네임: <input v-model="editInfo.userName" required /></label><br/>
+          <label>비밀번호: <input type="password" v-model="editInfo.password" required /></label><br/>
+          <label>프로필 이미지 URL: <input v-model="editInfo.profileImageUrl" /></label><br/>
+          <button type="submit">저장</button>
+          <button type="button" @click="showEditInfoModal = false">취소</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 신체정보 수정 모달 -->
+    <div v-if="showEditBodyModal" class="modal" @click.self="showEditBodyModal = false">
+      <div class="modal-content">
+        <h3>신체정보 수정</h3>
+        <form @submit.prevent="submitEditBodyInfo">
+          <label>키(cm): <input type="number" v-model.number="editBodyInfo.height" required /></label><br/>
+          <label>몸무게(kg): <input type="number" v-model.number="editBodyInfo.weight" required /></label><br/>
+          <label>성별:
+            <select v-model="editBodyInfo.gender" required>
+              <option disabled value="">선택</option>
+              <option value="MALE">남성</option>
+              <option value="FEMALE">여성</option>
+            </select>
+          </label><br/>
+          <label>나이: <input type="number" v-model.number="editBodyInfo.age" required /></label><br/>
+          <button type="submit">저장</button>
+          <button type="button" @click="showEditBodyModal = false">취소</button>
+        </form>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -97,7 +133,8 @@ const showModal = ref(false); // 모달 상태
 const modalTitle = ref(''); // 모달 제목 (팔로잉 / 팔로워)
 const followList = ref([]); // 팔로잉 / 팔로워 리스트
 const isCurrentUser = ref(false); // 현재 사용자가 자신을 보고 있는지 여부
-const showEditIcon = ref(false);
+const showEditInfoModal = ref(false);
+const showEditBodyModal = ref(false);
 
 const check = async () => {
   try {
@@ -124,6 +161,77 @@ const fetchProfile = async (account) => {
   } catch (error) {
     console.error("프로필 데이터를 가져오는 데 실패했습니다.", error);
     profile.value = null;
+  }
+};
+
+// 계정정보 수정 폼 데이터
+const editInfo = ref({
+  userName: '',
+  password: '',
+  profileImageUrl: ''
+});
+
+// 신체정보 수정 폼 데이터
+const editBodyInfo = ref({
+  height: null,
+  weight: null,
+  gender: '',
+  age: null
+});
+
+// 모달 열릴 때 현재 데이터 채워 넣기
+watch(showEditInfoModal, (val) => {
+  if (val && profile.value) {
+    editInfo.value = {
+      userName: profile.value.userName,
+      password: '',
+      profileImageUrl: profile.value.profileImageUrl
+    };
+  }
+});
+
+watch(showEditBodyModal, (val) => {
+  if (val && profile.value) {
+    editBodyInfo.value = {
+      height: profile.value.height || null,
+      weight: profile.value.weight || null,
+      gender: profile.value.gender || '',
+      age: profile.value.age || null
+    };
+  }
+});
+
+// 계정정보 수정 제출
+const submitEditInfo = async () => {
+  try {
+    const payload = {
+      id: profile.value.memberId,
+      ...editInfo.value
+    };
+    await axios.post('/api/profile/editinfo', payload);
+    alert('계정정보 수정 완료');
+    showEditInfoModal.value = false;
+    location.reload();
+  } catch (error) {
+    alert('계정정보 수정 실패');
+    console.error(error);
+  }
+};
+
+// 신체정보 수정 제출
+const submitEditBodyInfo = async () => {
+  try {
+    const payload = {
+      id: profile.value.memberId,
+      ...editBodyInfo.value
+    };
+    await axios.post('/api/profile/editbodyinfo', payload);
+    alert('신체정보 수정 완료');
+    showEditBodyModal.value = false;
+    location.reload();
+  } catch (error) {
+    alert('신체정보 수정 실패');
+    console.error(error);
   }
 };
 
@@ -200,6 +308,31 @@ onMounted(() => {
   margin: 0 auto 1rem;
   display: block;
 }
+
+.edit-buttons {
+  display: flex;
+  gap: 0.5rem; /* 버튼 사이 간격 */
+  margin-top: 1rem;
+  justify-content: center;
+}
+
+.edit-button {
+  background-color: #f0f0f0;
+  color: black;
+  border: none;
+  padding: 0.5rem 1rem;
+  margin: 0.3rem 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.8rem;
+  transition: background-color 0.2s ease;
+}
+
+.edit-button:hover {
+  background-color: #c0c0c0;
+}
+
 
 /* 좌측 영역 (유저 정보 카드 및 그래프) */
 .profile-sidebar {
@@ -309,32 +442,75 @@ onMounted(() => {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 1000;
 }
 
 .modal-content {
-  background-color: white;
+  background: white;
   padding: 2rem;
-  border-radius: 1rem;
-  max-width: 600px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.modal-content form label {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  color: #444;
+}
+
+.modal-content input,
+.modal-content select {
   width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.modal-content button {
+  margin-top: 1rem;
+  margin-right: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.modal-content button[type="button"] {
+  background-color: #ccc;
+  color: #333;
+}
+
+.modal-content button:hover {
+  opacity: 0.9;
 }
 
 .modal-profile-image {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
-}
-
-.modal ul {
-  list-style-type: none;
-  padding: 0;
+  margin-right: 10px;
+  vertical-align: middle;
 }
 
 .modal li {
@@ -346,8 +522,6 @@ onMounted(() => {
 
 .modal li:hover {
   background-color: #f0f0f0;
-  border-radius: 5px;
-  padding: 0.5rem;
 }
 
 /* 팔로우/언팔로우 버튼 색상 */
