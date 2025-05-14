@@ -39,5 +39,21 @@ defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
   height: 80vh;
   overflow-y: auto;
   padding-right: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: #e6e6e6 #f5f5f5;
+}
+
+.profile-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profile-sidebar::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
+}
+
+.profile-sidebar::-webkit-scrollbar-thumb {
+  background-color: #e6e6e6;
+  border-radius: 3px;
 }
 </style>

@@ -2,13 +2,21 @@
 <template>
   <div class="modal" @click.self="$emit('close')">
     <div class="modal-content">
-      <h3>계정정보 수정</h3>
+      <h3 class="modal-title">계정정보 수정</h3>
       <form @submit.prevent="handleSubmit">
-        <label>닉네임: <input v-model="localEditInfo.userName" required /></label><br/>
-        <label>비밀번호: <input type="password" v-model="localEditInfo.password" required /></label><br/>
-        <label>프로필 이미지 URL: <input v-model="localEditInfo.profileImageUrl" /></label><br/>
-        <button type="submit">저장</button>
-        <button type="button" @click="$emit('close')">취소</button>
+        <div class="form-group">
+          <label>닉네임: <input v-model="localEditInfo.userName" required /></label>
+        </div>
+        <div class="form-group">
+          <label>비밀번호: <input type="password" v-model="localEditInfo.password" required /></label>
+        </div>
+        <div class="form-group">
+          <label>프로필 이미지 URL: <input v-model="localEditInfo.profileImageUrl" /></label>
+        </div>
+        <div class="button-group">
+          <button type="submit" class="submit-button">저장</button>
+          <button type="button" class="cancel-button" @click="$emit('close')">취소</button>
+        </div>
       </form>
     </div>
   </div>
@@ -54,21 +62,7 @@ const handleSubmit = () => {
   justify-content: center;
   align-items: center;
   z-index: 1000;
-
-  /* fade-in animation */
   animation: fadeIn 0.3s ease-out;
-}
-
-.modal-content {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  width: 80%;
-  max-width: 500px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-
-  /* scale-up animation */
-  animation: popIn 0.3s ease-out;
 }
 
 @keyframes fadeIn {
@@ -78,6 +72,16 @@ const handleSubmit = () => {
   to {
     opacity: 1;
   }
+}
+
+.modal-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 @keyframes popIn {
@@ -91,36 +95,93 @@ const handleSubmit = () => {
   }
 }
 
+.modal-title {
+  font-size: 1.5rem;
+  color: #222;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+  padding-bottom: 8px;
+}
 
-.modal-content form label {
+.modal-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 2px;
+  background-color: #e6e6e6;
+  border-radius: 1px;
+}
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+.form-group label {
   display: block;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   font-size: 0.95rem;
   color: #444;
+  font-weight: 500;
 }
 
-.modal-content input,
-.modal-content select {
+.form-group input,
+.form-group select {
   width: 100%;
-  padding: 0.5rem;
-  margin-top: 0.3rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
   box-sizing: border-box;
+  font-size: 1rem;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-.modal-content button {
-  margin-top: 1rem;
-  margin-right: 0.5rem;
-  padding: 0.6rem 1.2rem;
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #a5d6a7;
+  box-shadow: 0 0 0 2px rgba(165, 214, 167, 0.3);
+  outline: none;
+}
+
+.button-group {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.submit-button,
+.cancel-button {
+  padding: 0.8rem 1.5rem;
+  border-radius: 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.submit-button {
   background-color: #4CAF50;
   color: white;
   border: none;
-  border-radius: 6px;
 }
 
-.modal-content button[type="button"] {
-  background-color: #ccc;
-  color: #333;
+.submit-button:hover {
+  background-color: #3d8b40;
+  transform: translateY(-2px);
+}
+
+.cancel-button {
+  background-color: #f0f0f0;
+  color: #555;
+  border: 1px solid #ddd;
+}
+
+.cancel-button:hover {
+  background-color: #e6e6e6;
+  transform: translateY(-2px);
 }
 </style>

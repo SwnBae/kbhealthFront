@@ -1,5 +1,6 @@
+<!-- RadarChart.vue -->
 <template>
-  <div>
+  <div class="chart-container animate-on-scroll">
     <Radar :data="radarData" :options="radarOptions" />
   </div>
 </template>
@@ -19,6 +20,7 @@ import {
   Filler,
   CategoryScale,
 } from 'chart.js';
+import { onMounted } from 'vue';
 
 ChartJS.register(
     Title,
@@ -54,12 +56,12 @@ const radarData = {
         props.data.fiberRate * 100,
         props.data.sodiumRate * 100,
       ],
-      backgroundColor: 'rgba(54, 162, 235, 0.2)',
-      borderColor: 'rgba(54, 162, 235, 1)',
-      pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+      backgroundColor: 'rgba(165, 214, 167, 0.4)',
+      borderColor: '#a5d6a7',
+      pointBackgroundColor: '#a5d6a7',
       pointBorderColor: '#fff',
       pointHoverBackgroundColor: '#fff',
-      pointHoverBorderColor: 'rgba(54, 162, 235, 1)',
+      pointHoverBorderColor: '#a5d6a7',
       borderWidth: 2,
     },
   ],
@@ -67,28 +69,48 @@ const radarData = {
 
 const radarOptions = {
   responsive: true,
+  maintainAspectRatio: true,
+  animation: {
+    duration: 800,
+    easing: 'easeOutQuart'
+  },
   plugins: {
     legend: {
       position: 'top',
       labels: {
-        color: '#333',
+        color: '#222',
         font: {
-          size: 14,
+          size: 13,
           family: 'Noto Sans KR, sans-serif',
-          weight: 'bold',
+          weight: '600',
         },
+        padding: 16,
+        usePointStyle: true,
+        pointStyle: 'circle',
       },
     },
     tooltip: {
       backgroundColor: '#fff',
-      titleColor: '#333',
-      bodyColor: '#333',
-      borderColor: 'rgba(54, 162, 235, 0.3)',
+      titleColor: '#222',
+      bodyColor: '#666',
+      borderColor: 'rgba(0, 0, 0, 0.1)',
       borderWidth: 1,
+      padding: 10,
+      boxPadding: 6,
+      cornerRadius: 8,
+      titleFont: {
+        size: 13,
+        weight: '600',
+        family: 'Noto Sans KR, sans-serif',
+      },
+      bodyFont: {
+        size: 12,
+        family: 'Noto Sans KR, sans-serif',
+      },
       callbacks: {
         label: function (context) {
           const value = context.parsed.r;
-          return `${value.toFixed(1)}%`; // ← 소수점 한 자리
+          return `${value.toFixed(1)}%`;
         },
       },
     },
@@ -102,16 +124,18 @@ const radarOptions = {
         stepSize: 20,
         callback: (value) => `${value}%`,
         backdropColor: 'transparent',
-        color: '#888',
+        color: '#666',
         font: {
-          size: 12,
+          size: 11,
+          family: 'Noto Sans KR, sans-serif',
         },
       },
       pointLabels: {
         color: '#444',
         font: {
-          size: 13,
+          size: 12,
           weight: '600',
+          family: 'Noto Sans KR, sans-serif',
         },
       },
       grid: {
@@ -124,4 +148,50 @@ const radarOptions = {
   },
 };
 
+onMounted(() => {
+  observeChartAnimation();
+});
+
+// 스크롤 애니메이션 관찰자 설정
+const observeChartAnimation = () => {
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  const scrollObserver = new IntersectionObserver(
+      entries => entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("in-view");
+      }),
+      {threshold: 0.1}
+  );
+  elements.forEach(el => scrollObserver.observe(el));
+};
 </script>
+
+<style scoped>
+.chart-container {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+  padding: 1.2rem;
+  margin-bottom: 1.2rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  max-width: 540px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chart-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 애니메이션 효과 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>

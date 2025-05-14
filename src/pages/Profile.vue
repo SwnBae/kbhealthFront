@@ -294,7 +294,7 @@ onMounted(() => {
 .profile-container {
   display: flex;
   gap: 2rem;
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 2rem;
   font-family: 'Segoe UI', sans-serif;
@@ -346,45 +346,5 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   max-width: 600px;
   margin: 40px auto;
-}
-
-/* 모달 애니메이션 */
-.fade-modal-enter-active,
-.fade-modal-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.fade-modal-enter-from,
-.fade-modal-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-/* 알림 스타일 */
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 12px 20px;
-  border-radius: 8px;
-  color: white;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 1000;
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.3s ease;
-}
-
-.notification.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.success-notification {
-  background-color: #4caf50;
-}
-
-.error-notification {
-  background-color: #f44336;
 }
 </style>

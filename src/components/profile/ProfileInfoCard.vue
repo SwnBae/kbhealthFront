@@ -1,39 +1,51 @@
 <!-- components/ProfileInfoCard.vue -->
 <template>
-  <div class="profile-info-card">
-    <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-image" />
-    <h2>{{ profile.userName }}</h2>
+  <div class="profile-info-card animate-on-scroll">
+    <div class="profile-container">
+      <svg class="profile-ring" viewBox="0 0 36 36">
+        <circle class="ring-bg" cx="18" cy="18" r="16" />
+        <circle
+            class="ring-progress"
+            cx="18"
+            cy="18"
+            r="16"
+            :stroke-dasharray="`${(Math.min(1000, profile.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
+            transform="rotate(-90 18 18)"
+        />
+      </svg>
+      <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+    </div>
 
-    <div v-if="isCurrentUser">
-      <div class="edit-buttons">
-        <button @click="$emit('edit-info')" class="edit-button">계정정보 수정</button>
-        <button @click="$emit('edit-body')" class="edit-button">신체정보 수정</button>
-      </div>
+    <h2 class="profile-name">{{ profile.userName }}</h2>
+
+    <div v-if="isCurrentUser" class="edit-buttons">
+      <button @click="$emit('edit-info')" class="edit-button">계정정보 수정</button>
+      <button @click="$emit('edit-body')" class="edit-button">신체정보 수정</button>
     </div>
 
     <div class="score-box">
       <div class="score-item">
-        <span>총 점수</span>
-        <strong>{{ profile.totalScore }}</strong>
+        <div class="score-count">{{ profile.totalScore }}</div>
+        <div class="score-label">총 점수</div>
       </div>
       <div class="score-item">
-        <span>기본 점수</span>
-        <strong>{{ profile.baseScore }}</strong>
+        <div class="score-count">{{ profile.baseScore }}</div>
+        <div class="score-label">기본 점수</div>
       </div>
     </div>
 
     <div class="profile-stats">
-      <div class="stat-item" @click="$emit('open-follow-modal', 'following')">
-        <strong>팔로잉</strong><br/>
-        {{ profile.followingCount }}
-      </div>
       <div class="stat-item" @click="$emit('open-follow-modal', 'follower')">
-        <strong>팔로워</strong><br/>
-        {{ profile.followerCount }}
+        <div class="stat-count">{{ profile.followerCount }}</div>
+        <div class="stat-label">팔로워</div>
+      </div>
+      <div class="stat-item" @click="$emit('open-follow-modal', 'following')">
+        <div class="stat-count">{{ profile.followingCount }}</div>
+        <div class="stat-label">팔로잉</div>
       </div>
     </div>
 
-    <div v-if="!isCurrentUser">
+    <div v-if="!isCurrentUser" class="follow-button-container">
       <button
           v-if="!profile.following"
           @click="$emit('toggle-follow')"
@@ -47,6 +59,8 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
+
 defineProps({
   profile: {
     type: Object,
@@ -59,126 +73,221 @@ defineProps({
 });
 
 defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
+
+onMounted(() => {
+  observeFeedAnimation(); // 컴포넌트가 마운트될 때 애니메이션 설정
+});
+
+// 스크롤 애니메이션 관찰자 설정
+const observeFeedAnimation = () => {
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  const scrollObserver = new IntersectionObserver(
+      entries => entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("in-view");
+      }),
+      {threshold: 0.1}
+  );
+  elements.forEach(el => scrollObserver.observe(el));
+};
 </script>
 
 <style scoped>
 .profile-info-card {
-  background-color: #fff;
-  border: 1px solid #ddd;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+  padding: 1.2rem;
   text-align: center;
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem; /* 전체 글씨 크기 소폭 축소 */
+  margin-bottom: 1.2rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.profile-image {
-  width: 40%; /* 더 작게 */
-  max-width: 120px;
-  aspect-ratio: 1 / 1;
+.profile-info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 애니메이션 효과 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.profile-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 1rem;
+}
+
+.profile-ring {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  top: 0;
+  left: 0;
+}
+
+.ring-bg {
+  fill: none;
+  stroke: #f0f7f0;
+  stroke-width: 3;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: #a5d6a7;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
+}
+
+.profile-img {
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
   object-fit: cover;
-  margin: 0 auto 0.8rem;
-  display: block;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  border: 1px solid #f0f0f0;
+}
+
+.profile-name {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #222;
+  margin: 0.4rem 0 0.8rem;
 }
 
 .edit-buttons {
   display: flex;
-  gap: 0.4rem;
-  margin-top: 0.8rem;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
   justify-content: center;
 }
 
 .edit-button {
-  background-color: #f0f0f0;
-  color: black;
-  border: none;
-  padding: 0.4rem 0.8rem;
-  border-radius: 5px;
+  padding: 6px 14px;
+  background-color: #fff;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  font-size: 0.8rem;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 0.75rem;
-  transition: background-color 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .edit-button:hover {
-  background-color: #c0c0c0;
+  background-color: #f9f9f9;
+  transform: translateY(-1px);
 }
 
 .score-box {
   display: flex;
   justify-content: space-around;
-  margin: 1.2rem 0;
+  margin: 1rem 0;
   padding: 0.8rem;
-  background-color: #fafafa;
-  border-radius: 0.6rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
   border: 1px solid #eee;
-  font-size: 1rem;
 }
 
 .score-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #333;
+  flex: 1;
+  cursor: default;
 }
 
-.score-item strong {
-  font-size: 1.4rem;
-  color: #000;
+.score-count {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 0.2rem;
+}
+
+.score-label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
 }
 
 .profile-stats {
   display: flex;
   justify-content: space-around;
-  margin-top: 1.2rem;
-  font-size: 0.95rem;
-  cursor: pointer;
+  margin: 1.2rem 0;
+  text-align: center;
 }
 
 .stat-item {
   flex: 1;
-  text-align: center;
-  font-weight: bold;
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.4rem;
-  transition: background-color 0.2s;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0.4rem 0;
+  border-radius: 6px;
 }
 
 .stat-item:hover {
-  background-color: #f0f0f0;
-  color: #007bff;
+  transform: translateY(-2px);
+  background-color: #f2f2f2;
+}
+
+.stat-count {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 0.2rem;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.follow-button-container {
+  margin-top: 1rem;
 }
 
 .follow-button,
 .unfollow-button {
-  padding: 0.45rem 0.9rem;
-  border-radius: 4px;
+  padding: 6px 18px;
+  border-radius: 16px;
   font-size: 0.85rem;
-  margin-top: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .follow-button {
   background-color: #007bff;
   color: white;
   border: none;
-  cursor: pointer;
 }
 
 .follow-button:hover {
   background-color: #0056b3;
+  transform: translateY(-2px);
 }
 
 .unfollow-button {
-  background-color: #ff4d4d;
+  background-color: #ff6b6b;
   color: white;
   border: none;
-  cursor: pointer;
 }
 
 .unfollow-button:hover {
-  background-color: #e60000;
+  background-color: #ff4d4d;
+  transform: translateY(-2px);
 }
-
 </style>
