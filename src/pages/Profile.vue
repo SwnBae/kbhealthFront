@@ -19,8 +19,8 @@
     />
 
     <!-- 우측 영역 -->
-    <FeedBlock apiUrl="/api/feed/my" />
-  
+    <FeedBlock v-if="profile" :apiUrl="`/api/feed/${profile.memberId}/feed`" />
+
 
     <!-- 모달 컴포넌트들 -->
     <transition name="fade-modal">
