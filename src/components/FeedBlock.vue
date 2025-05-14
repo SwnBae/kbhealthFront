@@ -6,8 +6,8 @@
           <svg class="profile-ring" viewBox="0 0 36 36">
             <circle class="ring-bg" cx="18" cy="18" r="16" />
             <circle class="ring-progress" cx="18" cy="18" r="16"
-              :stroke-dasharray="`${(Math.min(1000, post.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
-              stroke-dashoffset="100.48"
+                    :stroke-dasharray="`${(Math.min(1000, post.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
+                    transform="rotate(-90 18 18)"
             />
           </svg>
           <img :src="post.writerProfileImage" class="profile-img" />
@@ -200,12 +200,11 @@ export default {
   margin-bottom: 20px; overflow: hidden; padding: 16px; }
 .profile-container { position: relative; width: 48px; height: 48px; }
 .profile-ring { position: absolute; width: 48px; height: 48px; top: 0; left: 0; }
-.ring-bg { fill: none; stroke: #e6e6e6; stroke-width: 6; }
-.ring-progress { fill: none; stroke: #4caf50; stroke-width: 6;
-  stroke-linecap: round; transition: stroke-dasharray 0.6s ease, stroke-dashoffset 0.6s ease;
-  transform: rotate(-90deg); transform-origin: center; }
+.ring-bg { fill: none; stroke: #f0f7f0; stroke-width: 3; }
+.ring-progress { fill: none; stroke: #a5d6a7; stroke-width: 3;
+  stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
 .profile-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
-  position: absolute; top: 4px; left: 4px; z-index: 1; }
+  position: absolute; top: 4px; left: 4px; z-index: 1; border: 1px solid #f0f0f0; }
 .user-info { display: flex; align-items: center; margin-bottom: 12px; }
 .username { font-weight: bold; margin-left: 10px; }
 .post-img { width: 100%; border-radius: 8px; margin-bottom: 12px; }
