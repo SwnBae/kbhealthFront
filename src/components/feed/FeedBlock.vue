@@ -1,55 +1,48 @@
 <template>
   <div class="feed-container">
-    <!-- 상단 작성 버튼 -->
-    <div class="feed-header">
-      <button class="create-post-btn" @click="showModal = true">
-        게시글 작성
-      </button>
-    </div>
-
     <!-- 작성 모달 -->
     <PostCreateModal
-      :visible="showModal"
-      @close="showModal = false"
-      @posted="reloadFeed"
+        :visible="showModal"
+        @close="showModal = false"
+        @posted="reloadFeed"
     />
 
     <!-- 피드 목록 -->
     <div class="feed-wrapper">
       <div
-        v-for="post in posts"
-        :key="post.postId"
-        class="feed-card animate-on-scroll"
+          v-for="post in posts"
+          :key="post.postId"
+          class="feed-card animate-on-scroll"
       >
         <!-- 작성자 -->
         <div class="user-info">
           <router-link
-            :to="`/profile/${post.writerAccount}`"
-            class="profile-container"
+              :to="`/profile/${post.writerAccount}`"
+              class="profile-container"
           >
             <svg class="profile-ring" viewBox="0 0 36 36">
               <circle class="ring-bg" cx="18" cy="18" r="16" />
               <circle
-                class="ring-progress"
-                cx="18"
-                cy="18"
-                r="16"
-                :stroke-dasharray="`${(
+                  class="ring-progress"
+                  cx="18"
+                  cy="18"
+                  r="16"
+                  :stroke-dasharray="`${(
                   (Math.min(1000, post.baseScore || 0) / 1000) *
                   100.48
                 ).toFixed(2)} 100.48`"
-                transform="rotate(-90 18 18)"
+                  transform="rotate(-90 18 18)"
               />
             </svg>
             <img
-              :src="getImageUrl(post.writerProfileImage)"
-              class="profile-img"
-              alt="profile"
+                :src="getImageUrl(post.writerProfileImage)"
+                class="profile-img"
+                alt="profile"
             />
           </router-link>
           <router-link
-            :to="`/profile/${post.writerAccount}`"
-            class="username"
+              :to="`/profile/${post.writerAccount}`"
+              class="username"
           >
             {{ post.writerName }}
           </router-link>
@@ -57,9 +50,9 @@
 
         <!-- 본문 이미지 -->
         <img
-          :src="getImageUrl(post.imageUrl)"
-          class="post-img"
-          alt="post"
+            :src="getImageUrl(post.imageUrl)"
+            class="post-img"
+            alt="post"
         />
 
         <!-- 내용 -->
@@ -82,21 +75,21 @@
         <transition name="expand-comment">
           <div v-if="post.commentsVisible" class="comment-list">
             <div
-              class="comment-scroll"
-              :ref="el => setCommentScrollEl(post, el)"
+                class="comment-scroll"
+                :ref="el => setCommentScrollEl(post, el)"
             >
               <p v-if="post.comments.length === 0" class="no-comment">
                 댓글이 없습니다.
               </p>
               <transition-group name="fade-comment-item" tag="div">
                 <div
-                  v-for="comment in post.comments"
-                  :key="comment.commentId"
-                  class="comment-item"
+                    v-for="comment in post.comments"
+                    :key="comment.commentId"
+                    class="comment-item"
                 >
                   <router-link
-                    :to="`/profile/${comment.writerAccount}`"
-                    class="comment-writer"
+                      :to="`/profile/${comment.writerAccount}`"
+                      class="comment-writer"
                   >
                     {{ comment.writer }}
                   </router-link>
@@ -109,14 +102,14 @@
             </div>
             <div class="comment-input">
               <input
-                v-model="post.newComment"
-                type="text"
-                placeholder="댓글을 입력하세요"
-                class="comment-field"
+                  v-model="post.newComment"
+                  type="text"
+                  placeholder="댓글을 입력하세요"
+                  class="comment-field"
               />
               <button
-                class="submit-comment"
-                @click="submitComment(post)"
+                  class="submit-comment"
+                  @click="submitComment(post)"
               >
                 등록
               </button>
@@ -135,13 +128,19 @@
         <p>게시글이 없습니다.</p>
       </div>
       <div
-        ref="sentinel"
-        v-if="!isLastPage && posts.length > 0"
-        class="loading"
+          ref="sentinel"
+          v-if="!isLastPage && posts.length > 0"
+          class="loading"
       >
         <p>불러오는 중...</p>
       </div>
     </div>
+
+    <!-- 플로팅 게시글 작성 버튼 (오른쪽으로 이동) -->
+    <button ref="floatingBtn" class="create-post-floating-btn" @click="showModal = true">
+      <span class="plus-icon">+</span>
+      <span class="btn-text">게시글 작성</span>
+    </button>
   </div>
 </template>
 
@@ -169,22 +168,23 @@ const isLastPage = ref(false);
 const sentinel = ref(null);
 const observer = ref(null);
 const showModal = ref(false);
+const floatingBtn = ref(null); // 플로팅 버튼에 대한 ref 추가
 
 // 유틸
 const formatTime = t => dayjs(t).fromNow();
 const getImageUrl = url =>
-  url && url.trim() !== '' ? url : '/images/default_post_image.png';
+    url && url.trim() !== '' ? url : '/images/default_post_image.png';
 
 // 피드 애니메이션
 const observeFeedAnimation = () => {
   const els = document.querySelectorAll('.animate-on-scroll');
   const io = new IntersectionObserver(
-    entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) e.target.classList.add('in-view');
-      });
-    },
-    { threshold: 0.1 }
+      entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) e.target.classList.add('in-view');
+        });
+      },
+      { threshold: 0.1 }
   );
   els.forEach(el => io.observe(el));
 };
@@ -219,8 +219,8 @@ const loadPosts = async () => {
 // 무한 스크롤
 const initObserver = () => {
   observer.value = new IntersectionObserver(
-    ([e]) => e.isIntersecting && !isLastPage.value && loadPosts(),
-    { threshold: 1.0 }
+      ([e]) => e.isIntersecting && !isLastPage.value && loadPosts(),
+      { threshold: 1.0 }
   );
   sentinel.value && observer.value.observe(sentinel.value);
 };
@@ -229,9 +229,9 @@ const initObserver = () => {
 const toggleLike = async post => {
   try {
     const res = await axios.put(
-      `/api/feed/${post.postId}/like`,
-      null,
-      { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
+        `/api/feed/${post.postId}/like`,
+        null,
+        { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
     );
     post.liked = res.data;
     post.likeCount += post.liked ? 1 : -1;
@@ -302,10 +302,44 @@ const reloadFeed = async () => {
   await loadPosts();
 };
 
+// 호버 인텐트 기능 설정
+const setupHoverIntent = () => {
+  if (!floatingBtn.value) return;
+
+  let leaveTimeout = null;
+
+  // 마우스가 버튼 위에 올라왔을 때
+  floatingBtn.value.addEventListener('mouseenter', () => {
+    // 떠나는 타이머가 있다면 취소
+    if (leaveTimeout) {
+      clearTimeout(leaveTimeout);
+      leaveTimeout = null;
+    }
+
+    // 확장 클래스 즉시 추가
+    floatingBtn.value.classList.add('expanded');
+  });
+
+  // 마우스가 버튼에서 떠났을 때
+  floatingBtn.value.addEventListener('mouseleave', () => {
+    // 지연 시간 후 클래스 제거 (700ms 지연)
+    leaveTimeout = setTimeout(() => {
+      if (floatingBtn.value) {
+        floatingBtn.value.classList.remove('expanded');
+      }
+    }, 700); // 0.7초 동안 확장 상태 유지
+  });
+};
+
 // 라이프사이클
 onMounted(async () => {
   await loadPosts();
   initObserver();
+
+  // 호버 인텐트 설정 추가
+  nextTick(() => {
+    setupHoverIntent();
+  });
 });
 </script>
 
@@ -314,7 +348,11 @@ onMounted(async () => {
   max-width: 600px;
   margin: 0 auto;
   padding: 20px;
+  position: relative;
+  padding-bottom: 80px; /* 플로팅 버튼 공간 확보 */
 }
+
+/* 상단 작성 버튼 */
 .feed-header {
   text-align: right;
   margin-bottom: 16px;
@@ -330,6 +368,96 @@ onMounted(async () => {
 }
 .create-post-btn:hover {
   background-color: #388e3c;
+}
+
+/* 플로팅 게시글 작성 버튼 - 개선된 호버링 기능 */
+.create-post-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #4caf50;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease; /* 전환 시간 늘림 (0.3s -> 0.5s) */
+  z-index: 1000;
+  padding: 0;
+}
+
+.create-post-floating-btn:hover {
+  background-color: #388e3c;
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+  transform: translateY(-2px);
+}
+
+.plus-icon {
+  font-size: 28px;
+  font-weight: 300;
+  transition: margin-right 0.5s ease; /* 아이콘 전환 효과 추가 */
+}
+
+.btn-text {
+  display: none;
+  white-space: nowrap; /* 텍스트가 줄바꿈되지 않도록 */
+  transition: opacity 0.5s ease; /* 텍스트 페이드 효과 */
+}
+
+/* PC에서 호버링 개선 */
+@media (min-width: 769px) {
+  .create-post-floating-btn {
+    overflow: hidden;
+    width: 56px;
+    transition: width 0.5s ease, background-color 0.5s ease, box-shadow 0.5s ease, transform 0.5s ease;
+  }
+
+  /* 버튼에 여유 공간 추가 */
+  .create-post-floating-btn::after {
+    content: '';
+    position: absolute;
+    top: -35px;
+    left: -35px;
+    right: +35px;
+    bottom: +35px;
+    z-index: 1000;
+  }
+
+  /* 가상 요소를 사용하여 호버 영역 확장 */
+  .create-post-floating-btn:hover {
+    width: 170px; /* 좀 더 넓게 (160px -> 170px) */
+    border-radius: 28px;
+  }
+
+  .create-post-floating-btn:hover .plus-icon {
+    margin-right: 10px; /* 간격 늘림 (8px -> 10px) */
+  }
+
+  .create-post-floating-btn:hover .btn-text {
+    display: inline;
+    opacity: 1;
+  }
+
+  /* 확장된 버튼의 유지 시간을 주기 위한 hover-intent 효과 (선택적) */
+  .create-post-floating-btn.expanded {
+    width: 170px;
+    border-radius: 28px;
+  }
+
+  .create-post-floating-btn.expanded .plus-icon {
+    margin-right: 10px;
+  }
+
+  .create-post-floating-btn.expanded .btn-text {
+    display: inline;
+    opacity: 1;
+  }
 }
 
 /* 피드 카드 & 애니메이션 */

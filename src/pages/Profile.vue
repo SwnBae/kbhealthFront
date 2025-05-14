@@ -19,7 +19,7 @@
     />
 
     <!-- 우측 영역 -->
-    <FeedBlock v-if="profile" :apiUrl="`/api/feed/${profile.memberId}/feed`" />
+    <FeedBlock v-if="profile" :apiUrl="`/api/feed/${profile.memberId}/feed`" style="margin: 0;"/>
 
 
     <!-- 모달 컴포넌트들 -->
@@ -293,22 +293,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
+
 /* 기본 스타일 */
 .profile-container {
   display: flex;
-  gap: 2rem;
-  max-width: 1440px;
+  gap: 1rem;
+  max-width: 1200px; /* 전체 컨테이너 너비 줄임 */
   margin: 0 auto;
   font-family: 'Segoe UI', sans-serif;
   color: #333;
+  justify-content: center; /* 컨텐츠 중앙 정렬 */
 }
 
 .profile-sidebar {
+  /* 기존 스타일 유지 */
   position: sticky;
-  flex: 1;
+  flex: 0 0 auto;
   top: 20px;
-  max-width: 400px;
-  align-self: flex-start;  /* 높이 문제 방지 */
+  max-width: 350px;
+  align-self: flex-start;
+  padding: 0 20px;
+
+  /* 스크롤 숨기되 내용은 스크롤 가능하게 */
+  overflow: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.profile-sidebar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 
@@ -357,5 +369,19 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   max-width: 600px;
   margin: 40px auto;
+}
+
+/* 미디어 쿼리 추가 - 작은 화면에서 레이아웃 조정 */
+@media (max-width: 768px) {
+  .profile-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .profile-sidebar {
+    position: relative;
+    max-width: 100%;
+    margin-bottom: 2rem;
+  }
 }
 </style>

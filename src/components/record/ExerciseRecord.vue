@@ -341,17 +341,6 @@ onMounted(() => {
   opacity: 1;
 }
 
-/* 헤더 스타일 */
-.header {
-  font-size: 28px;
-  font-weight: bold;
-  color: #222;
-  text-align: left;
-  margin-bottom: 24px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e6e6e6;
-}
-
 /* 검색 옵션 스타일 */
 .search-options {
   display: flex;

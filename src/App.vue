@@ -1,8 +1,10 @@
 <template>
-  <!-- Header는 로그인 여부와 관계없이 주석 처리된 상태 -->
-  <!-- <Header /> -->
-  <RouterView />
-  <Footer v-if="isLoggedIn" />
+  <div class="app-layout">
+    <Footer v-if="isLoggedIn" class="sidebar-footer" />
+    <div class="contentBox">
+      <RouterView />
+    </div>
+  </div>
 </template>
 
 <script>
@@ -48,10 +50,32 @@ export default {
 };
 </script>
 
-
-
-
 <style>
+.app-layout {
+  display: flex;
+  min-height: 100vh; /* 최소 높이를 뷰포트 높이로 설정하여 푸터가 화면 전체 높이를 차지하도록 함 */
+}
+
+.sidebar-footer {
+  width: 30px; /* 적절한 너비 설정 */
+  background-color: #f8f9fa; /* 사이드바 배경색 */
+  border-right: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px; /* 상단 여백 */
+  position: fixed; /* 좌측에 고정 */
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 10; /* 다른 요소 위에 표시 */
+}
+
+.contentBox {
+  flex-grow: 1;
+  padding-left: 80px; /* 푸터 너비만큼 왼쪽 패딩을 주어 콘텐츠가 가려지지 않도록 함 */
+}
+
 .bd-placeholder-img {
   font-size: 1.125rem;
   text-anchor: middle;

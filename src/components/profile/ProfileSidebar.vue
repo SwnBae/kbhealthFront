@@ -39,6 +39,7 @@ defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
   height: 95vh;
   overflow-y: auto;
   padding-right: 1rem;
+  margin-bottom: 50px;
   scrollbar-width: thin;
   scrollbar-color: #e6e6e6 #f5f5f5;
 }

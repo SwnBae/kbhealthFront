@@ -1,8 +1,7 @@
 <template>
-  <footer class="footer fixed-bottom">
+  <footer class="footer">
     <div class="footer-container">
-      <div class="footer-content d-flex justify-content-around align-items-center py-2">
-        <!-- 홈 -->
+      <div class="footer-content">
         <button class="nav-btn btn d-flex flex-column align-items-center"
                 @click="goTo('/home')"
                 :class="{ 'active': isActive('/home') }">
@@ -12,11 +11,9 @@
           <small>홈</small>
         </button>
 
-        <!-- 검색 -->
         <div v-if="userStore.state.currentMember.id" class="position-relative">
           <button class="nav-btn btn d-flex flex-column align-items-center"
-                  @click="openSearchModal"
-                  :class="{ 'active': showSearch }">
+                  @click="openSearchModal">
             <div class="icon-container">
               <i class="bi bi-search"></i>
             </div>
@@ -24,7 +21,6 @@
           </button>
         </div>
 
-        <!-- 랭킹 -->
         <button class="nav-btn btn d-flex flex-column align-items-center"
                 @click="goTo('/ranking')"
                 :class="{ 'active': isActive('/ranking') }">
@@ -34,7 +30,6 @@
           <small>랭킹</small>
         </button>
 
-        <!-- 식단기록 -->
         <button class="nav-btn btn d-flex flex-column align-items-center"
                 @click="goTo('/records')"
                 :class="{ 'active': isActive('/records') }">
@@ -44,7 +39,6 @@
           <small>기록</small>
         </button>
 
-        <!-- 프로필 -->
         <button class="nav-btn btn d-flex flex-column align-items-center"
                 @click="reloadToProfile"
                 :class="{ 'active': isActive('/profile') }">
@@ -54,7 +48,6 @@
           <small>프로필</small>
         </button>
 
-        <!-- 로그아웃 -->
         <button v-if="userStore.state.currentMember.id"
                 class="nav-btn btn d-flex flex-column align-items-center"
                 @click="logout">
@@ -65,53 +58,51 @@
         </button>
       </div>
     </div>
-  </footer>
 
-  <!-- 검색 모달 -->
-  <div class="search-modal" v-if="showSearch" @click.self="closeSearchModal">
-    <div class="modal-content animate-on-scroll in-view">
-      <div class="modal-header">
-        <h3 class="modal-title">유저 검색</h3>
-        <button class="close-icon" @click="closeSearchModal">✕</button>
-      </div>
-
-      <!-- 검색 필드 -->
-      <div class="search-container">
-        <input
-            type="text"
-            v-model="keyword"
-            placeholder="계정명 또는 사용자명으로 검색"
-            class="search-input"
-            @keyup.enter="searchMembers"
-        />
-        <button class="search-button" @click="clearSearch">
-          <span v-if="keyword">✕</span>
-        </button>
-      </div>
-
-      <div class="follow-list-container">
-        <div v-if="searchResults.length === 0 && searched" class="no-results">
-          검색 결과가 없습니다.
+    <div class="search-modal" v-if="showSearch" @click.self="closeSearchModal">
+      <div class="modal-content animate-on-scroll in-view">
+        <div class="modal-header">
+          <h3 class="modal-title">유저 검색</h3>
+          <button class="close-icon" @click="closeSearchModal">✕</button>
         </div>
-        <div v-for="member in searchResults"
-             :key="member.memberId"
-             class="follow-card animate-on-scroll in-view"
-             @click="goToProfile(member.account)">
-          <div class="profile-cell">
-            <div class="profile-container">
-              <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
-            </div>
-            <div class="user-details">
-              <span class="nickname">{{ member.userName }}</span>
-              <div class="account-info">
-                <span class="account-value">@{{ member.account }}</span>
+
+        <div class="search-container">
+          <input
+              type="text"
+              v-model="keyword"
+              placeholder="계정명 또는 사용자명으로 검색"
+              class="search-input"
+              @keyup.enter="searchMembers"
+          />
+          <button class="search-button" @click="clearSearch">
+            <span v-if="keyword">✕</span>
+          </button>
+        </div>
+
+        <div class="follow-list-container">
+          <div v-if="searchResults.length === 0 && searched" class="no-results">
+            검색 결과가 없습니다.
+          </div>
+          <div v-for="member in searchResults"
+               :key="member.memberId"
+               class="follow-card animate-on-scroll in-view"
+               @click="goToProfile(member.account)">
+            <div class="profile-cell">
+              <div class="profile-container">
+                <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+              </div>
+              <div class="user-details">
+                <span class="nickname">{{ member.userName }}</span>
+                <div class="account-info">
+                  <span class="account-value">@{{ member.account }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </footer>
 </template>
 
 <script>
@@ -170,7 +161,6 @@ export default {
       });
     },
     reloadToProfile() {
-      if (this.isActive('/profile')) return; // 이미 프로필에 있으면 이동 X
       router.push("/profile");
     },
     logout() {
@@ -199,64 +189,88 @@ export default {
 
 <style scoped>
 .footer {
-  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column; /* 내부 요소 세로 배치 */
+  align-items: center; /* 가운데 정렬 */
+  width: 5%; /* App.vue에서 너비 조정 */
+  top: 60px; /* 화면 상단에서 50px 떨어진 위치에 고정 */
+  bottom: auto;
+  height: 300px;
+  border: none;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 1px;
+  background-color: #fff; /* 배경색 필요 시 추가 */
+  border-radius: 16px; /* 둥근 테두리 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 부드러운 그림자 효과 */
 }
 
 .footer-container {
-  max-width: 800px;
-  margin: 0 auto;
-  background-color: #ffffff;
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
-  border-bottom: none;
-  margin-bottom: 0;
+  display: flex;
+  flex-direction: column; /* 내부 요소 세로 배치 */
+  align-items: center; /* 가운데 정렬 */
+  width: 100%;
+  max-width: none; /* 최대 너비 제거 */
+  background-color: transparent; /* 배경 투명하게 */
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  margin: 0;
+  padding: 0;
 }
 
 .footer-content {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 0 10px;
+  display: flex;
+  flex-direction: column; /* 내부 버튼 세로 배치 */
+  align-items: center; /* 가운데 정렬 */
+  padding: 6px 0;
+  width: 100%;
+  max-width: 80px; /* 푸터 너비에 맞게 조정 */
 }
 
 .nav-btn {
   position: relative;
-  font-size: 1rem;
+  font-size: 0.8rem; /* 더 작은 폰트 크기 */
   color: #6c757d;
-  padding: 8px 12px;
+  padding: 8px; /* 패딩 조정 */
   border: none;
   background: transparent;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   overflow: hidden;
   border-radius: 8px;
-  margin: 0 2px;
+  margin: 5px 0; /* 상하 마진 조정 */
+  width: 100%; /* 버튼 너비 부모에 맞게 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-btn:hover {
   color: #212529;
-  transform: translateY(-3px);
+  transform: translateX(3px); /* 호버 시 약간 오른쪽으로 이동 */
 }
 
 .nav-btn:active {
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 .nav-btn.active {
   color: #212529;
-  background-color: rgba(13, 110, 253, 0.1);
+  background-color: rgba(108, 117, 125, 0.1); /* 회색 계열로 변경 */
   border-radius: 8px;
 }
 
 .nav-btn.active::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 20px;
-  height: 3px;
+  left: 0; /* 활성 표시줄 위치 변경 */
+  top: 50%;
+  width: 2px; /* 얇은 세로 선 */
+  height: 20px;
   background-color: #a5d6a7; /* 초록색 계열로 변경 */
-  border-radius: 4px 4px 0 0;
-  transform: translateX(-50%);
+  border-radius: 0 4px 4px 0; /* 오른쪽만 둥글게 */
+  transform: translateY(-50%);
 }
 
 .icon-container {
@@ -264,8 +278,8 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 24px;
-  margin-bottom: 3px;
+  height: auto; /* 높이 자동 조정 */
+  margin-bottom: 5px; /* 아이콘 아래 마진 */
   transition: transform 0.3s ease;
 }
 
@@ -282,16 +296,17 @@ export default {
 }
 
 .footer small {
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   opacity: 0.9;
   transition: opacity 0.3s ease;
+  white-space: nowrap; /* 텍스트 줄바꿈 방지 */
 }
 
 .nav-btn:hover small {
   opacity: 1;
 }
 
-/* 검색 모달 스타일링 */
+/* 검색 모달 스타일링 (기존 스타일 유지) */
 .search-modal {
   position: fixed;
   top: 0;
@@ -416,7 +431,7 @@ export default {
 }
 
 .search-input:focus {
-  border-color: #a5d6a7;
+  border-color: #a0a0a0; /* 회색 계열로 변경 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -534,5 +549,15 @@ export default {
     width: 95%;
     max-height: 70vh;
   }
+}
+
+/* 푸터에 다음과 같은 스타일 추가 (실제 푸터 클래스명에 맞게 수정) */
+.footer {
+  pointer-events: none; /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
+}
+
+/* 푸터 내의 실제 상호작용이 필요한 요소들에는 pointer-events 재활성화 */
+.footer a, .footer button, .footer input {
+  pointer-events: auto;
 }
 </style>
