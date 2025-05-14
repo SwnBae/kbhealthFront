@@ -8,7 +8,7 @@ import ExerciseRecord from "@/pages/ExerciseRecord";
 import Ranking from "@/pages/Ranking";
 
 import { createRouter, createWebHistory } from "vue-router/dist/vue-router";
-import FeedBlock from "@/components/FeedBlock.vue";
+import FeedBlock from "@/components/feed/FeedBlock.vue";
 import FeedWrite from "@/components/FeedWrite.vue";
 
 const routes = [
@@ -22,6 +22,7 @@ const routes = [
     { path: '/ranking', component: Ranking },
     { path: '/feed', component: FeedBlock},
     { path: '/feed/write', component: FeedWrite }
+
 ];
 
 const router = createRouter({
