@@ -154,6 +154,13 @@ import PostCreateModal from '@/components/feed/PostCreateModal.vue';
 
 dayjs.extend(relativeTime);
 
+const props = defineProps({
+  apiUrl: {
+    type: String,
+    required: true
+  }
+})
+
 // state
 const posts = ref([]);
 const page = ref(0);
@@ -185,7 +192,7 @@ const observeFeedAnimation = () => {
 // 피드 불러오기
 const loadPosts = async () => {
   try {
-    const res = await axios.get('/api/feed', {
+    const res = await axios.get(props.apiUrl, {
       params: { page: page.value, size }
     });
     const newPosts = res.data.content.map(p => ({

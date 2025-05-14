@@ -11,7 +11,7 @@
     <ProfileSidebar
         :profile="profile"
         :isCurrentUser="isCurrentUser"
-        class="animate-on-scroll"
+        class="animate-on-scroll profile-sidebar"
         @edit-info="openEditInfoModal"
         @edit-body="openEditBodyModal"
         @toggle-follow="toggleFollow"
@@ -19,7 +19,8 @@
     />
 
     <!-- 우측 영역 -->
-    <ProfileMain class="animate-on-scroll" />
+    <FeedBlock apiUrl="/api/feed/my" />
+  
 
     <!-- 모달 컴포넌트들 -->
     <transition name="fade-modal">
@@ -57,10 +58,10 @@ import { ref, onMounted, watch, nextTick } from 'vue';
 import axios from 'axios';
 import { useRoute, useRouter } from 'vue-router';
 import userStore from "@/scripts/store";
+import FeedBlock from '@/components/feed/FeedBlock.vue'
 
 // 컴포넌트 경로 수정
 import ProfileSidebar from '@/components/profile/ProfileSidebar.vue';
-import ProfileMain from '@/components/profile/ProfileMain.vue';
 import FollowModal from '@/components/profile/modals/FollowModal.vue';
 import EditInfoModal from '@/components/profile/modals/EditInfoModal.vue';
 import EditBodyModal from '@/components/profile/modals/EditBodyModal.vue';
@@ -287,6 +288,8 @@ watch(() => route.params.account, () => {
 onMounted(() => {
   check();
 });
+
+
 </script>
 
 <style scoped>
@@ -296,10 +299,18 @@ onMounted(() => {
   gap: 2rem;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 2rem;
   font-family: 'Segoe UI', sans-serif;
   color: #333;
 }
+
+.profile-sidebar {
+  position: sticky;
+  flex: 1;
+  top: 20px;
+  max-width: 400px;
+  align-self: flex-start;  /* 높이 문제 방지 */
+}
+
 
 /* 애니메이션 스타일 */
 .animate-on-scroll {

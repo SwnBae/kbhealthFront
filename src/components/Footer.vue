@@ -1,7 +1,7 @@
 <template>
   <footer class="footer fixed-bottom bg-dark text-white d-flex justify-content-around align-items-center py-2">
     <!-- 홈 -->
-    <button class="btn btn-dark d-flex flex-column align-items-center" @click="goTo('/feed')">
+    <button class="btn btn-dark d-flex flex-column align-items-center" @click="goTo('/home')">
       <i class="bi bi-house-fill"></i>
       <small>홈</small>
     </button>

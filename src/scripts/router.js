@@ -7,7 +7,6 @@ import Record from "@/pages/Record.vue";
 import Ranking from "@/pages/Ranking";
 
 import { createRouter, createWebHistory } from "vue-router/dist/vue-router";
-import FeedBlock from "@/components/feed/FeedBlock.vue";
 import FeedWrite from "@/components/FeedWrite.vue";
 
 const routes = [
@@ -18,7 +17,7 @@ const routes = [
     { path: '/profile/:account?', component: Profile },
     { path: '/records', component: Record},
     { path: '/ranking', component: Ranking },
-    { path: '/feed', component: FeedBlock},
+    { path: '/home', component: Home},
     { path: '/feed/write', component: FeedWrite }
 
 ];

@@ -36,7 +36,7 @@ defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
 <style scoped>
 .profile-sidebar {
   width: 30%;
-  height: 80vh;
+  height: 95vh;
   overflow-y: auto;
   padding-right: 1rem;
   scrollbar-width: thin;
