@@ -1,64 +1,113 @@
 <template>
-  <footer class="footer fixed-bottom bg-dark text-white d-flex justify-content-around align-items-center py-2">
-    <!-- 홈 -->
-    <button class="btn btn-dark d-flex flex-column align-items-center" @click="goTo('/home')">
-      <i class="bi bi-house-fill"></i>
-      <small>홈</small>
-    </button>
+  <footer class="footer fixed-bottom">
+    <div class="footer-container">
+      <div class="footer-content d-flex justify-content-around align-items-center py-2">
+        <!-- 홈 -->
+        <button class="nav-btn btn d-flex flex-column align-items-center"
+                @click="goTo('/home')"
+                :class="{ 'active': isActive('/home') }">
+          <div class="icon-container">
+            <i class="bi bi-house-fill"></i>
+          </div>
+          <small>홈</small>
+        </button>
 
-    <!-- 검색 -->
-    <div v-if="userStore.state.currentMember.id" class="position-relative">
-      <button class="btn btn-dark d-flex flex-column align-items-center" @click="openSearchModal">
-        <i class="bi bi-search"></i>
-        <small>검색</small>
-      </button>
+        <!-- 검색 -->
+        <div v-if="userStore.state.currentMember.id" class="position-relative">
+          <button class="nav-btn btn d-flex flex-column align-items-center"
+                  @click="openSearchModal"
+                  :class="{ 'active': showSearch }">
+            <div class="icon-container">
+              <i class="bi bi-search"></i>
+            </div>
+            <small>검색</small>
+          </button>
+        </div>
+
+        <!-- 랭킹 -->
+        <button class="nav-btn btn d-flex flex-column align-items-center"
+                @click="goTo('/ranking')"
+                :class="{ 'active': isActive('/ranking') }">
+          <div class="icon-container">
+            <i class="bi bi-bar-chart-fill"></i>
+          </div>
+          <small>랭킹</small>
+        </button>
+
+        <!-- 식단기록 -->
+        <button class="nav-btn btn d-flex flex-column align-items-center"
+                @click="goTo('/records')"
+                :class="{ 'active': isActive('/records') }">
+          <div class="icon-container">
+            <i class="bi bi-journal-medical"></i>
+          </div>
+          <small>기록</small>
+        </button>
+
+        <!-- 프로필 -->
+        <button class="nav-btn btn d-flex flex-column align-items-center"
+                @click="reloadToProfile"
+                :class="{ 'active': isActive('/profile') }">
+          <div class="icon-container">
+            <i class="bi bi-person-circle"></i>
+          </div>
+          <small>프로필</small>
+        </button>
+
+        <!-- 로그아웃 -->
+        <button v-if="userStore.state.currentMember.id"
+                class="nav-btn btn d-flex flex-column align-items-center"
+                @click="logout">
+          <div class="icon-container">
+            <i class="bi bi-box-arrow-right"></i>
+          </div>
+          <small>로그아웃</small>
+        </button>
+      </div>
     </div>
-
-    <!-- 랭킹 -->
-    <button class="btn btn-dark d-flex flex-column align-items-center" @click="goTo('/ranking')">
-      <i class="bi bi-bar-chart-fill"></i>
-      <small>랭킹</small>
-    </button>
-
-    <!-- 식단기록 -->
-    <button class="btn btn-dark d-flex flex-column align-items-center" @click="goTo('/records')">
-      <i class="bi bi-journal-medical"></i>
-      <small>기록</small>
-    </button>
-
-    <!-- 프로필 -->
-    <button class="btn btn-dark d-flex flex-column align-items-center" @click="reloadToProfile">
-      <i class="bi bi-person-circle"></i>
-      <small>프로필</small>
-    </button>
-
-    <!-- 로그아웃 -->
-    <button v-if="userStore.state.currentMember.id" class="btn btn-dark d-flex flex-column align-items-center" @click="logout">
-      <i class="bi bi-box-arrow-right"></i>
-      <small>로그아웃</small>
-    </button>
   </footer>
 
-  <!-- 검색 모달 내부에 입력창 + 검색 버튼 + 결과 리스트 포함 -->
-  <div class="modal fade" id="searchModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">유저 검색</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  <!-- 검색 모달 -->
+  <div class="search-modal" v-if="showSearch" @click.self="closeSearchModal">
+    <div class="modal-content animate-on-scroll in-view">
+      <div class="modal-header">
+        <h3 class="modal-title">유저 검색</h3>
+        <button class="close-icon" @click="closeSearchModal">✕</button>
+      </div>
+
+      <!-- 검색 필드 -->
+      <div class="search-container">
+        <input
+            type="text"
+            v-model="keyword"
+            placeholder="계정명 또는 사용자명으로 검색"
+            class="search-input"
+            @keyup.enter="searchMembers"
+        />
+        <button class="search-button" @click="clearSearch">
+          <span v-if="keyword">✕</span>
+        </button>
+      </div>
+
+      <div class="follow-list-container">
+        <div v-if="searchResults.length === 0 && searched" class="no-results">
+          검색 결과가 없습니다.
         </div>
-        <div class="modal-body">
-          <div class="d-flex mb-3">
-            <input v-model="keyword" placeholder="유저 검색" class="form-control form-control-sm me-2" />
-            <button @click="searchMembers" class="btn btn-sm btn-dark">검색</button>
+        <div v-for="member in searchResults"
+             :key="member.memberId"
+             class="follow-card animate-on-scroll in-view"
+             @click="goToProfile(member.account)">
+          <div class="profile-cell">
+            <div class="profile-container">
+              <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+            </div>
+            <div class="user-details">
+              <span class="nickname">{{ member.userName }}</span>
+              <div class="account-info">
+                <span class="account-value">@{{ member.account }}</span>
+              </div>
+            </div>
           </div>
-          <ul class="list-group">
-            <li v-for="member in searchResults" :key="member.memberId" class="list-group-item list-group-item-action"
-                @click="goToProfile(member.account)" data-bs-dismiss="modal">
-              <img :src="member.profileImageUrl" alt="프로필 이미지" class="rounded-circle me-2" width="32" height="32" />
-              <span>{{ member.userName }} ({{ member.account }})</span>
-            </li>
-          </ul>
         </div>
       </div>
     </div>
@@ -69,7 +118,6 @@
 import userStore from "@/scripts/store";
 import router from "@/scripts/router";
 import axios from "axios";
-import * as bootstrap from 'bootstrap';
 
 export default {
   name: 'Footer',
@@ -77,35 +125,52 @@ export default {
     return {
       keyword: '',
       searchResults: [],
-      showSearch: false
+      showSearch: false,
+      searched: false
     };
   },
   methods: {
     goTo(path) {
+      if (this.isActive(path)) return; // 이미 해당 페이지에 있으면 작업 중단
       router.push(path);
     },
     openSearchModal() {
       this.keyword = '';
       this.searchResults = [];
-      new bootstrap.Modal(document.getElementById('searchModal')).show();
+      this.searched = false;
+      this.showSearch = true;
+      // 모달이 열릴 때 body에 스크롤 방지 클래스 추가
+      document.body.classList.add('modal-open');
+    },
+    closeSearchModal() {
+      this.showSearch = false;
+      // 모달이 닫힐 때 body에서 스크롤 방지 클래스 제거
+      document.body.classList.remove('modal-open');
+    },
+    clearSearch() {
+      this.keyword = '';
+      this.searchResults = [];
+      this.searched = false;
     },
     async searchMembers() {
-      if (!this.keyword.trim()) return alert("검색어를 입력하세요");
+      if (!this.keyword.trim()) return;
+
       try {
         const res = await axios.get(`/api/profile/members/search?keyword=${this.keyword}`);
         this.searchResults = res.data;
-        this.showSearch = false;
+        this.searched = true;
       } catch (e) {
         alert("검색 중 오류가 발생했습니다");
       }
     },
     goToProfile(account) {
+      this.closeSearchModal();
       router.push(`/profile/${account}`).then(() => {
         location.reload();
       });
     },
     reloadToProfile() {
-      if (router.currentRoute.value.path === '/profile') return; // 이미 프로필에 있으면 이동 X
+      if (this.isActive('/profile')) return; // 이미 프로필에 있으면 이동 X
       router.push("/profile");
     },
     logout() {
@@ -118,6 +183,10 @@ export default {
       }).catch(() => {
         alert("로그아웃 중 오류가 발생했습니다.");
       });
+    },
+    isActive(path) {
+      // 현재 경로가 전달된 경로로 시작하는지 확인
+      return router.currentRoute.value.path.startsWith(path);
     }
   },
   computed: {
@@ -129,24 +198,341 @@ export default {
 </script>
 
 <style scoped>
-.footer button {
-  font-size: 0.9rem;
-  color: white;
+.footer {
+  transition: transform 0.3s ease;
 }
+
+.footer-container {
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.footer-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 10px;
+}
+
+.nav-btn {
+  position: relative;
+  font-size: 1rem;
+  color: #6c757d;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
+  border-radius: 8px;
+  margin: 0 2px;
+}
+
+.nav-btn:hover {
+  color: #212529;
+  transform: translateY(-3px);
+}
+
+.nav-btn:active {
+  transform: translateY(0);
+}
+
+.nav-btn.active {
+  color: #212529;
+  background-color: rgba(13, 110, 253, 0.1);
+  border-radius: 8px;
+}
+
+.nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 20px;
+  height: 3px;
+  background-color: #a5d6a7; /* 초록색 계열로 변경 */
+  border-radius: 4px 4px 0 0;
+  transform: translateX(-50%);
+}
+
+.icon-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 24px;
+  margin-bottom: 3px;
+  transition: transform 0.3s ease;
+}
+
+.nav-btn:hover .icon-container {
+  transform: scale(1.15);
+}
+
+.nav-btn.active .icon-container {
+  transform: scale(1.2);
+}
+
+.nav-btn.active .bi {
+  color: #6c757d; /* 회색 계열로 유지 */
+}
+
 .footer small {
-  font-size: 0.65rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
 }
-.modal.fade .modal-dialog {
-  animation: fadeInModal 0.5s ease-out;
+
+.nav-btn:hover small {
+  opacity: 1;
 }
-@keyframes fadeInModal {
-  0% {
+
+/* 검색 모달 스타일링 */
+.search-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
     opacity: 0;
-    transform: translateY(-10px);
   }
-  100% {
+  to {
     opacity: 1;
-    transform: translateY(0);
+  }
+}
+
+.modal-content {
+  background-color: white;
+  padding: 1.5rem 1.5rem;
+  padding-top: 0.3rem;
+  padding-right: 1rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-height: 80vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e6e6e6 #f5f5f5;
+  border-radius: 12px;
+  mask-image: radial-gradient(white, black);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+
+/* 스크롤바 스타일 수정 */
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
+  margin: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #e6e6e6;
+  border-radius: 3px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6e6e6;
+  position: relative;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #222;
+  text-align: left;
+  margin: 0;
+}
+
+.close-icon {
+  font-size: 18px;
+  color: #888;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-icon:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 검색 컨테이너 스타일 */
+.search-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 40px 10px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 24px;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #a5d6a7;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.search-button {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #aaa;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.search-button:hover {
+  color: #666;
+}
+
+.follow-list-container {
+  margin-top: 20px;
+}
+
+.no-results {
+  text-align: center;
+  padding: 30px 0;
+  color: #888;
+  font-size: 15px;
+}
+
+.follow-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.follow-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.profile-cell {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+}
+
+.profile-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.profile-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #f0f0f0;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.nickname {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+}
+
+.account-info {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.account-value {
+  color: #666;
+}
+
+/* 모달 열려 있을 때 body 스크롤 방지 */
+:global(.modal-open) {
+  overflow: hidden;
+}
+
+/* 모바일 화면 최적화 */
+@media (max-width: 480px) {
+  .footer-container {
+    width: 95%;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .nav-btn {
+    padding: 8px 6px;
+  }
+
+  .footer small {
+    font-size: 0.7rem;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-height: 70vh;
   }
 }
 </style>

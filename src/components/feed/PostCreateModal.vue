@@ -1,46 +1,66 @@
 <template>
   <teleport to="body">
-    <transition name="fade-slide" appear>
+    <transition name="fade" appear>
       <div class="modal-overlay" v-if="visible">
         <div class="modal-content">
-          <button class="modal-close" @click="emit('close')">×</button>
-          <h3 class="modal-title">게시글 작성</h3>
-          <input
-            v-model="form.title"
-            placeholder="제목"
-            class="modal-input"
-            :class="{ invalid: showError && !form.title.trim() }"
-          />
-          <textarea
-            v-model="form.content"
-            placeholder="내용"
-            class="modal-textarea"
-            :class="{ invalid: showError && !form.content.trim() }"
-          ></textarea>
-          <p v-if="formError" class="form-error">{{ formError }}</p>
-
-          <label class="file-upload-label">
-            이미지 업로드
-            <input
-              type="file"
-              @change="handleImageChange"
-              accept="image/*"
-              class="modal-file-input-hidden"
-            />
-          </label>
-
-          <div v-if="previewImage" class="image-preview">
-            <img :src="previewImage" alt="미리보기" />
+          <div class="modal-header">
+            <h1 class="header-title">새 게시물 만들기</h1>
+            <button class="modal-close" @click="emit('close')">×</button>
           </div>
 
-          <div class="modal-actions">
-            <button class="modal-submit-btn" @click="submit" :disabled="loading">
-              <span v-if="loading" class="spinner"></span>
-              {{ loading ? '등록 중...' : '등록' }}
-            </button>
-            <button class="modal-cancel-btn" @click="emit('close')" :disabled="loading">
-              취소
-            </button>
+          <!-- 이미지 업로드 섹션 -->
+          <div class="image-upload-container">
+            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+              <div v-if="!previewImage" class="upload-placeholder">
+                <div class="plus-icon">+</div>
+                <span class="upload-text">사진을 추가하세요</span>
+              </div>
+              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+              <input
+                  type="file"
+                  @change="handleImageChange"
+                  accept="image/*"
+                  class="file-input-hidden"
+              />
+            </label>
+          </div>
+
+          <!-- 입력 폼 -->
+          <div class="form-container">
+            <div class="form-group">
+              <input
+                  v-model="form.title"
+                  placeholder="제목"
+                  class="input-field"
+                  :class="{ invalid: showError && !form.title.trim() }"
+              />
+            </div>
+
+            <div class="form-group">
+              <textarea
+                  v-model="form.content"
+                  placeholder="내용을 입력하세요..."
+                  class="input-field textarea"
+                  :class="{ invalid: showError && !form.content.trim() }"
+                  rows="6"
+              ></textarea>
+            </div>
+
+            <!-- 오류 메시지 -->
+            <p v-if="formError" class="form-error">
+              {{ formError }}
+            </p>
+
+            <!-- 버튼 영역 -->
+            <div class="action-buttons">
+              <button class="cancel-button" @click="emit('close')" :disabled="loading">
+                취소
+              </button>
+              <button class="submit-button" @click="submit" :disabled="loading">
+                <span v-if="loading" class="spinner"></span>
+                {{ loading ? '공유 중...' : '공유하기' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -49,7 +69,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, toRefs, watch } from 'vue';
+import { reactive, ref, toRefs, watch, onMounted } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({ visible: Boolean });
@@ -114,165 +134,292 @@ watch(visible, (newVal) => {
     showError.value = false;
   }
 });
+
+onMounted(() => {
+  // 필요한 초기화 로직이 있으면 여기에 추가
+});
 </script>
 
 <style scoped>
+/* 모달 오버레이 */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(3px);
 }
 
+/* 모달 컨텐츠 */
 .modal-content {
-  position: relative;
   background: #fff;
-  padding: 32px;
-  border-radius: 20px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   width: 95%;
-  max-width: 600px;
+  max-width: 500px;
+  overflow: hidden;
+}
+
+/* 모달 헤더 */
+.modal-header {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  font-family: 'Segoe UI', sans-serif;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0;
+  position: relative;
+  border-bottom: 1px solid #efefef;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+  text-align: center;
 }
 
 .modal-close {
   position: absolute;
-  top: 12px;
   right: 16px;
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 22px;
   cursor: pointer;
-  color: #666;
+  color: #262626;
+  padding: 0;
+  transition: color 0.2s ease;
 }
 
-.modal-title {
-  font-size: 1.5rem;
-  text-align: center;
-  margin-bottom: 12px;
+.modal-close:hover {
+  color: #000;
 }
 
-.modal-input,
-.modal-textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 10px;
+/* 이미지 업로드 영역 */
+.image-upload-container {
+  padding: 12px;
+  display: flex;
+  justify-content: center; /* 가운데 정렬 */
+}
+
+.image-upload-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fafafa;
+  border: 1px dashed #dbdbdb;
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  position: relative;
+  aspect-ratio: 1/1;
+  width: 40%;
+}
+
+.image-upload-area:hover {
+  background-color: #f0f0f0;
+}
+
+.image-upload-area.has-image {
+  border-style: solid;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8e8e8e;
+}
+
+.plus-icon {
+  font-size: 48px;
+  font-weight: 300;
+  margin-bottom: 8px;
+}
+
+.upload-text {
   font-size: 14px;
 }
-.modal-input:focus,
-.modal-textarea:focus {
-  border-color: #1976d2;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
-}
-.invalid {
-  border-color: #e53935;
-  background-color: #fff6f6;
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.form-error {
-  color: #e53935;
-  font-size: 13px;
-  margin-top: -10px;
-  margin-bottom: -4px;
-  padding-left: 2px;
-}
-
-.modal-textarea { min-height: 120px; resize: vertical; }
-
-.file-upload-label {
-  display: inline-block;
-  background-color: #1976d2;
-  color: white;
-  padding: 10px;
-  text-align: center;
-  border-radius: 6px;
+.file-input-hidden {
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   cursor: pointer;
 }
 
-.modal-file-input-hidden { display: none; }
+/* 폼 영역 */
+.form-container {
+  padding: 20px;
+}
 
-.modal-actions {
+.form-group {
+  margin-bottom: 16px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+  background-color: #fff;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #a8a8a8;
+}
+
+.textarea {
+  resize: none;
+  min-height: 120px;
+}
+
+.invalid {
+  border-color: #ed4956;
+}
+
+/* 오류 메시지 */
+.form-error {
+  color: #ed4956;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+/* 버튼 영역 */
+.action-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 16px;
 }
 
-.modal-submit-btn,
-.modal-cancel-btn {
+.submit-button, .cancel-button {
   padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
+  transition: all 0.2s ease;
 }
 
-.modal-submit-btn {
-  background-color: #4caf50;
-  color: white;
+.submit-button {
+  background-color: #e1f7e1;  /* 연한 초록색 */
+  color: #4caf50;  /* 초록색 텍스트 */
+  border: 1px solid #b2dfbb;  /* 연한 초록색 테두리 */
+  border-radius: 20px;  /* 둥근 모서리 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
-.modal-submit-btn:hover {
-  background-color: #43a047;
+
+
+.submit-button:hover:not(:disabled) {
+  background-color: #c8e6c9;  /* 약간 더 진한 초록색 */
+  color: #388e3c;  /* 어두운 초록색 텍스트 */
 }
-.modal-submit-btn:disabled {
-  background-color: #9e9e9e;
+
+
+.submit-button:disabled {
+  background-color: #c8e6c9;  /* 비활성화 시에도 비슷한 연한 초록색 */
+  color: #a5d6a7;  /* 부드러운 초록색 텍스트 */
+  border-color: #81c784;  /* 더 연한 초록색 테두리 */
   cursor: not-allowed;
 }
 
-.modal-cancel-btn {
-  background-color: #e0e0e0;
-  color: #333;
+.cancel-button {
+  background-color: transparent;
+  color: inherit;  /* 색상은 부모로부터 상속 */
+  border: 1px solid #ddd;  /* 버튼 테두리 */
+  border-radius: 20px;  /* 둥근 모서리 */
+  padding: 8px 20px;  /* 버튼 크기 */
+  font-size: 14px;  /* 글자 크기 */
+  font-weight: 600;  /* 글자 굵기 */
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
-.modal-cancel-btn:hover {
-  background-color: #d5d5d5;
+
+.cancel-button:hover:not(:disabled) {
+  background-color: #f6f6f6;  /* 호버 시 배경색 */
+  color: #333;  /* 호버 시 텍스트 색상 */
+  border-color: #ddd;  /* 테두리 색상 */
 }
-.modal-cancel-btn:disabled {
-  background-color: #ccc;
+
+
+.cancel-button:disabled {
+  color: #8e8e8e;
   cursor: not-allowed;
 }
 
+/* 로딩 스피너 */
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
-  border-top-color: transparent;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.7s linear infinite;
   display: inline-block;
-  margin-right: 8px;
-  vertical-align: middle;
+  margin-right: 6px;
 }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.image-preview {
-  text-align: center;
+/* 트랜지션 애니메이션 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
 }
 
-.image-preview img {
-  max-width: 100%;
-  max-height: 250px;
-  border-radius: 12px;
-  margin-top: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-}
-
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.fade-slide-enter-from,
-.fade-slide-leave-to {
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 500px) {
+  .modal-content {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .image-upload-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+
+  .form-container {
+    border-top: 1px solid #efefef;
+  }
 }
 </style>
