@@ -1,46 +1,53 @@
 <template>
-  <Header />
+  <!-- Header는 로그인 여부와 관계없이 주석 처리된 상태 -->
+  <!-- <Header /> -->
   <RouterView />
-  <Footer />
+  <Footer v-if="isLoggedIn" />
 </template>
 
 <script>
-import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import userStore from "@/scripts/store";
 import axios from "axios";
-import { onMounted } from "vue";
+import { onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 
 export default {
   name: 'App',
   components: {
     Footer,
-    Header
   },
   setup() {
     const router = useRouter();
 
-    // 로그인 상태 체크 및 상태 관리
+    // 로그인 여부 확인
     const check = async () => {
       try {
         const { data } = await axios.get("/api/auth/check");
         if (!data) {
-          router.push("/login");  // 로그인되지 않으면 로그인 페이지로 리디렉션
+          router.push("/login");
         } else {
-          userStore.commit("setCurrentMember", data);  // 로그인한 사용자 정보 저장
+          userStore.commit("setCurrentMember", data);
         }
       } catch (error) {
-        router.push("/login");  // 오류 발생 시 로그인 페이지로 리디렉션
+        router.push("/login");
       }
     };
 
     onMounted(() => {
-      check();  // 앱이 처음 마운트될 때만 체크
+      check();
     });
+
+    // 로그인 여부 computed로 확인
+    const isLoggedIn = computed(() => userStore.state.currentMember.id !== 0);
+
+    return {
+      isLoggedIn
+    };
   }
 };
 </script>
+
 
 
 

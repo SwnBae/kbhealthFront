@@ -305,7 +305,7 @@ onMounted(() => {
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(40px);
-  transition: all 1.2s ease;
+  transition: all 1s ease;
 }
 
 .animate-on-scroll.in-view {

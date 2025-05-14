@@ -44,7 +44,10 @@ const observeFeedAnimation = () => {
 .profile-graphs {
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: 1rem;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* 애니메이션 효과 */
@@ -68,6 +71,7 @@ const observeFeedAnimation = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 .graph-card:hover {
@@ -93,7 +97,7 @@ const observeFeedAnimation = () => {
   bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 40px;
+  width: 35px;
   height: 2px;
   background-color: #e6e6e6;
   border-radius: 1px;

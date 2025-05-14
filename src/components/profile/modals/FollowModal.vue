@@ -2,9 +2,30 @@
 <template>
   <div class="modal" @click.self="$emit('close')">
     <div class="modal-content animate-on-scroll in-view">
-      <h3 class="modal-title">{{ title }} 목록</h3>
+      <div class="modal-header">
+        <h3 class="modal-title">{{ title }} 목록</h3>
+        <button class="close-icon" @click="$emit('close')">✕</button>
+      </div>
+
+      <!-- 검색 필드 추가 -->
+      <div class="search-container">
+        <input
+            type="text"
+            v-model="searchQuery"
+            placeholder="계정명 또는 사용자명으로 검색"
+            class="search-input"
+            @input="filterFollowList"
+        />
+        <button class="search-button" @click="clearSearch">
+          <span v-if="searchQuery">✕</span>
+        </button>
+      </div>
+
       <div class="follow-list-container">
-        <div v-for="user in followList"
+        <div v-if="filteredList.length === 0" class="no-results">
+          검색 결과가 없습니다.
+        </div>
+        <div v-for="user in filteredList"
              :key="user.followId"
              class="follow-card animate-on-scroll in-view"
              @click="$emit('go-to-profile', user.account)">
@@ -21,6 +42,9 @@
             </div>
             <div class="user-details">
               <span class="nickname">{{ user.userName }}</span>
+              <div class="account-info">
+                <span class="account-value">@{{ user.account }}</span>
+              </div>
               <div class="score-info">
                 <span class="score-label">총 점수:</span> <span class="score-value">{{ user.totalScore }}</span>
                 <span class="score-separator">|</span>
@@ -30,15 +54,14 @@
           </div>
         </div>
       </div>
-      <div class="button-container">
-        <button type="button" class="close-button" @click="$emit('close')">닫기</button>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { ref, watch } from 'vue';
+
+const props = defineProps({
   title: {
     type: String,
     required: true
@@ -48,6 +71,34 @@ defineProps({
     default: () => []
   }
 });
+
+const searchQuery = ref('');
+const filteredList = ref([]);
+
+// 검색 결과 필터링 함수
+const filterFollowList = () => {
+  if (!searchQuery.value) {
+    filteredList.value = props.followList;
+    return;
+  }
+
+  const query = searchQuery.value.toLowerCase();
+  filteredList.value = props.followList.filter(user =>
+      user.account.toLowerCase().includes(query) ||
+      user.userName.toLowerCase().includes(query)
+  );
+};
+
+// 검색어 초기화
+const clearSearch = () => {
+  searchQuery.value = '';
+  filterFollowList();
+};
+
+// followList가 변경되면 필터 다시 적용
+watch(() => props.followList, () => {
+  filterFollowList();
+}, { immediate: true });
 
 defineEmits(['close', 'go-to-profile']);
 </script>
@@ -78,7 +129,9 @@ defineEmits(['close', 'go-to-profile']);
 
 .modal-content {
   background-color: white;
-  padding: 2rem;
+  padding: 1.5rem 1.5rem;
+  padding-top: 0.3rem;
+  padding-right: 1rem;/* 상단 여백 줄임 */
   border-radius: 12px;
   width: 90%;
   max-width: 600px;
@@ -87,8 +140,13 @@ defineEmits(['close', 'go-to-profile']);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #e6e6e6 #f5f5f5;
+  /* 스크롤바가 있어도 둥근 모서리 유지 */
+  border-radius: 12px;
+  mask-image: radial-gradient(white, black);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
 }
 
+/* 스크롤바 스타일 수정 */
 .modal-content::-webkit-scrollbar {
   width: 6px;
 }
@@ -96,11 +154,50 @@ defineEmits(['close', 'go-to-profile']);
 .modal-content::-webkit-scrollbar-track {
   background: #f5f5f5;
   border-radius: 3px;
+  margin: 4px;
 }
 
 .modal-content::-webkit-scrollbar-thumb {
   background-color: #e6e6e6;
   border-radius: 3px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px; /* 여백 줄임 */
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6e6e6;
+  position: relative;
+}
+
+.modal-title {
+  font-size: 24px; /* 폰트 크기 약간 줄임 */
+  font-weight: bold;
+  color: #222;
+  text-align: left;
+  margin: 0;
+}
+
+.close-icon {
+  font-size: 18px;
+  color: #888;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-icon:hover {
+  background-color: #f0f0f0;
+  color: #333;
 }
 
 .animate-on-scroll {
@@ -114,18 +211,54 @@ defineEmits(['close', 'go-to-profile']);
   transform: translateY(0);
 }
 
-.modal-title {
-  font-size: 28px;
-  font-weight: bold;
-  color: #222;
-  text-align: left;
-  margin-bottom: 24px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e6e6e6;
+/* 검색 컨테이너 스타일 */
+.search-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 40px 10px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 24px;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #a5d6a7;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.search-button {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #aaa;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.search-button:hover {
+  color: #666;
 }
 
 .follow-list-container {
   margin-top: 20px;
+}
+
+.no-results {
+  text-align: center;
+  padding: 30px 0;
+  color: #888;
+  font-size: 15px;
 }
 
 .follow-card {
@@ -206,6 +339,16 @@ defineEmits(['close', 'go-to-profile']);
   color: #333;
 }
 
+.account-info {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.account-value {
+  color: #666;
+}
+
 .score-info {
   font-size: 14px;
   color: #666;
@@ -224,28 +367,5 @@ defineEmits(['close', 'go-to-profile']);
 .score-separator {
   margin: 0 6px;
   color: #ddd;
-}
-
-.button-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.close-button {
-  padding: 8px 20px;
-  background-color: #fff;
-  color: #666;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.close-button:hover {
-  background-color: #f9f9f9;
-  transform: translateY(-2px);
 }
 </style>

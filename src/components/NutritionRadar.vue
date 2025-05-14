@@ -1,6 +1,6 @@
 <!-- RadarChart.vue -->
 <template>
-  <div class="chart-container animate-on-scroll">
+  <div class="chart-wrapper animate-on-scroll">
     <Radar :data="radarData" :options="radarOptions" />
   </div>
 </template>
@@ -46,7 +46,7 @@ const radarData = {
   labels: ['칼로리', '단백질', '지방', '탄수화물', '당', '식이섬유', '나트륨'],
   datasets: [
     {
-      label: '달성률',
+      label: '달성률(%)',
       data: [
         props.data.caloriesRate * 100,
         props.data.proteinRate * 100,
@@ -174,8 +174,8 @@ const observeChartAnimation = () => {
   margin-bottom: 1.2rem;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   max-width: 540px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-left: 1rem;
+  margin-right: 1rem;
 }
 
 .chart-container:hover {
@@ -193,5 +193,11 @@ const observeChartAnimation = () => {
 .animate-on-scroll.in-view {
   opacity: 1;
   transform: translateY(0);
+}
+
+.chart-wrapper {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
 }
 </style>

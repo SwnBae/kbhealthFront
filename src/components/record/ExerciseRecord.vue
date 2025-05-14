@@ -1,6 +1,5 @@
 <template>
   <div class="exercise-record-wrapper">
-    <h2 class="header">Exercise Record</h2>
 
     <!-- 검색 옵션 -->
     <div class="search-options fade-in-animation">

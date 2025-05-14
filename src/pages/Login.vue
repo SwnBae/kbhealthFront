@@ -52,7 +52,7 @@ export default {
             alert(message);  // 메시지 표시
 
             if (redirect) {
-              router.push(redirect).then(() => {
+              router.push("/feed").then(() => {
                 location.reload();  // 경로 변경 후 강제로 새로 고침
               });
             }

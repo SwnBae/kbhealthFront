@@ -1,6 +1,5 @@
 <template>
   <div class="diet-record-wrapper">
-    <h2 class="header">Diet Record</h2>
 
     <!-- 검색 옵션 -->
     <div class="search-options fade-in-animation">
@@ -368,7 +367,7 @@ onMounted(() => {
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(40px);
-  transition: all 3s ease;
+  transition: all 2s ease;
 }
 
 .animate-on-scroll.in-view {
@@ -379,7 +378,7 @@ onMounted(() => {
 /* 검색창과 추가 버튼용 페이드인 애니메이션 */
 .fade-in-animation {
   opacity: 0;
-  transition: opacity 2s ease;
+  transition: opacity 1.5s ease;
 }
 
 .fade-in-animation.fade-in-active {
