@@ -362,7 +362,6 @@ onMounted(async () => {
   background-color: #4caf50;
   color: white;
   border: none;
-  border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
 }
@@ -377,7 +376,7 @@ onMounted(async () => {
   right: 24px;
   width: 56px;
   height: 56px;
-  border-radius: 50%;
+  border-radius: 28px;
   background-color: #4caf50;
   color: white;
   display: flex;
@@ -387,7 +386,12 @@ onMounted(async () => {
   border: none;
   cursor: pointer;
   font-weight: bold;
-  transition: all 0.3s ease; /* 전환 시간 늘림 (0.3s -> 0.5s) */
+  transition:
+    width 0.5s ease,
+    border-radius 0.5s ease,
+    background-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
   z-index: 1000;
   padding: 0;
 }
@@ -395,19 +399,25 @@ onMounted(async () => {
 .create-post-floating-btn:hover {
   background-color: #388e3c;
   box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
-  transform: translateY(-2px);
 }
 
+/* 플러스 아이콘 */
 .plus-icon {
-  font-size: 28px;
-  font-weight: 300;
-  transition: margin-right 0.5s ease; /* 아이콘 전환 효과 추가 */
+  position: absolute;
+  bottom: 4px;
+  opacity: 1;
+  font-size: 36px;
+  font-weight: 400;
+  transition: margin-right 0.5s ease , opacity 0.5s ease;
 }
 
+/* 버튼 텍스트 — 기본은 투명 */
 .btn-text {
-  display: none;
-  white-space: nowrap; /* 텍스트가 줄바꿈되지 않도록 */
-  transition: opacity 0.5s ease; /* 텍스트 페이드 효과 */
+  position: absolute;
+  opacity: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  transition: opacity 0.5s ease;
 }
 
 /* PC에서 호버링 개선 */
@@ -415,50 +425,42 @@ onMounted(async () => {
   .create-post-floating-btn {
     overflow: hidden;
     width: 56px;
-    transition: width 0.5s ease, background-color 0.5s ease, box-shadow 0.5s ease, transform 0.5s ease;
+    transition:
+      width 0.5s ease,
+      border-radius 0.5s ease,     
+      background-color 0.5s ease,
+      box-shadow 0.5s ease,
+      transform 0.5s ease;
   }
 
-  /* 버튼에 여유 공간 추가 */
+  /* 호버 시 버튼 확장 */
+  .create-post-floating-btn:hover {
+    width: 150px; /* 더 넓게 확장 */
+  }
+
+  /* 호버 시 아이콘 위치 조정 */
+  .create-post-floating-btn:hover .plus-icon {
+    opacity: 0;
+  }
+
+  /* 호버 시 텍스트 부드럽게 등장 */
+  .create-post-floating-btn:hover .btn-text {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* 가상 요소로 호버 영역 확장 */
   .create-post-floating-btn::after {
     content: '';
     position: absolute;
     top: -35px;
     left: -35px;
-    right: +35px;
-    bottom: +35px;
+    right: -35px;
+    bottom: -35px;
     z-index: 1000;
   }
-
-  /* 가상 요소를 사용하여 호버 영역 확장 */
-  .create-post-floating-btn:hover {
-    width: 170px; /* 좀 더 넓게 (160px -> 170px) */
-    border-radius: 28px;
-  }
-
-  .create-post-floating-btn:hover .plus-icon {
-    margin-right: 10px; /* 간격 늘림 (8px -> 10px) */
-  }
-
-  .create-post-floating-btn:hover .btn-text {
-    display: inline;
-    opacity: 1;
-  }
-
-  /* 확장된 버튼의 유지 시간을 주기 위한 hover-intent 효과 (선택적) */
-  .create-post-floating-btn.expanded {
-    width: 170px;
-    border-radius: 28px;
-  }
-
-  .create-post-floating-btn.expanded .plus-icon {
-    margin-right: 10px;
-  }
-
-  .create-post-floating-btn.expanded .btn-text {
-    display: inline;
-    opacity: 1;
-  }
 }
+
 
 /* 피드 카드 & 애니메이션 */
 .animate-on-scroll {
