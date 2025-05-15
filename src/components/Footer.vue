@@ -2,18 +2,16 @@
   <footer class="footer">
     <div class="footer-container">
       <div class="footer-content">
-        <button class="nav-btn btn d-flex flex-column align-items-center"
-                @click="goTo('/home')"
-                :class="{ 'active': isActive('/home') }">
+        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/home')"
+          :class="{ 'active': isActive('/home') }">
           <div class="icon-container">
             <i class="bi bi-house-fill"></i>
           </div>
           <small>홈</small>
         </button>
 
-        <div v-if="userStore.state.currentMember.id" class="position-relative">
-          <button class="nav-btn btn d-flex flex-column align-items-center"
-                  @click="openSearchModal">
+        <div v-if="isLoggedIn" class="position-relative">
+          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal">
             <div class="icon-container">
               <i class="bi bi-search"></i>
             </div>
@@ -21,36 +19,32 @@
           </button>
         </div>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center"
-                @click="goTo('/ranking')"
-                :class="{ 'active': isActive('/ranking') }">
+        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/ranking')"
+          :class="{ 'active': isActive('/ranking') }">
           <div class="icon-container">
             <i class="bi bi-bar-chart-fill"></i>
           </div>
           <small>랭킹</small>
         </button>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center"
-                @click="goTo('/records')"
-                :class="{ 'active': isActive('/records') }">
+        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/records')"
+          :class="{ 'active': isActive('/records') }">
           <div class="icon-container">
             <i class="bi bi-journal-medical"></i>
           </div>
           <small>기록</small>
         </button>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center"
-                @click="reloadToProfile"
-                :class="{ 'active': isActive('/profile') }">
+        <button class="nav-btn btn d-flex flex-column align-items-center" @click="reloadToProfile"
+          :class="{ 'active': isActive('/profile') }">
           <div class="icon-container">
             <i class="bi bi-person-circle"></i>
           </div>
           <small>프로필</small>
         </button>
 
-        <button v-if="userStore.state.currentMember.id"
-                class="nav-btn btn d-flex flex-column align-items-center"
-                @click="logout">
+        <button v-if="isLoggedIn" class="nav-btn btn d-flex flex-column align-items-center"
+          @click="logout">
           <div class="icon-container">
             <i class="bi bi-box-arrow-right"></i>
           </div>
@@ -67,13 +61,8 @@
         </div>
 
         <div class="search-container">
-          <input
-              type="text"
-              v-model="keyword"
-              placeholder="계정명 또는 사용자명으로 검색"
-              class="search-input"
-              @keyup.enter="searchMembers"
-          />
+          <input type="text" v-model="keyword" placeholder="계정명 또는 사용자명으로 검색" class="search-input"
+            @keyup.enter="searchMembers" />
           <button class="search-button" @click="clearSearch">
             <span v-if="keyword">✕</span>
           </button>
@@ -83,10 +72,8 @@
           <div v-if="searchResults.length === 0 && searched" class="no-results">
             검색 결과가 없습니다.
           </div>
-          <div v-for="member in searchResults"
-               :key="member.memberId"
-               class="follow-card animate-on-scroll in-view"
-               @click="goToProfile(member.account)">
+          <div v-for="member in searchResults" :key="member.memberId" class="follow-card animate-on-scroll in-view"
+            @click="goToProfile(member.account)">
             <div class="profile-cell">
               <div class="profile-container">
                 <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
@@ -119,6 +106,12 @@ export default {
       showSearch: false,
       searched: false
     };
+  },
+  computed: {
+    // 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 본다
+    isLoggedIn() {
+      return userStore.state.currentMember.id !== 0;
+    }
   },
   methods: {
     goTo(path) {
@@ -164,54 +157,58 @@ export default {
       router.push("/profile");
     },
     logout() {
-      axios.get("/api/auth/logout").then((res) => {
-        alert(res.data);
-        userStore.commit("setCurrentMember", {id: 0, account: ''});
-        router.push({path: "/login"}).then(() => {
-          location.reload();
-        });
-      }).catch(() => {
-        alert("로그아웃 중 오류가 발생했습니다.");
-      });
+      axios.get("/api/auth/logout")
+        .then((res) => {
+          alert(res.data);
+          userStore.commit("setCurrentMember", { id: 0, account: '', name: '' });
+          router.push("/login").then(() => location.reload());
+        })
+        .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
     },
     isActive(path) {
       // 현재 경로가 전달된 경로로 시작하는지 확인
       return router.currentRoute.value.path.startsWith(path);
     }
   },
-  computed: {
-    userStore() {
-      return userStore;
-    }
-  }
 };
 </script>
 
 <style scoped>
 .footer {
   display: flex;
-  flex-direction: column; /* 내부 요소 세로 배치 */
-  align-items: center; /* 가운데 정렬 */
-  width: 5%; /* App.vue에서 너비 조정 */
-  top: 60px; /* 화면 상단에서 50px 떨어진 위치에 고정 */
+  flex-direction: column;
+  /* 내부 요소 세로 배치 */
+  align-items: center;
+  /* 가운데 정렬 */
+  width: 5%;
+  /* App.vue에서 너비 조정 */
+  top: 60px;
+  /* 화면 상단에서 50px 떨어진 위치에 고정 */
   bottom: auto;
   height: 300px;
   border: none;
   margin-top: 0;
   margin-bottom: 0;
   padding: 1px;
-  background-color: #fff; /* 배경색 필요 시 추가 */
-  border-radius: 16px; /* 둥근 테두리 */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 부드러운 그림자 효과 */
+  background-color: #fff;
+  /* 배경색 필요 시 추가 */
+  border-radius: 16px;
+  /* 둥근 테두리 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  /* 부드러운 그림자 효과 */
 }
 
 .footer-container {
   display: flex;
-  flex-direction: column; /* 내부 요소 세로 배치 */
-  align-items: center; /* 가운데 정렬 */
+  flex-direction: column;
+  /* 내부 요소 세로 배치 */
+  align-items: center;
+  /* 가운데 정렬 */
   width: 100%;
-  max-width: none; /* 최대 너비 제거 */
-  background-color: transparent; /* 배경 투명하게 */
+  max-width: none;
+  /* 최대 너비 제거 */
+  background-color: transparent;
+  /* 배경 투명하게 */
   border-radius: 0;
   box-shadow: none;
   border: none;
@@ -221,25 +218,32 @@ export default {
 
 .footer-content {
   display: flex;
-  flex-direction: column; /* 내부 버튼 세로 배치 */
-  align-items: center; /* 가운데 정렬 */
+  flex-direction: column;
+  /* 내부 버튼 세로 배치 */
+  align-items: center;
+  /* 가운데 정렬 */
   padding: 6px 0;
   width: 100%;
-  max-width: 80px; /* 푸터 너비에 맞게 조정 */
+  max-width: 80px;
+  /* 푸터 너비에 맞게 조정 */
 }
 
 .nav-btn {
   position: relative;
-  font-size: 0.8rem; /* 더 작은 폰트 크기 */
+  font-size: 0.8rem;
+  /* 더 작은 폰트 크기 */
   color: #6c757d;
-  padding: 8px; /* 패딩 조정 */
+  padding: 8px;
+  /* 패딩 조정 */
   border: none;
   background: transparent;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   overflow: hidden;
   border-radius: 8px;
-  margin: 5px 0; /* 상하 마진 조정 */
-  width: 100%; /* 버튼 너비 부모에 맞게 */
+  margin: 5px 0;
+  /* 상하 마진 조정 */
+  width: 100%;
+  /* 버튼 너비 부모에 맞게 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -248,7 +252,8 @@ export default {
 
 .nav-btn:hover {
   color: #212529;
-  transform: translateX(3px); /* 호버 시 약간 오른쪽으로 이동 */
+  transform: translateX(3px);
+  /* 호버 시 약간 오른쪽으로 이동 */
 }
 
 .nav-btn:active {
@@ -257,19 +262,24 @@ export default {
 
 .nav-btn.active {
   color: #212529;
-  background-color: rgba(108, 117, 125, 0.1); /* 회색 계열로 변경 */
+  background-color: rgba(108, 117, 125, 0.1);
+  /* 회색 계열로 변경 */
   border-radius: 8px;
 }
 
 .nav-btn.active::after {
   content: '';
   position: absolute;
-  left: 0; /* 활성 표시줄 위치 변경 */
+  left: 0;
+  /* 활성 표시줄 위치 변경 */
   top: 50%;
-  width: 2px; /* 얇은 세로 선 */
+  width: 2px;
+  /* 얇은 세로 선 */
   height: 20px;
-  background-color: #a5d6a7; /* 초록색 계열로 변경 */
-  border-radius: 0 4px 4px 0; /* 오른쪽만 둥글게 */
+  background-color: #a5d6a7;
+  /* 초록색 계열로 변경 */
+  border-radius: 0 4px 4px 0;
+  /* 오른쪽만 둥글게 */
   transform: translateY(-50%);
 }
 
@@ -278,8 +288,10 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: auto; /* 높이 자동 조정 */
-  margin-bottom: 5px; /* 아이콘 아래 마진 */
+  height: auto;
+  /* 높이 자동 조정 */
+  margin-bottom: 5px;
+  /* 아이콘 아래 마진 */
   transition: transform 0.3s ease;
 }
 
@@ -292,14 +304,16 @@ export default {
 }
 
 .nav-btn.active .bi {
-  color: #6c757d; /* 회색 계열로 유지 */
+  color: #6c757d;
+  /* 회색 계열로 유지 */
 }
 
 .footer small {
   font-size: 0.7rem;
   opacity: 0.9;
   transition: opacity 0.3s ease;
-  white-space: nowrap; /* 텍스트 줄바꿈 방지 */
+  white-space: nowrap;
+  /* 텍스트 줄바꿈 방지 */
 }
 
 .nav-btn:hover small {
@@ -325,6 +339,7 @@ export default {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -431,7 +446,8 @@ export default {
 }
 
 .search-input:focus {
-  border-color: #a0a0a0; /* 회색 계열로 변경 */
+  border-color: #a0a0a0;
+  /* 회색 계열로 변경 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -553,11 +569,14 @@ export default {
 
 /* 푸터에 다음과 같은 스타일 추가 (실제 푸터 클래스명에 맞게 수정) */
 .footer {
-  pointer-events: none; /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
+  pointer-events: none;
+  /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
 }
 
 /* 푸터 내의 실제 상호작용이 필요한 요소들에는 pointer-events 재활성화 */
-.footer a, .footer button, .footer input {
+.footer a,
+.footer button,
+.footer input {
   pointer-events: auto;
 }
 </style>
