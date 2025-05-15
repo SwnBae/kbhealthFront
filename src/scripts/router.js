@@ -1,11 +1,9 @@
 import Home from "@/pages/Home.vue";
 import Login from "@/pages/Login.vue";
 import Cart from "@/pages/Cart.vue";
-import Register from "@/pages/Register.vue";
 import Profile from "@/pages/Profile.vue";
 import Record from "@/pages/Record.vue";
 import Ranking from "@/pages/Ranking.vue";
-import FeedWrite from "@/components/FeedWrite.vue";
 
 import axios from 'axios';
 import { createRouter, createWebHistory } from 'vue-router';
@@ -13,13 +11,11 @@ import { createRouter, createWebHistory } from 'vue-router';
 const routes = [
   { path: '/', component: Home },
   { path: '/login', component: Login, meta: { guestOnly: true } },
-  { path: '/register', component: Register, meta: { guestOnly: true } },
   { path: '/cart', component: Cart, meta: { requiresAuth: true } },
   { path: '/profile/:account?', component: Profile, meta: { requiresAuth: true } },
   { path: '/records', component: Record, meta: { requiresAuth: true } },
   { path: '/ranking', component: Ranking, meta: { requiresAuth: true } },
   { path: '/home', component: Home, meta: { requiresAuth: true } },
-  { path: '/feed/write', component: FeedWrite, meta: { requiresAuth: true } },
 ];
 
 const router = createRouter({
