@@ -18,8 +18,13 @@
         @open-follow-modal="openFollowModal"
     />
 
-    <!-- 우측 영역 -->
-    <FeedBlock v-if="profile" :apiUrl="`/api/feed/${profile.memberId}/feed`" style="margin: 0;"/>
+    <!-- 우측 영역: 키 속성 추가하여 프로필 변경 시 컴포넌트 강제 갱신 -->
+    <FeedBlock 
+      v-if="profile" 
+      :apiUrl="`/api/feed/${profile.memberId}/feed`" 
+      :key="profile.memberId" 
+      style="margin: 0;"
+    />
 
 
     <!-- 모달 컴포넌트들 -->
@@ -253,12 +258,13 @@ const closeModal = () => {
   showModal.value = false;
 };
 
+// goToProfile 함수 개선 - location.reload() 제거
 const goToProfile = (account) => {
-  router.push(`/profile/${account}`).then(() => {
-    location.reload();
-  }).catch((error) => {
-    console.error('Error navigating to profile:', error);
-  });
+  // 이미 같은 프로필 페이지면 아무것도 하지 않음
+  if (route.params.account === account) return;
+  
+  // 다른 프로필 페이지로 이동
+  router.push(`/profile/${account}`);
 };
 
 // 팔로우/언팔로우 버튼 기능
@@ -281,19 +287,20 @@ const toggleFollow = async () => {
   }
 };
 
-watch(() => route.params.account, () => {
-  check();
-});
+// 라우트 파라미터가 변경될 때마다 체크
+watch(() => route.params.account, (newAccount) => {
+  if (newAccount) {
+    isLoading.value = true;
+    check();
+  }
+}, { immediate: true });
 
 onMounted(() => {
   check();
 });
-
-
 </script>
 
 <style scoped>
-
 /* 기본 스타일 */
 .profile-container {
   display: flex;
