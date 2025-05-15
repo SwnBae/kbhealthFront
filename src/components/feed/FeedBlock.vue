@@ -7,7 +7,7 @@
     <PostCreateModal
       :visible="showModal"
       @close="showModal = false"
-      @posted="reloadFeed" 
+      @posted="reloadFeed"
     />
 
     <!-- 피드 목록 -->
@@ -97,7 +97,13 @@ const loadPosts = async () => {
   try {
     isLoading.value = true;
     
-    const res = await axios.get(props.apiUrl, {
+    // API URL에 타임스탬프 추가하여 캐시 방지
+    const timestamp = new Date().getTime();
+    const url = `${props.apiUrl}${props.apiUrl.includes('?') ? '&' : '?'}_t=${timestamp}`;
+    
+    console.log(`피드 로드 시작: ${url}, 페이지=${page.value}, 사이즈=${size}`);
+    
+    const res = await axios.get(url, {
       params: { page: page.value, size }
     });
     
@@ -108,10 +114,12 @@ const loadPosts = async () => {
       // 페이징 응답 (Spring Data 스타일)
       newPosts = res.data.content;
       isLastPage.value = res.data.last;
+      console.log(`페이징 응답: ${newPosts.length}개 게시물, 마지막 페이지=${res.data.last}`);
     } else if (Array.isArray(res.data)) {
       // 배열 응답
       newPosts = res.data;
       isLastPage.value = newPosts.length < size;
+      console.log(`배열 응답: ${newPosts.length}개 게시물, 마지막 페이지=${newPosts.length < size}`);
     } else {
       console.error('지원되지 않는 API 응답 형식', res.data);
       return;
