@@ -21,12 +21,6 @@
           <input id="loginPw" type="password" v-model="state.form.loginPw" placeholder="비밀번호를 입력하세요" @focus="onPwFocus"
             @blur="onPwBlur" />
         </label>
-        <div class="options">
-          <label>
-            <input type="checkbox" v-model="state.remember" /> Remember me
-          </label>
-          <router-link to="/forgot">Forgot Password?</router-link>
-        </div>
         <button class="btn-login" @click="submitLogin">Login</button>
         <p class="register-link">
           회원이 아니라면? <router-link to="/register">회원가입</router-link>
@@ -120,7 +114,7 @@ export default {
 .login-page {
   position: fixed;
   inset: 0;
-  background: url('/src/assets/img/photo-1603486002664-a7319421e133.jpg') no-repeat center/cover;
+  background: url('/src/assets/img/background_image.png') no-repeat center/cover;
   display: flex;
   align-items: center;
   justify-content: center;
