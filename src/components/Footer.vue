@@ -193,8 +193,7 @@ export default {
   flex-direction: column; /* 내부 요소 세로 배치 */
   align-items: center; /* 가운데 정렬 */
   width: 5%; /* App.vue에서 너비 조정 */
-  top: 60px; /* 화면 상단에서 50px 떨어진 위치에 고정 */
-  bottom: auto;
+  top: 25vh; /* 화면 상단에서 50px 떨어진 위치에 고정 */
   height: 300px;
   border: none;
   margin-top: 0;

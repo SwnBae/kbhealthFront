@@ -1,150 +1,79 @@
 <template>
   <div class="diet-record-wrapper">
-
     <!-- 검색 옵션 -->
-    <div class="search-options fade-in-animation">
-      <input class="search-input" v-model="searchInput.startDate" type="date" />
-      <input class="search-input" v-model="searchInput.endDate" type="date" />
-      <input class="search-input" v-model="searchInput.menuKeyword" placeholder="음식 이름" @keyup.enter="searchDietRecords" />
-      <button class="search-button" @click="searchDietRecords">검색</button>
-    </div>
-
-    <!-- 기록 추가 버튼 -->
-    <div class="add-record-btn-container fade-in-animation">
-      <button class="add-record-btn" @click="showAddDietRecordForm = true">기록 추가</button>
-    </div>
+    <SearchBar
+        :searchInput="searchInput"
+        @search="searchDietRecords"
+    />
 
     <!-- 기록 목록 -->
-    <div class="diet-records-container">
-      <div v-for="record in displayedRecords" :key="record.id" class="diet-record-card animate-on-scroll">
-        <div class="diet-info">
-          <div class="diet-menu">{{ record.dietMenu }}</div>
-          <div class="diet-details">
-            <span class="meal-type" :class="getMealTypeClass(record.mealType)">{{ formatMealType(record.mealType) }}</span>
-            <span class="record-date">{{ formatDate(record.lastModifyDate) }}</span>
-          </div>
-        </div>
-
-        <!-- 오늘일 경우에만 수정/삭제 버튼 표시 -->
-        <div class="record-actions" v-if="isToday(record.lastModifyDate)">
-          <button class="edit-btn" @click="editDietRecord(record)">수정</button>
-          <button class="delete-btn" @click="deleteDietRecord(record.id)">삭제</button>
-        </div>
-      </div>
-
-      <div v-if="displayedRecords.length === 0" class="no-records animate-on-scroll">
-        <p>기록된 식단이 없습니다.</p>
-      </div>
-    </div>
-
-    <!-- 기록 수정 모달 -->
-    <transition name="fade-modal">
-      <div v-if="showEditDietRecordForm" class="modal">
-        <div class="modal-content">
-          <span class="close" @click="showEditDietRecordForm = false">&times;</span>
-
-          <h3 class="modal-header">식단 기록 수정</h3>
-
-          <input class="file-input" type="file" @change="handleImageUpload" />
-
-          <!-- 음식 검색 및 선택 -->
-          <div class="search-container">
-            <input class="search-input-diet" v-model="editDietSearchKeyword" placeholder="음식 이름 검색" @keyup.enter="searchDietsForEdit" />
-            <button class="search-button-diet" @click="searchDietsForEdit">검색</button>
-          </div>
-
-          <!-- 검색 결과 리스트 -->
-          <transition name="fade">
-            <ul v-if="diets.length > 0" class="search-result-list">
-              <transition-group name="fade-list" tag="div">
-                <li
-                    v-for="diet in diets"
-                    :key="diet.id"
-                    class="search-result-item"
-                    @click="selectDietForEdit(diet)"
-                >
-                  {{ diet.menu }}
-                </li>
-              </transition-group>
-            </ul>
-          </transition>
-
-          <input class="input-number" v-model="dietRecordToEdit.amount" type="number" placeholder="먹은 양" min="0" />
-
-          <select class="select-menu" v-model="dietRecordToEdit.mealType">
-            <option value="BREAKFAST">아침</option>
-            <option value="LUNCH">점심</option>
-            <option value="DINNER">저녁</option>
-            <option value="SNACK">간식</option>
-          </select>
-
-          <button class="submit-btn" @click="updateDietRecord">수정</button>
-        </div>
-      </div>
-    </transition>
+    <DietRecordList
+        :records="displayedRecords"
+        @edit="editDietRecord"
+        @delete="deleteDietRecord"
+    />
 
     <!-- 기록 추가 모달 -->
-    <transition name="fade-modal">
-      <div v-if="showAddDietRecordForm" class="modal">
-        <div class="modal-content">
-          <span class="close" @click="showAddDietRecordForm = false">&times;</span>
+    <AddDietRecordModal
+        v-if="showAddDietRecordModal"
+        @close="showAddDietRecordModal = false"
+        @added="onRecordAdded"
+    />
 
-          <h3 class="modal-header">식단 기록 추가</h3>
-          <input class="file-input" type="file" @change="handleImageUpload" />
+    <!-- 기록 수정 모달 -->
+    <EditDietRecordModal
+        v-if="showEditDietRecordModal"
+        :recordToEdit="dietRecordToEdit"
+        @close="showEditDietRecordModal = false"
+        @updated="onRecordUpdated"
+    />
 
-          <div class="search-container">
-            <input class="search-input-diet" v-model="dietSearchKeyword" placeholder="음식 이름 검색" @keyup.enter="searchDiets" />
-            <button class="search-button-diet" @click="searchDiets">검색</button>
-          </div>
+    <!-- 영양소 정보 로딩 -->
+    <div v-if="isNutritionLoading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <span>영양소 정보 로딩 중...</span>
+    </div>
 
-          <!-- 검색 결과 리스트 -->
-          <transition name="fade">
-            <ul v-if="diets.length > 0" class="search-result-list">
-              <transition-group name="fade-list" tag="div">
-                <li
-                    v-for="diet in diets"
-                    :key="diet.id"
-                    class="search-result-item"
-                    @click="selectDiet(diet)"
-                >
-                  {{ diet.menu }}
-                </li>
-              </transition-group>
-            </ul>
-          </transition>
-
-          <input class="input-number" v-model="form.amount" type="number" placeholder="먹은 양 (g, ml)" min="0" />
-
-          <select class="select-menu" v-model="form.mealType">
-            <option value="BREAKFAST">아침</option>
-            <option value="LUNCH">점심</option>
-            <option value="DINNER">저녁</option>
-            <option value="SNACK">간식</option>
-          </select>
-
-          <button class="submit-btn" @click="addDietRecord">추가</button>
-        </div>
-      </div>
-    </transition>
+    <!-- 플로팅 기록 추가 버튼 -->
+    <button ref="floatingBtn" class="create-record-floating-btn" @click="showAddDietRecordModal = true">
+      <span class="plus-icon">+</span>
+      <span class="btn-text">기록 추가</span>
+    </button>
   </div>
 </template>
 
 <script setup>
-import {ref, onMounted, computed, nextTick} from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
 import axios from 'axios';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-
-dayjs.extend(relativeTime);
+import DietRecordList from './diet/DietRecordList.vue';
+import SearchBar from './diet/SearchBar.vue';
+import AddDietRecordModal from './diet/AddDietRecordModal.vue';
+import EditDietRecordModal from './diet/EditDietRecordModal.vue';
 
 // Vue 데이터 및 함수
 const records = ref([]);
-const diets = ref([]);
-
-const form = ref({
+const showAddDietRecordModal = ref(false);
+const showEditDietRecordModal = ref(false);
+const dietRecordToEdit = ref({
+  id: '',
   dietId: '',
-  amount: null,
+  amount: 0,
   mealType: 'BREAKFAST',
+  drImgUrl: null,
+  dietMenu: ''
+});
+const floatingBtn = ref(null); // 플로팅 버튼 ref 추가
+const isNutritionLoading = ref(false); // 영양소 정보 로딩 상태
+
+// 영양소 기준 데이터
+const nutritionStandard = ref({
+  calories: 2000,
+  protein: 60,
+  fat: 65,
+  carbohydrates: 300,
+  sugars: 25,
+  fiber: 25,
+  sodium: 2000
 });
 
 // 입력용 검색 상태 (UI에 바인딩)
@@ -161,17 +90,6 @@ const appliedSearch = ref({
   endDate: '',
   isSearched: false // 검색 버튼이 클릭되었는지 여부
 });
-
-const showAddDietRecordForm = ref(false);
-const showEditDietRecordForm = ref(false);
-const dietSearchKeyword = ref('');
-const dietRecordToEdit = ref({
-  id: '',
-  dietId: '',
-  amount: 0,
-  mealType: 'BREAKFAST',
-});
-const editDietSearchKeyword = ref('');
 
 // 스크롤 애니메이션 관찰자 설정
 const observeFeedAnimation = () => {
@@ -190,35 +108,67 @@ const observeFeedAnimation = () => {
   });
 };
 
-const searchDiets = async () => {
-  const {data} = await axios.get('/api/items/search', {
-    params: {menu: dietSearchKeyword.value},
+// 호버 인텐트 기능 설정
+const setupHoverIntent = () => {
+  if (!floatingBtn.value) return;
+
+  let leaveTimeout = null;
+
+  // 마우스가 버튼 위에 올라왔을 때
+  floatingBtn.value.addEventListener('mouseenter', () => {
+    // 떠나는 타이머가 있다면 취소
+    if (leaveTimeout) {
+      clearTimeout(leaveTimeout);
+      leaveTimeout = null;
+    }
+
+    // 확장 클래스 즉시 추가
+    floatingBtn.value.classList.add('expanded');
   });
-  diets.value = data;
+
+  // 마우스가 버튼에서 떠났을 때
+  floatingBtn.value.addEventListener('mouseleave', () => {
+    // 지연 시간 후 클래스 제거 (700ms 지연)
+    leaveTimeout = setTimeout(() => {
+      if (floatingBtn.value) {
+        floatingBtn.value.classList.remove('expanded');
+      }
+    }, 700); // 0.7초 동안 확장 상태 유지
+  });
 };
 
-const searchDietsForEdit = async () => {
-  const {data} = await axios.get('/api/items/search', {
-    params: {menu: editDietSearchKeyword.value},
-  });
-  diets.value = data;
-};
-
-const selectDietForEdit = (diet) => {
-  dietRecordToEdit.value.dietId = diet.id;
-  editDietSearchKeyword.value = diet.menu; // 선택한 음식 이름을 검색 키워드로 설정
-  diets.value = []; // 결과 목록을 닫음
+// 영양소 기준 정보 가져오기
+const fetchNutritionStandard = async () => {
+  isNutritionLoading.value = true;
+  try {
+    const { data } = await axios.get('/api/records/ns/current');
+    nutritionStandard.value = data;
+    console.log('영양소 기준 정보 로드 완료:', nutritionStandard.value);
+  } catch (err) {
+    console.error('영양소 기준 정보 로드 실패:', err);
+  } finally {
+    isNutritionLoading.value = false;
+  }
 };
 
 const fetchDietRecords = async () => {
-  const {data} = await axios.get('/api/records/diet');
-  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
-  await nextTick();
-  observeFeedAnimation();
+  try {
+    const { data } = await axios.get('/api/records/diet');
+    records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
+    await nextTick();
+    observeFeedAnimation();
+  } catch (err) {
+    console.error('식단 기록 불러오기 실패', err);
+  }
 };
 
-const searchDietRecords = async () => {
-  // 검색 버튼 클릭 시 입력값을 적용된 검색 상태로 복사
+const searchDietRecords = async (searchData) => {
+  // 검색 버튼 클릭 시 전달받은 값으로 입력값 업데이트
+  if (searchData) {
+    searchInput.value = { ...searchData };
+  }
+
+  // 검색 상태 적용
   appliedSearch.value = {
     menuKeyword: searchInput.value.menuKeyword,
     startDate: searchInput.value.startDate,
@@ -226,41 +176,25 @@ const searchDietRecords = async () => {
     isSearched: true
   };
 
-  // API 호출을 통한 서버 검색 (기존 코드와 동일)
-  const {data} = await axios.get('/api/records/diet/search', {
-    params: {
-      menuKeyword: searchInput.value.menuKeyword,
-      startDate: searchInput.value.startDate,
-      endDate: searchInput.value.endDate,
-    },
-  });
-  records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
-  await nextTick();
-  observeFeedAnimation();
-};
-
-const selectDiet = (diet) => {
-  form.value.dietId = diet.id;
-  dietSearchKeyword.value = diet.menu;
-  diets.value = []; // 결과 닫기
-};
-
-const addDietRecord = async () => {
-  const {dietId, amount, mealType} = form.value;
-  await axios.post('/api/records/diet', {dietId, amount, mealType});
-  resetForm();
-  showAddDietRecordForm.value = false;
-  await fetchDietRecords();
-
-  // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
-  if (appliedSearch.value.isSearched) {
-    await searchDietRecords();
+  try {
+    // API 호출을 통한 서버 검색
+    const { data } = await axios.get('/api/records/diet/search', {
+      params: {
+        menuKeyword: searchInput.value.menuKeyword,
+        startDate: searchInput.value.startDate,
+        endDate: searchInput.value.endDate,
+      },
+    });
+    records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
+    await nextTick();
+    observeFeedAnimation();
+  } catch (err) {
+    console.error('식단 기록 검색 실패', err);
   }
 };
 
 const deleteDietRecord = async (id) => {
-  const record = records.value.find(r => r.id === id);
-  if (isToday(record.lastModifyDate)) {
+  try {
     await axios.delete(`/api/records/diet/${id}`);
     await fetchDietRecords();
 
@@ -268,19 +202,19 @@ const deleteDietRecord = async (id) => {
     if (appliedSearch.value.isSearched) {
       await searchDietRecords();
     }
+  } catch (err) {
+    console.error('식단 기록 삭제 실패', err);
+    alert('삭제에 실패했습니다. 다시 시도해주세요.');
   }
 };
 
 const editDietRecord = (record) => {
   dietRecordToEdit.value = {...record};
-  editDietSearchKeyword.value = record.dietMenu;
-  showEditDietRecordForm.value = true;
+  showEditDietRecordModal.value = true;
 };
 
-const updateDietRecord = async () => {
-  const {dietId, amount, mealType, id} = dietRecordToEdit.value;
-  await axios.put(`/api/records/diet/${id}`, {dietId, amount, mealType});
-  showEditDietRecordForm.value = false;
+const onRecordAdded = async () => {
+  showAddDietRecordModal.value = false;
   await fetchDietRecords();
 
   // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
@@ -289,42 +223,14 @@ const updateDietRecord = async () => {
   }
 };
 
-const isToday = (dateStr) => {
-  const today = new Date();
-  const targetDate = new Date(dateStr);
-  return today.toDateString() === targetDate.toDateString();
-};
+const onRecordUpdated = async () => {
+  showEditDietRecordModal.value = false;
+  await fetchDietRecords();
 
-const formatDate = (dateTimeStr) => {
-  return dayjs(dateTimeStr).fromNow(); // 상대적 시간 표시 (예: "3시간 전")
-};
-
-const formatMealType = (mealType) => {
-  const types = {
-    'BREAKFAST': '아침',
-    'LUNCH': '점심',
-    'DINNER': '저녁',
-    'SNACK': '간식'
-  };
-  return types[mealType] || mealType;
-};
-
-const getMealTypeClass = (mealType) => {
-  return `meal-type-${mealType.toLowerCase()}`;
-};
-
-const resetForm = () => {
-  form.value = {
-    dietId: '',
-    amount: 0,
-    mealType: 'BREAKFAST',
-  };
-  dietSearchKeyword.value = '';
-};
-
-const handleImageUpload = (event) => {
-  // 이미지 업로드 로직
-  console.log('이미지 업로드', event.target.files[0]);
+  // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
+  if (appliedSearch.value.isSearched) {
+    await searchDietRecords();
+  }
 };
 
 // 표시할 레코드 계산 (검색 버튼 클릭 시에만 필터링)
@@ -349,8 +255,17 @@ const displayedRecords = computed(() => {
   });
 });
 
-onMounted(() => {
-  fetchDietRecords();
+onMounted(async () => {
+  // 병렬로 데이터 로드
+  await Promise.all([
+    fetchDietRecords(),
+    fetchNutritionStandard()
+  ]);
+
+  // 호버 인텐트 설정 추가
+  nextTick(() => {
+    setupHoverIntent();
+  });
 });
 </script>
 
@@ -361,6 +276,8 @@ onMounted(() => {
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  position: relative;
+  padding-bottom: 80px; /* 플로팅 버튼 공간 확보 */
 }
 
 /* 애니메이션 공통 스타일 */
@@ -385,355 +302,130 @@ onMounted(() => {
   opacity: 1;
 }
 
-/* 헤더 스타일 */
-.header {
-  font-size: 28px;
-  font-weight: bold;
-  color: #222;
-  text-align: left;
-  margin-bottom: 24px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-/* 검색 옵션 스타일 */
-.search-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.search-input {
-  padding: 10px 15px;
-  border-radius: 20px;
-  border: 1px solid #e6e6e6;
-  background-color: #f9f9f9;
-  color: #333;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  flex: 1;
-  min-width: 120px;
-}
-
-.search-input:focus {
-  border-color: #4caf50;
-  background-color: #fff;
-  box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
-  outline: none;
-}
-
-.search-button {
+/* 플로팅 식단 기록 추가 버튼 */
+.create-record-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
   background-color: #4caf50;
   color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 20px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.search-button:hover {
-  background-color: #3d9440;
-}
-
-/* 기록 추가 버튼 스타일 */
-.add-record-btn-container {
-  margin: 20px 0;
-  text-align: center;
-}
-
-.add-record-btn {
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 24px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.3s ease;
-  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
-}
-
-.add-record-btn:hover {
-  background-color: #3d9440;
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
-}
-
-/* 기록 카드 스타일 */
-.diet-records-container {
-  margin-top: 20px;
-}
-
-.diet-record-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  margin-bottom: 16px;
-  overflow: hidden;
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: transform 0.6s ease, box-shadow 0.6s ease;
-}
-
-.diet-record-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-}
-
-.diet-info {
-  flex-grow: 1;
-}
-
-.diet-menu {
-  font-size: 1.1rem;
-  font-weight: bold;
-  margin-bottom: 6px;
-  color: #333;
-}
-
-.diet-details {
   display: flex;
   align-items: center;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-/* 식사 유형별 색상 */
-.meal-type {
-  padding: 4px 10px;
-  border-radius: 12px;
-  margin-right: 10px;
-  font-weight: 500;
-}
-
-.meal-type-breakfast {
-  background-color: #fff8e1; /* 부드러운 크림 옐로우 */
-  color: #f9a825; /* 따뜻한 머스터드 */
-}
-
-.meal-type-lunch {
-  background-color: #f1f8e9; /* 연한 민트/그린톤 */
-  color: #388e3c; /* 균형 잡힌 포레스트 그린 */
-}
-
-.meal-type-dinner {
-  background-color: #e8eaf6; /* 연한 네이비 톤 배경 (인디고 계열) */
-  color: #283593; /* 깊은 인디고 / 네이비 텍스트 */
-}
-
-.meal-type-snack {
-  background-color: #fce4ec; /* 연한 코튼 핑크 */
-  color: #d81b60; /* 딸기빛 진한 핑크 */
-}
-
-.record-date {
-  color: #999;
-  font-size: 0.85rem;
-}
-
-.record-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.edit-btn, .delete-btn {
-  padding: 8px 12px;
-  border-radius: 8px;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
   border: none;
   cursor: pointer;
-  transition: all 0.6s ease;
-  font-size: 0.9rem;
+  font-weight: bold;
+  transition:
+      width 0.5s ease,
+      border-radius 0.5s ease,
+      background-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
+  z-index: 1000;
+  padding: 0;
 }
 
-.edit-btn {
-  background-color: #f0f7f0;
-  color: #4caf50;
+.create-record-floating-btn:hover {
+  background-color: #388e3c;
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
 }
 
-.delete-btn {
-  background-color: #fff0f0;
-  color: #ff6b6b;
+/* 플러스 아이콘 */
+.plus-icon {
+  position: absolute;
+  bottom: 4px;
+  opacity: 1;
+  font-size: 36px;
+  font-weight: 400;
+  transition: margin-right 0.5s ease, opacity 0.5s ease;
 }
 
-.edit-btn:hover {
-  background-color: #e0f2e0;
+/* 버튼 텍스트 - 기본은 투명 */
+.btn-text {
+  position: absolute;
+  opacity: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  transition: opacity 0.5s ease;
 }
 
-.delete-btn:hover {
-  background-color: #ffe0e0;
-}
-
-.no-records {
-  text-align: center;
-  padding: 40px;
-  color: #999;
-  font-size: 1.1rem;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* 모달 스타일 */
-.modal {
+/* 로딩 오버레이 */
+.loading-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 2000;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  z-index: 1000;
+  justify-content: center;
+  font-size: 16px;
+  color: #4caf50;
+  font-weight: 500;
 }
 
-.modal-content {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  max-width: 500px;
-  width: 100%;
-  position: relative;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(76, 175, 80, 0.2);
+  border-top: 4px solid #4caf50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
 }
 
-.modal-header {
-  font-size: 20px;
-  font-weight: 600;
-  text-align: center;
-  margin-bottom: 20px;
-  color: #333;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.close {
-  position: absolute;
-  top: 15px;
-  right: 20px;
-  font-size: 28px;
-  cursor: pointer;
-  color: #999;
-  transition: color 0.6s ease;
-}
+/* PC에서 호버링 개선 */
+@media (min-width: 769px) {
+  .create-record-floating-btn {
+    overflow: hidden;
+    width: 56px;
+    transition:
+        width 0.5s ease,
+        border-radius 0.5s ease,
+        background-color 0.5s ease,
+        box-shadow 0.5s ease,
+        transform 0.5s ease;
+  }
 
-.close:hover {
-  color: #333;
-}
+  /* 호버 시 버튼 확장 */
+  .create-record-floating-btn:hover,
+  .create-record-floating-btn.expanded {
+    width: 150px; /* 더 넓게 확장 */
+  }
 
-/* 검색 컨테이너 스타일 */
-.search-container {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
+  /* 호버 시 아이콘 위치 조정 */
+  .create-record-floating-btn:hover .plus-icon,
+  .create-record-floating-btn.expanded .plus-icon {
+    opacity: 0;
+  }
 
-.search-input-diet {
-  flex: 1;
-  padding: 12px 15px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  font-size: 14px;
-}
+  /* 호버 시 텍스트 부드럽게 등장 */
+  .create-record-floating-btn:hover .btn-text,
+  .create-record-floating-btn.expanded .btn-text {
+    opacity: 1;
+    visibility: visible;
+  }
 
-.search-button-diet {
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0 15px;
-  cursor: pointer;
-}
-
-.search-result-list {
-  list-style-type: none;
-  padding: 0;
-  margin: 10px 0 15px;
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background-color: #fff;
-}
-
-.search-result-item {
-  padding: 12px 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.6s ease;
-}
-
-.search-result-item:hover {
-  background-color: #f9f9f9;
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-/* 입력 필드 스타일 */
-.select-menu, .input-number, .file-input {
-  width: 100%;
-  padding: 12px 15px;
-  margin: 10px 0;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  font-size: 14px;
-  transition: border-color 0.6s ease;
-}
-
-.select-menu:focus, .input-number:focus {
-  border-color: #4caf50;
-  outline: none;
-}
-
-.submit-btn {
-  width: 100%;
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  margin-top: 15px;
-  transition: background-color 0.6s ease;
-}
-
-.submit-btn:hover {
-  background-color: #3d9440;
-}
-
-/* 애니메이션 */
-.fade-modal-enter-active, .fade-modal-leave-active {
-  transition: opacity 0.6s ease;
-}
-
-.fade-modal-enter-from, .fade-modal-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.6s ease;
-}
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
-
-.fade-list-enter-active {
-  transition: all 0.6s ease;
-}
-
-.fade-list-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.fade-list-enter-to {
-  opacity: 1;
-  transform: translateY(0);
+  /* 가상 요소로 호버 영역 확장 */
+  .create-record-floating-btn::after {
+    content: '';
+    position: absolute;
+    top: -35px;
+    left: -35px;
+    right: -35px;
+    bottom: -35px;
+    z-index: -1;
+  }
 }
 </style>

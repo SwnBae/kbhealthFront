@@ -99,7 +99,7 @@ export default {
   position: fixed;
   inset: 0;
   /* 배경이미지는 여기서 설정하세요 */
-  /* background: url('/src/assets/img/photo-1603486002664-a7319421e133.jpg') no-repeat center/cover; */
+  background: url('/src/assets/img/photo-1603486002664-a7319421e133.jpg') no-repeat center/cover;
   display: flex;
   align-items: center;
   justify-content: center;
