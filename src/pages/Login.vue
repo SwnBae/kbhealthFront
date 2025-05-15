@@ -1,31 +1,66 @@
 <template>
   <div class="login-page">
-    <!-- Rabbit Animation 컴포넌트: props 전달 및 완료 이벤트 처리 -->
-    <RabbitAnimation :id-length="state.form.loginId.length" :pw-focused="pwFocused" :login-success="loginSuccess"
-      @animation-end="onAnimationEnd" />
+    <!-- Rabbit Animation (login only) -->
+    <transition name="fade" mode="out-in">
+      <RabbitAnimation
+        v-if="!isRegistering"
+        :id-length="state.form.loginId.length"
+        :pw-focused="pwFocused"
+        :login-success="loginSuccess"
+        @animation-end="onAnimationEnd"
+      />
+    </transition>
 
-    <div class="login-panel">
-      <div v-if="state.currentMember.id">
-        <p>안녕하세요? {{ state.currentMember.name }}님!</p>
-        <button @click="logout">로그아웃</button>
-      </div>
-      <div v-else>
-        <h1>Login</h1>
-        <label for="loginId">
-          <span>아이디</span>
-          <input id="loginId" type="text" v-model="state.form.loginId" placeholder="아이디를 입력하세요" @focus="onIdFocus"
-            @blur="onIdBlur" />
-        </label>
-        <label for="loginPw">
-          <span>패스워드</span>
-          <input id="loginPw" type="password" v-model="state.form.loginPw" placeholder="비밀번호를 입력하세요" @focus="onPwFocus"
-            @blur="onPwBlur" />
-        </label>
-        <button class="btn-login" @click="submitLogin">Login</button>
-        <p class="register-link">
-          회원이 아니라면? <router-link to="/register">회원가입</router-link>
-        </p>
-      </div>
+    <!-- Auth Panel with expand transition -->
+    <div class="login-panel" :class="{ registering: isRegistering }">
+      <transition name="fade" mode="out-in">
+        <!-- Login Form -->
+        <div v-if="!isRegistering" class="panel-content" key="login">
+          <h1>Login</h1>
+          <label for="loginId">
+            <span>아이디</span>
+            <input
+              id="loginId"
+              type="text"
+              v-model="state.form.loginId"
+              placeholder="아이디를 입력하세요"
+              @focus="onIdFocus"
+              @blur="onIdBlur"
+            />
+          </label>
+          <label for="loginPw">
+            <span>비밀번호</span>
+            <input
+              id="loginPw"
+              type="password"
+              v-model="state.form.loginPw"
+              placeholder="비밀번호를 입력하세요"
+              @focus="onPwFocus"
+              @blur="onPwBlur"
+            />
+          </label>
+          <button class="btn-login" @click="submitLogin">Login</button>
+        </div>
+
+        <!-- Register Form -->
+        <div v-else class="panel-content" key="register">
+          <button class="btn-back" @click="toggleForm">← 로그인으로 돌아가기</button>
+          <h1>회원가입</h1>
+          <label for="regAccount"><span>아이디</span><input type="text" id="regAccount" v-model="form.regAccount" placeholder="아이디를 입력하세요" /></label>
+          <label for="regPw"><span>비밀번호</span><input type="password" id="regPw" v-model="form.regPw" placeholder="비밀번호를 입력하세요" /></label>
+          <label for="regUserName"><span>닉네임</span><input type="text" id="regUserName" v-model="form.regUserName" placeholder="닉네임을 입력하세요" /></label>
+          <label for="regHeight"><span>키 (cm)</span><input type="number" id="regHeight" v-model="form.regHeight" placeholder="키를 입력하세요" /></label>
+          <label for="regWeight"><span>몸무게 (kg)</span><input type="number" id="regWeight" v-model="form.regWeight" placeholder="몸무게를 입력하세요" /></label>
+          <label for="regGender"><span>성별</span><select id="regGender" v-model="form.regGender"><option value="MALE">남성</option><option value="FEMALE">여성</option></select></label>
+          <label for="regAge"><span>나이</span><input type="number" id="regAge" v-model="form.regAge" placeholder="나이를 입력하세요" /></label>
+          <button class="btn-login" @click="registerUser">회원가입</button>
+        </div>
+      </transition>
+
+      <!-- Toggle Link for legacy fallback -->
+      <p class="toggle-link">
+        <a href="#" v-if="!isRegistering" @click.prevent="toggleForm">회원이 아니라면 회원가입</a>
+      </p>
     </div>
   </div>
 </template>
@@ -38,94 +73,66 @@ import RabbitAnimation from '@/components/login/RabbitAnimation.vue'
 import userStore from '@/scripts/store'
 
 export default {
-  name: 'LoginPage',
+  name: 'LoginRegisterPage',
   components: { RabbitAnimation },
   setup() {
     const router = useRouter()
-    const state = reactive({
-      currentMember: { id: 0, name: '', account: '' },
-      form: { loginId: '', loginPw: '' },
-      remember: false
-    })
+    const isRegistering = ref(false)
+
+    const state = reactive({ currentMember: { id: 0, name: '', account: '' }, form: { loginId: '', loginPw: '' } })
     const pwFocused = ref(false)
     const idFocused = ref(false)
     const loginSuccess = ref(false)
     const pendingMember = ref(null)
 
-    // 입력 포커스 핸들러
+    const form = reactive({ regAccount: '', regPw: '', regUserName: '', regHeight: '', regWeight: '', regGender: 'MALE', regAge: '' })
+
+    const toggleForm = () => { isRegistering.value = !isRegistering.value }
     const onIdFocus = () => { idFocused.value = true }
     const onIdBlur  = () => { idFocused.value = false }
     const onPwFocus = () => { pwFocused.value = true }
     const onPwBlur  = () => { pwFocused.value = false }
 
-    // 로그인 요청
     const submitLogin = () => {
       const args = { account: state.form.loginId, password: state.form.loginPw }
       axios.post('/api/auth/login', args)
-        .then(({ data }) => {
-          // 애니메이션 후 커밋하기 위해 저장
-          pendingMember.value = { id: data.id, account: data.account, name: data.name }
-          loginSuccess.value = true
-        })
-        .catch(() => {
-          alert('로그인에 실패했습니다. 계정 정보를 확인해주세요.')
-        })
+        .then(({ data }) => { pendingMember.value = { id: data.id, account: data.account, name: data.name }; loginSuccess.value = true })
+        .catch(() => { alert('로그인에 실패했습니다. 계정 정보를 확인해주세요.') })
     }
 
-    // 애니메이션 끝난 후 호출
     const onAnimationEnd = () => {
       if (pendingMember.value) {
         userStore.commit('setCurrentMember', pendingMember.value)
+        router.push('/home')
       }
-      router.push('/home')
     }
 
-    // 로그아웃
-    const logout = () => {
-      axios.get('/api/auth/logout')
-        .then(() => {
-          alert('로그아웃하였습니다.')
-          userStore.commit('setCurrentMember', { id: 0, account: '', name: '' })
-        })
-        .catch(() => {
-          alert('로그아웃 중 오류가 발생했습니다.')
-        })
+    const registerUser = () => {
+      const args = { account: form.regAccount, password: form.regPw, userName: form.regUserName, height: form.regHeight, weight: form.regWeight, gender: form.regGender, age: form.regAge }
+      axios.post('/api/auth/regist', args)
+        .then(({ data }) => { alert(data.message || '회원가입에 성공했습니다.'); toggleForm() })
+        .catch(() => { alert('회원가입에 실패했습니다. 입력 정보를 확인해주세요.') })
     }
 
-    return {
-      state,
-      pwFocused,
-      idFocused,
-      loginSuccess,
-      onIdFocus,
-      onIdBlur,
-      onPwFocus,
-      onPwBlur,
-      submitLogin,
-      logout,
-      onAnimationEnd
-    }
+    return { state, form, isRegistering, pwFocused, idFocused, loginSuccess, onIdFocus, onIdBlur, onPwFocus, onPwBlur, submitLogin, registerUser, toggleForm, onAnimationEnd }
   }
 }
 </script>
 
 <style scoped>
-/* 전체 화면 배경 */
 .login-page {
   position: fixed;
   inset: 0;
   background: url('/src/assets/img/background_image.png') no-repeat center/cover;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
 }
 
-/* 글라스모피즘 패널 */
 .login-panel {
   width: 360px;
   max-width: 90%;
-  padding: 2rem;
   background: rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px rgba(255, 255, 255, 0.37);
   backdrop-filter: blur(10px);
@@ -134,90 +141,106 @@ export default {
   border-radius: 16px;
   color: #fff;
   font-family: 'Arial', sans-serif;
+  padding: 2rem;
+  height: auto;
+  overflow: hidden;
 }
 
-/* 제목 */
-.login-panel h1 {
+.login-panel:not(.registering) {
+  max-height: 400px; /* 로그인 폼 실제 높이에 맞게 조정 */
+  transition: max-height 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.login-panel.registering {
+  max-height: 850px; /* 회원가입 폼 실제 높이에 맞게 조정 */
+  transition: max-height 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Fade transition for inner content */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.btn-back {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+.btn-back:hover {
+  color: #fff;
+}
+
+.panel-content h1 {
   text-align: center;
   margin-bottom: 1.5rem;
   font-size: 1.8rem;
   font-weight: 600;
 }
 
-/* 레이블 & 인풋 */
-.login-panel label {
+.panel-content label {
   display: block;
   margin-bottom: 1rem;
 }
 
-.login-panel label span {
+.panel-content label span {
   display: block;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
 }
 
-.login-panel input {
+.panel-content input,
+.panel-content select {
   width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255,255,255,0.2);
   color: #fff;
+  box-sizing: border-box;
+}
+.panel-content input::placeholder {
+  color: rgba(255,255,255,0.7);
 }
 
-.login-panel input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* 옵션 영역 (체크박스, 링크) */
-.options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  font-size: 0.85rem;
-}
-
-.options a {
-  color: #e0e0e0;
-  text-decoration: underline;
-}
-
-.options a:hover {
-  color: #fff;
-}
-
-/* 로그인 버튼 */
 .btn-login {
   width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
   font-weight: bold;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255,255,255,0.3);
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.3s;
 }
-
 .btn-login:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255,255,255,0.5);
 }
 
-/* 회원가입 링크 */
-.register-link {
+.toggle-link {
   text-align: center;
   margin-top: 1rem;
   font-size: 0.9rem;
 }
-
-.register-link a {
+.toggle-link a {
   color: #e0e0e0;
   text-decoration: underline;
+  cursor: pointer;
 }
-
-.register-link a:hover {
+.toggle-link a:hover {
   color: #fff;
 }
 </style>
