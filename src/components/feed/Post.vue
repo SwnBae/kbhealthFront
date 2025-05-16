@@ -1,33 +1,20 @@
-<!--
-파일 위치: @/components/feed/Post.vue
-개별 게시물을 표시하는 컴포넌트 - Feed 컴포넌트에서 분리
--->
+<!-- Post.vue 업데이트 예시 -->
 <template>
   <div class="feed-card animate-on-scroll">
     <!-- 작성자 -->
     <div class="user-info">
       <router-link
         :to="`/profile/${post.writerAccount}`"
-        class="profile-container"
+        class="profile-link"
       >
-        <svg class="profile-ring" viewBox="0 0 36 36">
-          <circle class="ring-bg" cx="18" cy="18" r="16" />
-          <circle
-            class="ring-progress"
-            cx="18"
-            cy="18"
-            r="16"
-            :stroke-dasharray="`${(
-              (Math.min(1000, post.baseScore || 0) / 1000) *
-              100.48
-            ).toFixed(2)} 100.48`"
-            transform="rotate(-90 18 18)"
-          />
-        </svg>
-        <img
-          :src="getImageUrl(post.writerProfileImage)"
-          class="profile-img"
-          alt="profile"
+        <!-- ProfileRing 컴포넌트 사용 -->
+        <ProfileRing
+          :profile-image-url="getImageUrl(post.writerProfileImage)"
+          :base-score="post.baseScore"
+          :size="42"
+          :stroke-width="2.5"
+          progress-color="#4CAF50"
+          alt-text="profile"
         />
       </router-link>
       <div class="user-details">
@@ -44,7 +31,6 @@
       </button>
     </div>
 
-    <!-- 본문 이미지 -->
     <img
       :src="getImageUrl(post.imageUrl)"
       class="post-img"
@@ -52,7 +38,6 @@
       loading="lazy"
     />
 
-    <!-- 액션 -->
     <div class="post-actions">
       <div class="action-buttons">
         <button class="like-btn" @click="toggleLike" aria-label="좋아요">
@@ -68,23 +53,19 @@
       </div>
     </div>
     
-    <!-- 좋아요 카운트 -->
     <div class="like-count">
       좋아요 {{ formatCount(post.likeCount) }}개
     </div>
 
-    <!-- 내용 -->
     <div class="post-content">
       <p class="title">{{ post.title }}</p>
       <p class="content">{{ post.content }}</p>
     </div>
     
-    <!-- 댓글 수 표시 -->
     <div class="comment-count" v-if="post.commentCount > 0" @click="toggleComments">
       댓글 {{ formatCount(post.commentCount) }}개 보기
     </div>
 
-    <!-- 댓글 시스템 컴포넌트 사용 -->
     <CommentSystem
       :post-id="post.postId"
       :visible="post.commentsVisible"
@@ -92,7 +73,6 @@
       @update:comment-count="updateCommentCount"
     />
 
-    <!-- 작성 시간 -->
     <div class="created-time">
       {{ formatTime(post.createdAt) }}
     </div>
@@ -104,6 +84,7 @@ import { defineProps, defineEmits } from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import CommentSystem from '@/components/feed/CommentSystem.vue';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 import axios from 'axios';
 
 dayjs.extend(relativeTime);
@@ -183,7 +164,7 @@ const updateCommentCount = (count) => {
 </script>
 
 <style scoped>
-/* 피드 카드 디자인 개선 */
+/* 프로필 링 관련 스타일 제거하고 나머지 스타일 유지 */
 .feed-card {
   background: #fff;
   border-radius: 16px;
@@ -207,45 +188,10 @@ const updateCommentCount = (count) => {
   border-bottom: 1px solid #f5f5f5;
 }
 
-.profile-container {
-  position: relative;
-  width: 42px;
-  height: 42px;
+/* 라우터 링크 스타일 */
+.profile-link {
+  text-decoration: none;
   flex-shrink: 0;
-}
-
-.profile-ring {
-  position: absolute;
-  width: 42px;
-  height: 42px;
-  top: 0;
-  left: 0;
-}
-
-.ring-bg {
-  fill: none;
-  stroke: #f0f7f0;
-  stroke-width: 2.5;
-}
-
-.ring-progress {
-  fill: none;
-  stroke: #4CAF50;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.6s ease;
-}
-
-.profile-img {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 1;
-  border: 1px solid #f0f0f0;
 }
 
 .user-details {
@@ -295,7 +241,7 @@ const updateCommentCount = (count) => {
   display: block;
 }
 
-/* 본문 이미지 */
+/* 나머지 스타일은 그대로 유지 */
 .post-img {
   width: 100%;
   aspect-ratio: 1/1;
@@ -305,7 +251,6 @@ const updateCommentCount = (count) => {
   border-radius: 0;
 }
 
-/* 액션 버튼 */
 .post-actions {
   display: flex;
   padding: 12px 16px;
@@ -337,7 +282,6 @@ const updateCommentCount = (count) => {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-/* 좋아요 버튼 아이콘 컨테이너 */
 .like-btn span:first-child, 
 .comment-btn span:first-child {
   display: inline-flex;
@@ -351,7 +295,6 @@ const updateCommentCount = (count) => {
   font-size: 0.9rem;
 }
 
-/* 좋아요 수 */
 .like-count {
   padding: 0 16px;
   font-weight: 600;
@@ -360,7 +303,6 @@ const updateCommentCount = (count) => {
   margin-bottom: 6px;
 }
 
-/* 내용 */
 .post-content {
   padding: 0 16px 12px;
 }
@@ -379,7 +321,6 @@ const updateCommentCount = (count) => {
   font-size: 0.95rem;
 }
 
-/* 댓글 수 표시 */
 .comment-count {
   padding: 0 16px 12px;
   font-size: 0.9rem;
@@ -391,7 +332,6 @@ const updateCommentCount = (count) => {
   text-decoration: underline;
 }
 
-/* 좋아요 애니메이션 */
 @keyframes likeAnimation {
   0% { transform: scale(1); }
   50% { transform: scale(1.4); }
@@ -403,7 +343,6 @@ const updateCommentCount = (count) => {
   animation: likeAnimation 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* 시간 */
 .created-time {
   font-size: 0.8rem;
   color: #888;
@@ -411,7 +350,6 @@ const updateCommentCount = (count) => {
   border-top: 1px solid #f5f5f5;
 }
 
-/* 애니메이션 효과 */
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(30px);
@@ -423,7 +361,6 @@ const updateCommentCount = (count) => {
   transform: translateY(0);
 }
 
-/* 반응형 디자인 */
 @media (max-width: 480px) {
   .feed-card {
     border-radius: 12px;

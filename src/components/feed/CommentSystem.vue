@@ -1,6 +1,6 @@
 <!--
 파일 위치: @/components/feed/CommentSystem.vue
-CSS 애니메이션 방식 - 펼치기/접기 모두 자연스럽게 수정
+ProfileRing 컴포넌트 적용
 -->
 <template>
   <div class="comment-system">
@@ -19,10 +19,14 @@ CSS 애니메이션 방식 - 펼치기/접기 모두 자연스럽게 수정
             >
               <div class="comment-profile">
                 <router-link :to="`/profile/${comment.writerAccount}`">
-                  <img 
-                    :src="getProfileImage(comment.writerProfileImage)" 
-                    alt="프로필"
-                    class="comment-profile-img"
+                  <!-- ProfileRing 컴포넌트 사용 -->
+                  <ProfileRing
+                    :profile-image-url="getProfileImage(comment.writerProfileImage)"
+                    :base-score="comment.writerBaseScore || 0"
+                    :size="45"
+                    :stroke-width="2"
+                    progress-color="#4CAF50"
+                    alt-text="프로필"
                   />
                 </router-link>
               </div>
@@ -45,10 +49,14 @@ CSS 애니메이션 방식 - 펼치기/접기 모두 자연스럽게 수정
           </div>
         </div>
         <div class="comment-input">
-          <img 
-            :src="getCurrentUserProfile()" 
-            alt="내 프로필"
-            class="my-profile-img"
+          <!-- 현재 사용자 프로필에도 ProfileRing 적용 -->
+          <ProfileRing
+            :profile-image-url="getCurrentUserProfile()"
+            :base-score="currentUser?.baseScore || 0"
+            :size="32"
+            :stroke-width="2"
+            progress-color="#4CAF50"
+            alt-text="내 프로필"
           />
           <input
             v-model="newComment"
@@ -75,6 +83,7 @@ import { ref, onMounted, watch, nextTick } from 'vue';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 import 'dayjs/locale/ko'; // 한국어 로케일 추가
 
 // dayjs 설정
@@ -381,14 +390,7 @@ onMounted(async () => {
 /* 댓글 프로필 영역 */
 .comment-profile {
   flex-shrink: 0;
-}
-
-.comment-profile-img {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid #efefef;
+  margin-left: 5px;
 }
 
 /* 댓글 내용 영역 */
@@ -439,16 +441,6 @@ onMounted(async () => {
   margin-top: 12px;
   position: relative;
   align-items: center;
-}
-
-/* 내 프로필 이미지 */
-.my-profile-img {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid #efefef;
-  flex-shrink: 0;
 }
 
 /* 댓글 입력 필드 */
