@@ -1,8 +1,12 @@
 <template>
-  <div v-if="isLoading" class="loading-container animate-on-scroll">
+  <!-- 프로필 정보, 신체 정보, 피드 로딩 상태를 한 번에 관리하는 통합 로딩 오버레이 -->
+  <div v-if="isLoading || isBodyInfoLoading || isFeedLoading" class="loading-overlay">
     <div class="loading-spinner"></div>
-    <p>로딩 중...</p>
+    <span>
+      {{ loadingMessage }}
+    </span>
   </div>
+
   <div v-else-if="!profile" class="not-logged-in animate-on-scroll">
     <p>로그인 상태가 아닙니다. 로그인 화면으로 이동합니다.</p>
   </div>
@@ -18,12 +22,14 @@
         @open-follow-modal="openFollowModal"
     />
 
-    <!-- 우측 영역: 키 속성 추가하여 프로필 변경 시 컴포넌트 강제 갱신 -->
+    <!-- 우측 영역: 피드 표시 부분 - suppressLoading prop 추가 -->
     <FeedBlock
         v-if="profile"
         :apiUrl="`/api/feed/${profile.memberId}/feed`"
         :key="profile.memberId + '_' + refreshKey"
+        :suppressLoading="true"
         style="margin: 0;"
+        @feed-loading="onFeedLoading"
     />
 
     <!-- 모달 컴포넌트들 -->
@@ -58,9 +64,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue';
+import {ref, onMounted, watch, nextTick, computed} from 'vue';
 import axios from 'axios';
-import { useRoute, useRouter } from 'vue-router';
+import {useRoute, useRouter} from 'vue-router';
 import userStore from "@/scripts/store";
 import FeedBlock from '@/components/feed/FeedBlock.vue'
 
@@ -72,15 +78,25 @@ import EditBodyModal from '@/components/profile/modals/EditBodyModal.vue';
 
 const profile = ref(null);
 const isLoading = ref(true);
+const isBodyInfoLoading = ref(false); // 신체 정보 로딩 상태
+const isFeedLoading = ref(false); // 피드 로딩 상태
 const route = useRoute();
 const router = useRouter();
-const showFollowModal = ref(false); // 변수명 변경 showModal -> showFollowModal
+const showFollowModal = ref(false);
 const modalTitle = ref('');
 const followList = ref([]);
 const isCurrentUser = ref(false);
 const showEditInfoModal = ref(false);
 const showEditBodyModal = ref(false);
 const refreshKey = ref(0); // FeedBlock 강제 갱신을 위한 키
+
+// 로딩 메시지를 동적으로 설정
+const loadingMessage = computed(() => {
+  if (isLoading.value) return '프로필 정보 로딩 중...';
+  if (isBodyInfoLoading.value) return '신체 정보 로딩 중...';
+  if (isFeedLoading.value) return '피드 로딩 중...';
+  return '로딩 중...';
+});
 
 // 계정정보 수정 폼 데이터
 const editInfo = ref({
@@ -97,6 +113,11 @@ const editBodyInfo = ref({
   age: null
 });
 
+// 피드 로딩 상태 핸들러
+const onFeedLoading = (loading) => {
+  isFeedLoading.value = loading;
+};
+
 // 애니메이션 관련 함수
 const observeAnimations = () => {
   const elements = document.querySelectorAll(".animate-on-scroll");
@@ -104,14 +125,14 @@ const observeAnimations = () => {
       entries => entries.forEach(entry => {
         if (entry.isIntersecting) entry.target.classList.add("in-view");
       }),
-      { threshold: 0.1 }
+      {threshold: 0.1}
   );
   elements.forEach(el => scrollObserver.observe(el));
 };
 
 const check = async () => {
   try {
-    const { data } = await axios.get(`/api/auth/check`);
+    const {data} = await axios.get(`/api/auth/check`);
     if (data) {
       userStore.commit("setCurrentMember", data);
       const account = route.params.account || data.account;
@@ -129,16 +150,37 @@ const check = async () => {
 };
 
 const fetchProfile = async (account) => {
+  isLoading.value = true; // 항상 프로필 불러올 때 로딩 상태 표시
   try {
     // 프로필 데이터를 가져올 때는 모달을 항상 닫도록 설정
     showFollowModal.value = false;
 
-    const { data } = await axios.get(`/api/profile/${account}`);
+    const {data} = await axios.get(`/api/profile/${account}`);
     profile.value = data;
     isCurrentUser.value = data.memberId === userStore.state.currentMember.id;
   } catch (error) {
     console.error("프로필 데이터를 가져오는 데 실패했습니다.", error);
     profile.value = null;
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// 신체 정보 가져오기 함수 추가
+const fetchBodyInfo = async (memberId) => {
+  isBodyInfoLoading.value = true;
+  try {
+    const {data} = await axios.get(`/api/profile/body-info/${memberId}`);
+    if (profile.value) {
+      profile.value.height = data.height;
+      profile.value.weight = data.weight;
+      profile.value.gender = data.gender;
+      profile.value.age = data.age;
+    }
+  } catch (error) {
+    console.error("신체 정보를 가져오는 데 실패했습니다.", error);
+  } finally {
+    isBodyInfoLoading.value = false;
   }
 };
 
@@ -174,27 +216,35 @@ const openEditBodyModal = () => {
 
 // 계정정보 업데이트 처리
 const onProfileInfoUpdated = async (updatedInfo) => {
-  // 1. 즉시 UI 업데이트 (낙관적 업데이트)
-  if (profile.value) {
-    profile.value.userName = updatedInfo.userName;
+  isLoading.value = true; // 업데이트 시 로딩 상태 표시
+  try {
+    // 1. 즉시 UI 업데이트 (낙관적 업데이트)
+    if (profile.value) {
+      profile.value.userName = updatedInfo.userName;
 
-    // 이미지가 업데이트된 경우 미리보기 사용
-    if (updatedInfo.profileImagePreview) {
-      profile.value.profileImageUrl = updatedInfo.profileImagePreview;
+      // 이미지가 업데이트된 경우 미리보기 사용
+      if (updatedInfo.profileImagePreview) {
+        profile.value.profileImageUrl = updatedInfo.profileImagePreview;
+      }
+
+      showSuccessNotification('계정정보가 성공적으로 수정되었습니다.');
+
+      // 2. 백그라운드에서 새로운 데이터 가져오기
+      if (route.params.account) {
+        await fetchProfile(route.params.account);
+        refreshKey.value++; // FeedBlock 새로고침
+      }
     }
-
-    showSuccessNotification('계정정보가 성공적으로 수정되었습니다.');
-
-    // 2. 백그라운드에서 새로운 데이터 가져오기
-    if (route.params.account) {
-      await fetchProfile(route.params.account);
-      refreshKey.value++; // FeedBlock 새로고침
-    }
+  } catch (error) {
+    showErrorNotification('계정정보 수정에 실패했습니다.');
+  } finally {
+    isLoading.value = false;
   }
 };
 
 // 신체정보 수정 제출
 const onBodyInfoUpdated = async (updatedBodyInfo) => {
+  isBodyInfoLoading.value = true; // 신체 정보 업데이트 시 로딩 상태 표시
   try {
     // 낙관적 UI 업데이트
     if (profile.value) {
@@ -214,6 +264,8 @@ const onBodyInfoUpdated = async (updatedBodyInfo) => {
   } catch (error) {
     showErrorNotification('신체정보 수정에 실패했습니다.');
     console.error(error);
+  } finally {
+    isBodyInfoLoading.value = false;
   }
 };
 
@@ -253,6 +305,7 @@ const showErrorNotification = (message) => {
 };
 
 const openFollowModal = async (type) => {
+  isLoading.value = true; // 팔로우 모달 열 때 로딩 상태 표시
   modalTitle.value = type === 'following' ? '팔로잉' : '팔로워';
   try {
     const {data} = await axios.get(`/api/follow/${type}List/${profile.value.memberId}`);
@@ -260,8 +313,10 @@ const openFollowModal = async (type) => {
   } catch (error) {
     console.error(`${modalTitle.value} 목록을 가져오는 데 실패했습니다.`, error);
     followList.value = [];
+  } finally {
+    isLoading.value = false;
+    showFollowModal.value = true;
   }
-  showFollowModal.value = true;
 };
 
 const closeFollowModal = () => {
@@ -282,6 +337,7 @@ const goToProfile = (account) => {
 
 // 팔로우/언팔로우 버튼 기능
 const toggleFollow = async () => {
+  isLoading.value = true; // 팔로우/언팔로우 시 로딩 상태 표시
   try {
     // 낙관적 UI 업데이트 - 바로 상태 반영
     const wasFollowing = profile.value.following;
@@ -312,6 +368,8 @@ const toggleFollow = async () => {
 
     showErrorNotification('팔로우/언팔로우 처리 중 오류가 발생했습니다.');
     console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -327,8 +385,14 @@ watch(() => route.params.account, (newAccount) => {
   }
 }, {immediate: true});
 
-onMounted(() => {
-  check();
+onMounted(async () => {
+  isLoading.value = true;
+  await check();
+
+  // 프로필이 로드된 후 신체 정보 추가 로드
+  if (profile.value && profile.value.memberId) {
+    await fetchBodyInfo(profile.value.memberId);
+  }
 });
 </script>
 
@@ -416,31 +480,36 @@ onMounted(() => {
   transform: scale(0.95);
 }
 
-/* 로딩 스타일 */
-.loading-container {
+/* 통합된 로딩 오버레이 스타일 */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 2000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
-  width: 100%;
+  font-size: 16px;
+  color: #4caf50;
+  font-weight: 500;
 }
 
 .loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #4caf50;
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(76, 175, 80, 0.2);
+  border-top: 4px solid #4caf50;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
+  to {
     transform: rotate(360deg);
   }
 }

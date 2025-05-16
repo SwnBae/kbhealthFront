@@ -17,20 +17,20 @@
         <div class="spinner"></div>
         <p>게시글을 불러오는 중...</p>
       </div>
-      
+
       <!-- 게시물 목록 -->
       <div v-else>
         <!-- 게시물이 있을 때 -->
         <div v-if="posts.length > 0">
-          <Post 
-            v-for="(post, index) in posts" 
+          <Post
+            v-for="(post, index) in posts"
             :key="post.postId"
             :post="post"
             @update:post="updatePost(index, $event)"
             class="feed-item"
           />
         </div>
-        
+
         <!-- 게시물이 없을 때 -->
         <div v-else class="no-posts">
           <div class="empty-state-icon">📭</div>
@@ -51,9 +51,9 @@
     </div>
 
     <!-- 플로팅 게시글 작성 버튼 -->
-    <button 
-      ref="floatingBtn" 
-      class="create-post-floating-btn" 
+    <button
+      ref="floatingBtn"
+      class="create-post-floating-btn"
       @click="showModal = true"
     >
       <span class="plus-icon">+</span>
@@ -93,23 +93,23 @@ const floatingBtn = ref(null);
 // 피드 불러오기
 const loadPosts = async () => {
   if (posts.value.length > 0 && isLoading.value) return;
-  
+
   try {
     isLoading.value = true;
-    
+
     // API URL에 타임스탬프 추가하여 캐시 방지
     const timestamp = new Date().getTime();
     const url = `${props.apiUrl}${props.apiUrl.includes('?') ? '&' : '?'}_t=${timestamp}`;
-    
+
     console.log(`피드 로드 시작: ${url}, 페이지=${page.value}, 사이즈=${size}`);
-    
+
     const res = await axios.get(url, {
       params: { page: page.value, size }
     });
-    
+
     // 응답 데이터 처리 (API 응답 구조에 따라 조정)
     let newPosts = [];
-    
+
     if (res.data && res.data.content) {
       // 페이징 응답 (Spring Data 스타일)
       newPosts = res.data.content;
@@ -124,20 +124,20 @@ const loadPosts = async () => {
       console.error('지원되지 않는 API 응답 형식', res.data);
       return;
     }
-    
+
     // 필요한 속성 추가
     const formattedPosts = newPosts.map(p => ({
       ...p,
       commentsVisible: false,
       likeAnimating: false
     }));
-    
+
     posts.value.push(...formattedPosts);
     page.value++;
-    
+
     // 개발용 로그
     console.log(`${formattedPosts.length}개의 게시글을 불러왔습니다.`);
-    
+
     // 애니메이션 적용
     await nextTick();
     observeFeedAnimation();
@@ -173,23 +173,23 @@ const initObserver = () => {
     },
     { threshold: 0.5 }
   );
-  
+
   if (sentinel.value) {
     observer.value.observe(sentinel.value);
   }
 };
 
 // 새 게시물 작성 완료 처리 - handleNewPost 함수 주석 처리
-/* 
+/*
 const handleNewPost = (newPost) => {
   posts.value.unshift({
     ...newPost,
     commentsVisible: false,
     likeAnimating: false
   });
-  
+
   showModal.value = false;
-  
+
   // 스크롤을 위로 이동
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -237,7 +237,7 @@ const setupHoverIntent = () => {
 onMounted(async () => {
   // 초기 게시글 로드
   await loadPosts();
-  
+
   // 무한 스크롤 설정
   initObserver();
 
@@ -399,7 +399,7 @@ onMounted(async () => {
     width: 56px;
     transition:
       width 0.5s ease,
-      border-radius 0.5s ease,     
+      border-radius 0.5s ease,
       background-color 0.5s ease,
       box-shadow 0.5s ease,
       transform 0.5s ease;
@@ -441,16 +441,16 @@ onMounted(async () => {
   .feed-container {
     padding: 10px;
   }
-  
+
   .create-post-floating-btn {
     bottom: 16px;
     right: 16px;
   }
-  
+
   .no-posts {
     padding: 40px 16px;
   }
-  
+
   .empty-state-icon {
     font-size: 48px;
   }
