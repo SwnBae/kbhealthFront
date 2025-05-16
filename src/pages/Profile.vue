@@ -19,21 +19,20 @@
     />
 
     <!-- 우측 영역: 키 속성 추가하여 프로필 변경 시 컴포넌트 강제 갱신 -->
-    <FeedBlock 
-      v-if="profile" 
-      :apiUrl="`/api/feed/${profile.memberId}/feed`" 
-      :key="profile.memberId" 
-      style="margin: 0;"
+    <FeedBlock
+        v-if="profile"
+        :apiUrl="`/api/feed/${profile.memberId}/feed`"
+        :key="profile.memberId + '_' + refreshKey"
+        style="margin: 0;"
     />
-
 
     <!-- 모달 컴포넌트들 -->
     <transition name="fade-modal">
       <FollowModal
-          v-if="showModal"
+          v-if="showFollowModal"
           :title="modalTitle"
           :followList="followList"
-          @close="closeModal"
+          @close="closeFollowModal"
           @go-to-profile="goToProfile"
       />
     </transition>
@@ -41,18 +40,18 @@
     <transition name="fade-modal">
       <EditInfoModal
           v-if="showEditInfoModal"
-          v-model:editInfo="editInfo"
+          :editInfo="editInfo"
           @close="showEditInfoModal = false"
-          @submit="submitEditInfo"
+          @updated="onProfileInfoUpdated"
       />
     </transition>
 
     <transition name="fade-modal">
       <EditBodyModal
           v-if="showEditBodyModal"
-          v-model:editBodyInfo="editBodyInfo"
+          :editBodyInfo="editBodyInfo"
           @close="showEditBodyModal = false"
-          @submit="submitEditBodyInfo"
+          @updated="onBodyInfoUpdated"
       />
     </transition>
   </div>
@@ -75,12 +74,13 @@ const profile = ref(null);
 const isLoading = ref(true);
 const route = useRoute();
 const router = useRouter();
-const showModal = ref(false);
+const showFollowModal = ref(false); // 변수명 변경 showModal -> showFollowModal
 const modalTitle = ref('');
 const followList = ref([]);
 const isCurrentUser = ref(false);
 const showEditInfoModal = ref(false);
 const showEditBodyModal = ref(false);
+const refreshKey = ref(0); // FeedBlock 강제 갱신을 위한 키
 
 // 계정정보 수정 폼 데이터
 const editInfo = ref({
@@ -130,6 +130,9 @@ const check = async () => {
 
 const fetchProfile = async (account) => {
   try {
+    // 프로필 데이터를 가져올 때는 모달을 항상 닫도록 설정
+    showFollowModal.value = false;
+
     const { data } = await axios.get(`/api/profile/${account}`);
     profile.value = data;
     isCurrentUser.value = data.memberId === userStore.state.currentMember.id;
@@ -162,47 +165,54 @@ watch(showEditBodyModal, (val) => {
 });
 
 const openEditInfoModal = () => {
-  console.log('계정정보 모달 열기');
   showEditInfoModal.value = true;
-  console.log('showEditInfoModal 값:', showEditInfoModal.value);
 };
 
 const openEditBodyModal = () => {
-  console.log('신체정보 모달 열기');
   showEditBodyModal.value = true;
-  console.log('showEditBodyModal 값:', showEditBodyModal.value);
 };
 
-// 계정정보 수정 제출
-const submitEditInfo = async () => {
-  try {
-    const payload = {
-      id: profile.value.memberId,
-      ...editInfo.value
-    };
-    await axios.post('/api/profile/editinfo', payload);
-    showSuccessNotification('계정정보 수정 완료');
-    showEditInfoModal.value = false;
-    location.reload();
-  } catch (error) {
-    showErrorNotification('계정정보 수정 실패');
-    console.error(error);
+// 계정정보 업데이트 처리
+const onProfileInfoUpdated = async (updatedInfo) => {
+  // 1. 즉시 UI 업데이트 (낙관적 업데이트)
+  if (profile.value) {
+    profile.value.userName = updatedInfo.userName;
+
+    // 이미지가 업데이트된 경우 미리보기 사용
+    if (updatedInfo.profileImagePreview) {
+      profile.value.profileImageUrl = updatedInfo.profileImagePreview;
+    }
+
+    showSuccessNotification('계정정보가 성공적으로 수정되었습니다.');
+
+    // 2. 백그라운드에서 새로운 데이터 가져오기
+    if (route.params.account) {
+      await fetchProfile(route.params.account);
+      refreshKey.value++; // FeedBlock 새로고침
+    }
   }
 };
 
 // 신체정보 수정 제출
-const submitEditBodyInfo = async () => {
+const onBodyInfoUpdated = async (updatedBodyInfo) => {
   try {
-    const payload = {
-      id: profile.value.memberId,
-      ...editBodyInfo.value
-    };
-    await axios.post('/api/profile/editbodyinfo', payload);
-    showSuccessNotification('신체정보 수정 완료');
-    showEditBodyModal.value = false;
-    location.reload();
+    // 낙관적 UI 업데이트
+    if (profile.value) {
+      profile.value.height = updatedBodyInfo.height;
+      profile.value.weight = updatedBodyInfo.weight;
+      profile.value.gender = updatedBodyInfo.gender;
+      profile.value.age = updatedBodyInfo.age;
+    }
+
+    showSuccessNotification('신체정보가 성공적으로 수정되었습니다.');
+
+    // 백그라운드에서 최신 데이터 가져오기
+    if (route.params.account) {
+      await fetchProfile(route.params.account);
+      refreshKey.value++; // FeedBlock 새로고침
+    }
   } catch (error) {
-    showErrorNotification('신체정보 수정 실패');
+    showErrorNotification('신체정보 수정에 실패했습니다.');
     console.error(error);
   }
 };
@@ -245,24 +255,27 @@ const showErrorNotification = (message) => {
 const openFollowModal = async (type) => {
   modalTitle.value = type === 'following' ? '팔로잉' : '팔로워';
   try {
-    const { data } = await axios.get(`/api/follow/${type}List/${profile.value.memberId}`);
+    const {data} = await axios.get(`/api/follow/${type}List/${profile.value.memberId}`);
     followList.value = data;
   } catch (error) {
     console.error(`${modalTitle.value} 목록을 가져오는 데 실패했습니다.`, error);
     followList.value = [];
   }
-  showModal.value = true;
+  showFollowModal.value = true;
 };
 
-const closeModal = () => {
-  showModal.value = false;
+const closeFollowModal = () => {
+  showFollowModal.value = false;
 };
 
 // goToProfile 함수 개선 - location.reload() 제거
 const goToProfile = (account) => {
+  // 팔로우 모달 닫기
+  closeFollowModal();
+
   // 이미 같은 프로필 페이지면 아무것도 하지 않음
   if (route.params.account === account) return;
-  
+
   // 다른 프로필 페이지로 이동
   router.push(`/profile/${account}`);
 };
@@ -270,18 +283,33 @@ const goToProfile = (account) => {
 // 팔로우/언팔로우 버튼 기능
 const toggleFollow = async () => {
   try {
-    if (profile.value.following) {
+    // 낙관적 UI 업데이트 - 바로 상태 반영
+    const wasFollowing = profile.value.following;
+    profile.value.following = !wasFollowing;
+
+    if (wasFollowing) {
+      // 언팔로우
+      profile.value.followerCount = Math.max(0, profile.value.followerCount - 1);
       await axios.delete(`/api/follow/following/${profile.value.memberId}`);
-      profile.value.following = false;
       showSuccessNotification('언팔로우 되었습니다.');
     } else {
+      // 팔로우
+      profile.value.followerCount += 1;
       await axios.post(`/api/follow/following/${profile.value.memberId}`);
-      profile.value.following = true;
       showSuccessNotification('팔로우 되었습니다.');
     }
 
-    fetchProfile(route.params.account);
+    // API 호출 결과로 확실한 상태 반영
+    await fetchProfile(route.params.account);
   } catch (error) {
+    // 에러 발생시 원래 상태로 복구
+    profile.value.following = !profile.value.following;
+    if (profile.value.following) {
+      profile.value.followerCount = Math.max(0, profile.value.followerCount - 1);
+    } else {
+      profile.value.followerCount += 1;
+    }
+
     showErrorNotification('팔로우/언팔로우 처리 중 오류가 발생했습니다.');
     console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
   }
@@ -291,9 +319,13 @@ const toggleFollow = async () => {
 watch(() => route.params.account, (newAccount) => {
   if (newAccount) {
     isLoading.value = true;
+
+    // 라우트가 변경될 때도 모달을 닫도록 설정
+    showFollowModal.value = false;
+
     check();
   }
-}, { immediate: true });
+}, {immediate: true});
 
 onMounted(() => {
   check();
@@ -330,6 +362,35 @@ onMounted(() => {
   display: none; /* Chrome, Safari, Edge */
 }
 
+/* 알림 스타일 */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+  max-width: 300px;
+}
+
+.notification.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.success-notification {
+  background-color: #4caf50;
+  color: white;
+}
+
+.error-notification {
+  background-color: #f44336;
+  color: white;
+}
 
 /* 애니메이션 스타일 */
 .animate-on-scroll {
@@ -341,6 +402,18 @@ onMounted(() => {
 .animate-on-scroll.in-view {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 모달 페이드 애니메이션 */
+.fade-modal-enter-active,
+.fade-modal-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-modal-enter-from,
+.fade-modal-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
 }
 
 /* 로딩 스타일 */
@@ -364,8 +437,12 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .not-logged-in {
@@ -373,7 +450,7 @@ onMounted(() => {
   padding: 40px;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   max-width: 600px;
   margin: 40px auto;
 }
@@ -389,6 +466,13 @@ onMounted(() => {
     position: relative;
     max-width: 100%;
     margin-bottom: 2rem;
+  }
+
+  .notification {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: calc(100% - 20px);
   }
 }
 </style>

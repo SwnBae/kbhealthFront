@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <transition name="fade" appear>
-      <div class="modal-overlay" v-if="showModal" @click="closeOverlay">
+      <div class="modal-overlay" v-if="localShowModal" @click="closeOverlay">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
             <h1 class="header-title">식단 기록 수정</h1>
@@ -110,7 +110,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated']);
 
-const showModal = ref(true);
+// v-if로 마운트될 때 항상 보이도록 설정
+const localShowModal = ref(true);
+
 const diets = ref([]);
 const form = ref({
   id: '',
@@ -131,8 +133,8 @@ onMounted(() => {
   initializeForm();
 });
 
-// 모달이 닫힐 때 body 스크롤 복원
-watch(() => showModal.value, (isVisible) => {
+// 모달 표시 상태가 변경될 때 body 스크롤 제어
+watch(() => localShowModal.value, (isVisible) => {
   document.body.style.overflow = isVisible ? 'hidden' : '';
 });
 
@@ -224,13 +226,15 @@ const updateDietRecord = async () => {
       formData.append('image', imageFile.value);
     }
 
-    await axios.put(`/api/records/diet/${form.value.id}`, formData, {
+    const response = await axios.put(`/api/records/diet/${form.value.id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
 
-    emit('updated');
+    const updatedRecord = response.data || dietRecord;
+    startCloseAnimation(); // 성공 시 애니메이션 시작 후 닫기
+    emit('updated', updatedRecord); // 업데이트된 레코드를 전달
   } catch (err) {
     console.error('식단 기록 수정 실패', err);
     formError.value = '수정에 실패했습니다. 다시 시도해주세요.';
@@ -239,13 +243,22 @@ const updateDietRecord = async () => {
   }
 };
 
+// 닫기 애니메이션 시작 함수
+const startCloseAnimation = () => {
+  localShowModal.value = false;
+  // CSS 애니메이션 시간에 맞춰 지연 후 부모에게 실제 닫힘 알림
+  setTimeout(() => {
+    emit('close');
+  }, 300); // fade 애니메이션 시간(0.3s)과 일치시킴
+};
+
 const closeModal = () => {
-  emit('close');
+  startCloseAnimation();
 };
 
 // 오버레이 클릭 시 모달 닫기
 const closeOverlay = () => {
-  emit('close');
+  startCloseAnimation();
 };
 </script>
 
