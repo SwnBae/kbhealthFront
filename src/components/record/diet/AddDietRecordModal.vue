@@ -10,19 +10,32 @@
 
           <!-- 이미지 업로드 섹션 -->
           <div class="image-upload-container">
-            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-              <div v-if="!previewImage" class="upload-placeholder">
-                <div class="plus-icon">+</div>
-                <span class="upload-text">사진을 추가하세요</span>
+            <div class="image-upload-wrapper">
+              <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+                <div v-if="!previewImage" class="upload-placeholder">
+                  <div class="plus-icon">+</div>
+                  <span class="upload-text">사진을 추가하세요</span>
+                </div>
+                <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+                <input
+                    type="file"
+                    @change="handleImageUpload"
+                    accept="image/*"
+                    class="file-input-hidden"
+                    ref="fileInput"
+                />
+              </label>
+
+              <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+              <div v-if="previewImage" class="image-actions">
+                <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                  <span class="action-icon">✏️</span> 변경
+                </button>
+                <button class="image-action-btn delete-btn" @click="removeImage">
+                  <span class="action-icon">🗑️</span> 삭제
+                </button>
               </div>
-              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-              <input
-                  type="file"
-                  @change="handleImageUpload"
-                  accept="image/*"
-                  class="file-input-hidden"
-              />
-            </label>
+            </div>
           </div>
 
           <!-- 입력 폼 -->
@@ -126,6 +139,7 @@ const formError = ref('');
 const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
+const fileInput = ref(null);
 
 // 부모의 showModal 값이 변경될 때 로컬 상태도 업데이트
 watch(() => props.showModal, (newValue) => {
@@ -146,6 +160,25 @@ onMounted(() => {
 watch(() => localShowModal.value, (isVisible) => {
   document.body.style.overflow = isVisible ? 'hidden' : '';
 });
+
+// 파일 입력 트리거 함수 (이미지 변경 버튼 클릭 시)
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
+// 이미지 삭제 함수
+const removeImage = () => {
+  previewImage.value = null;
+  imageFile.value = null;
+  form.value.drImgUrl = null;
+
+  // 파일 입력 필드 초기화
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+};
 
 const searchDiets = async () => {
   try {
@@ -257,8 +290,11 @@ const closeModal = () => {
 };
 
 // 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    startCloseAnimation();
+  }
 };
 </script>
 
@@ -341,6 +377,15 @@ const closeOverlay = () => {
   justify-content: center;
 }
 
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 250px;
+}
+
 .image-upload-area {
   display: flex;
   align-items: center;
@@ -353,7 +398,7 @@ const closeOverlay = () => {
   transition: all 0.2s ease;
   position: relative;
   aspect-ratio: 1/1;
-  width: 40%;
+  width: 100%;
 }
 
 .image-upload-area:hover {
@@ -397,6 +442,47 @@ const closeOverlay = () => {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* 이미지 동작 버튼 스타일 */
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #efefef;
+  background-color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #e8f5e9; /* 연한 초록색 배경 */
+  border-color: #c8e6c9;
+  color: #4caf50; /* 초록색 텍스트 */
+}
+
+.delete-btn:hover {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+  color: #e53935;
+}
+
+.action-icon {
+  font-size: 14px;
 }
 
 /* 폼 영역 */

@@ -55,44 +55,56 @@
 
     <!-- Teleport를 사용하여 모달을 body에 렌더링 -->
     <teleport to="body">
-      <transition name="fade" appear>
-        <div class="modal-overlay" v-if="localShowSearch" @click="closeOverlay">
-          <div class="modal-content" @click.stop>
-            <div class="modal-header">
-              <h3 class="modal-title">유저 검색</h3>
-              <button class="modal-close" @click="closeModal">×</button>
-            </div>
+      <div ref="modalRef" class="modal" v-if="localShowSearch" @click.self="closeOverlay" :class="{'fadeIn': localShowSearch}">
+        <div class="modal-content animate-on-scroll in-view" :class="{'popIn': localShowSearch}" @click.stop>
+          <div class="modal-header">
+            <h3 class="modal-title">유저 검색</h3>
+            <button class="close-icon" @click="closeModal">✕</button>
+          </div>
 
-            <div class="search-container">
-              <input type="text" v-model="keyword" placeholder="계정명 또는 사용자명으로 검색" class="search-input"
-                     @keyup.enter="searchMembers" />
-              <button class="search-button" @click="clearSearch">
-                <span v-if="keyword">✕</span>
-              </button>
-            </div>
+          <div class="search-container">
+            <input
+                type="text"
+                v-model="keyword"
+                placeholder="계정명 또는 사용자명으로 검색"
+                class="search-input"
+                @keyup.enter="searchMembers"
+            />
+            <button class="search-button" @click="clearSearch">
+              <span v-if="keyword">✕</span>
+            </button>
+          </div>
 
-            <div class="search-results-container">
-              <div v-if="searchResults.length === 0 && searched" class="no-results">
-                검색 결과가 없습니다.
-              </div>
-              <div v-for="member in searchResults" :key="member.memberId" class="search-result-item"
-                   @click="goToProfile(member.account)">
-                <div class="profile-cell">
-                  <div class="profile-container">
-                    <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
-                  </div>
-                  <div class="user-details">
-                    <span class="nickname">{{ member.userName }}</span>
-                    <div class="account-info">
-                      <span class="account-value">@{{ member.account }}</span>
-                    </div>
+          <div class="search-results-container">
+            <div v-if="searchResults.length === 0 && searched" class="no-results">
+              검색 결과가 없습니다.
+            </div>
+            <div v-for="member in searchResults"
+                 :key="member.memberId"
+                 class="search-result-item animate-on-scroll in-view"
+                 @click="goToProfile(member.account)">
+              <div class="profile-cell">
+                <div class="profile-container">
+                  <svg class="profile-ring" viewBox="0 0 36 36">
+                    <circle class="ring-bg" cx="18" cy="18" r="16" />
+                    <circle class="ring-progress" cx="18" cy="18" r="16"
+                            :stroke-dasharray="`${(Math.min(1000, member.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
+                            transform="rotate(-90 18 18)"
+                    />
+                  </svg>
+                  <img :src="member.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+                </div>
+                <div class="user-details">
+                  <span class="nickname">{{ member.userName }}</span>
+                  <div class="account-info">
+                    <span class="account-value">@{{ member.account }}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </transition>
+      </div>
     </teleport>
   </footer>
 </template>
@@ -101,7 +113,7 @@
 import userStore from "@/scripts/store";
 import router from "@/scripts/router";
 import axios from "axios";
-import { ref, computed, watch } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 
 export default {
   name: 'Footer',
@@ -111,15 +123,77 @@ export default {
     const showSearch = ref(false);
     const localShowSearch = ref(false);
     const searched = ref(false);
+    const modalRef = ref(null);
+    const scrollbarWidth = ref(0);
 
     // 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 본다
     const isLoggedIn = computed(() => {
       return userStore.state.currentMember.id !== 0;
     });
 
-    // 모달 표시 상태가 변경될 때 body 스크롤 제어
-    watch(() => localShowSearch.value, (isVisible) => {
-      document.body.style.overflow = isVisible ? 'hidden' : '';
+    // 스크롤바 너비 계산
+    const getScrollbarWidth = () => {
+      return window.innerWidth - document.documentElement.clientWidth;
+    };
+
+    // 모달 설정 - 개선된 스크롤 처리
+    const setupModal = () => {
+      // 모달이 열리기 전의 스크롤 위치 저장
+      const scrollY = window.scrollY;
+
+      // 스크롤바 너비 계산
+      scrollbarWidth.value = getScrollbarWidth();
+
+      // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
+      document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
+
+      // 현재 스크롤 위치를 유지하면서 스크롤 방지
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+      document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+
+      // 애니메이션 요소에 in-view 클래스 추가
+      const elements = document.querySelectorAll(".animate-on-scroll");
+      elements.forEach(el => {
+        if (!el.classList.contains('in-view')) {
+          el.classList.add('in-view');
+        }
+      });
+
+      // 모달에 fadeIn 클래스 추가
+      if (modalRef.value) {
+        modalRef.value.classList.add('fadeIn');
+        const contentEl = modalRef.value.querySelector('.modal-content');
+        if (contentEl) {
+          contentEl.classList.add('popIn');
+        }
+      }
+    };
+
+    // 스타일 초기화 함수
+    const resetBodyStyles = () => {
+      // 원래 스크롤 위치 복원
+      const scrollY = parseInt(document.body.style.top || '0', 10) * -1;
+
+      // 모든 스타일 초기화
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      document.body.style.paddingRight = '';
+      document.documentElement.style.setProperty('--scrollbar-width', '0px');
+
+      // 스크롤 위치 복원
+      window.scrollTo(0, scrollY);
+    };
+
+    // 컴포넌트 제거 시 원래 상태로 복원
+    onBeforeUnmount(() => {
+      resetBodyStyles();
     });
 
     const goTo = (path) => {
@@ -132,26 +206,37 @@ export default {
       searchResults.value = [];
       searched.value = false;
       localShowSearch.value = true;
-    };
-
-    // 닫기 애니메이션 시작 함수
-    const startCloseAnimation = () => {
-      localShowSearch.value = false;
-      // CSS 애니메이션 시간에 맞춰 지연 후 상태 변경
-      setTimeout(() => {
-        showSearch.value = false;
-      }, 300); // fade 애니메이션 시간(0.3s)과 일치시킴
+      setupModal(); // 모달 열 때 스크롤 방지 및 애니메이션 설정
     };
 
     const closeModal = () => {
-      startCloseAnimation();
+      // 닫기 애니메이션 추가
+      if (modalRef.value) {
+        modalRef.value.classList.remove('fadeIn');
+        modalRef.value.classList.add('fadeOut');
+
+        const contentEl = modalRef.value.querySelector('.modal-content');
+        if (contentEl) {
+          contentEl.classList.remove('popIn');
+          contentEl.classList.add('popOut');
+        }
+
+        // 애니메이션 완료 후 모달 닫기 및 스타일 초기화
+        setTimeout(() => {
+          resetBodyStyles();
+          localShowSearch.value = false;
+        }, 300); // 애니메이션 시간에 맞춰 조정
+      } else {
+        resetBodyStyles();
+        localShowSearch.value = false;
+      }
     };
 
     // 오버레이 클릭 시 모달 닫기
     const closeOverlay = (event) => {
       // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
-      if (event.target.classList.contains('modal-overlay')) {
-        startCloseAnimation();
+      if (event.target.classList.contains('modal')) {
+        closeModal();
       }
     };
 
@@ -204,6 +289,7 @@ export default {
       localShowSearch,
       searched,
       isLoggedIn,
+      modalRef,
       goTo,
       openSearchModal,
       closeModal,
@@ -220,6 +306,10 @@ export default {
 </script>
 
 <style scoped>
+:root {
+  --scrollbar-width: 0px;
+}
+
 .footer {
   display: flex;
   flex-direction: column;
@@ -366,34 +456,93 @@ export default {
   opacity: 1;
 }
 
-/* 모달 스타일 (EditBodyModal과 일관성 유지) */
-.modal-overlay {
+/* FollowModal에서 가져온 모달 스타일 */
+.modal {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(3px);
-  overflow: hidden; /* 바깥 영역 스크롤 방지 */
 }
 
-/* 모달 컨텐츠 */
+.modal.fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.modal.fadeOut {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .modal-content {
-  background: #fff;
+  background-color: white;
+  padding: 1.5rem 1.5rem;
+  padding-top: 0.3rem;
+  padding-right: 1rem;/* 상단 여백 줄임 */
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  width: 95%;
-  max-width: 500px;
-  overflow: hidden;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   max-height: 80vh;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #e6e6e6 #f5f5f5;
+  /* 스크롤바가 있어도 둥근 모서리 유지 */
+  border-radius: 12px;
+  mask-image: radial-gradient(white, black);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+
+.modal-content.popIn {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.modal-content.popOut {
+  animation: popOut 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 /* 스크롤바 스타일 수정 */
@@ -412,60 +561,75 @@ export default {
   border-radius: 3px;
 }
 
-/* 모달 헤더 */
 .modal-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  padding: 14px 0;
+  margin-bottom: 16px; /* 여백 줄임 */
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6e6e6;
   position: relative;
-  border-bottom: 1px solid #efefef;
 }
 
 .modal-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #262626;
+  font-size: 24px; /* 폰트 크기 약간 줄임 */
+  font-weight: bold;
+  color: #222;
+  text-align: left;
   margin: 0;
-  text-align: center;
 }
 
-.modal-close {
-  position: absolute;
-  right: 16px;
+.close-icon {
+  font-size: 18px;
+  color: #888;
   background: none;
   border: none;
-  font-size: 22px;
   cursor: pointer;
-  color: #262626;
-  padding: 0;
-  transition: color 0.2s ease;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
 }
 
-.modal-close:hover {
-  color: #000;
+.close-icon:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 검색 컨테이너 스타일 */
 .search-container {
   position: relative;
-  margin: 16px;
+  margin-bottom: 20px;
 }
 
 .search-input {
   width: 100%;
-  padding: 12px 40px 12px 16px;
-  border: 1px solid #dbdbdb;
-  border-radius: 4px;
+  padding: 10px 40px 10px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 24px;
   font-size: 14px;
-  transition: border-color 0.2s ease;
-  background-color: #f7f7f7; /* 연한 회색 배경 */
+  outline: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 }
 
 .search-input:focus {
-  outline: none;
-  border-color: #a8a8a8;
-  background-color: #fff; /* 포커스 시 흰색 배경 */
+  border-color: #a5d6a7;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .search-button {
@@ -485,9 +649,8 @@ export default {
   color: #666;
 }
 
-/* 검색 결과 컨테이너 */
 .search-results-container {
-  padding: 0 16px 16px;
+  margin-top: 20px;
 }
 
 .no-results {
@@ -499,21 +662,20 @@ export default {
 
 .search-result-item {
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
   overflow: hidden;
-  padding: 12px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   cursor: pointer;
-  border: 1px solid #f0f0f0;
 }
 
 .search-result-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
 .profile-cell {
@@ -525,9 +687,31 @@ export default {
 
 .profile-container {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
+}
+
+.profile-ring {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  top: 0;
+  left: 0;
+}
+
+.ring-bg {
+  fill: none;
+  stroke: #f0f7f0;
+  stroke-width: 3;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: #a5d6a7;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
 }
 
 .profile-img {
@@ -535,6 +719,10 @@ export default {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
   border: 1px solid #f0f0f0;
 }
 
@@ -545,7 +733,7 @@ export default {
 }
 
 .nickname {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: #333;
 }
@@ -560,21 +748,29 @@ export default {
   color: #666;
 }
 
-/* 트랜지션 애니메이션 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.score-info {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.score-label {
+  color: #888;
+}
+
+.score-value {
+  font-weight: 600;
+  color: #555;
+}
+
+.score-separator {
+  margin: 0 6px;
+  color: #ddd;
 }
 
 /* 푸터에 다음과 같은 스타일 추가 (실제 푸터 클래스명에 맞게 수정) */
 .footer {
-  pointer-events: none;
-  /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
+  pointer-events: none; /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
 }
 
 /* 푸터 내의 실제 상호작용이 필요한 요소들에는 pointer-events 재활성화 */

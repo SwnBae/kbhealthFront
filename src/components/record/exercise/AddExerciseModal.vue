@@ -8,21 +8,34 @@
             <button class="modal-close" @click="closeModal">×</button>
           </div>
 
-          <!-- 이미지 업로드 영역 -->
+          <!-- 이미지 업로드 섹션 -->
           <div class="image-upload-container">
-            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-              <div v-if="!previewImage" class="upload-placeholder">
-                <div class="plus-icon">+</div>
-                <span class="upload-text">사진을 추가하세요</span>
+            <div class="image-upload-wrapper">
+              <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+                <div v-if="!previewImage" class="upload-placeholder">
+                  <div class="plus-icon">+</div>
+                  <span class="upload-text">사진을 추가하세요</span>
+                </div>
+                <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+                <input
+                    type="file"
+                    @change="handleImageUpload"
+                    accept="image/*"
+                    class="file-input-hidden"
+                    ref="fileInput"
+                />
+              </label>
+
+              <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+              <div v-if="previewImage" class="image-actions">
+                <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                  <span class="action-icon">✏️</span> 변경
+                </button>
+                <button class="image-action-btn delete-btn" @click="removeImage">
+                  <span class="action-icon">🗑️</span> 삭제
+                </button>
               </div>
-              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-              <input
-                  type="file"
-                  @change="handleImageUpload"
-                  accept="image/*"
-                  class="file-input-hidden"
-              />
-            </label>
+            </div>
           </div>
 
           <!-- 입력 폼 -->
@@ -128,6 +141,7 @@ const formError = ref('');
 const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
+const fileInput = ref(null);
 
 // 모달이 열릴 때 body 스크롤 방지
 onMounted(() => {
@@ -138,6 +152,24 @@ onMounted(() => {
 watch(() => localShowModal.value, (isVisible) => {
   document.body.style.overflow = isVisible ? 'hidden' : '';
 });
+
+// 파일 입력 트리거 함수 (이미지 변경 버튼 클릭 시)
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
+// 이미지 삭제 함수
+const removeImage = () => {
+  previewImage.value = null;
+  imageFile.value = null;
+
+  // 파일 입력 필드 초기화
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+};
 
 const handleImageUpload = e => {
   const file = e.target.files[0];
@@ -182,8 +214,11 @@ const closeModal = () => {
 };
 
 // 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    startCloseAnimation();
+  }
 };
 
 const addExerciseRecord = async () => {
@@ -217,7 +252,7 @@ const addExerciseRecord = async () => {
       exerciseType: form.value.exerciseType
     };
 
-    formData.append('record', new Blob([JSON.stringify(exerciseRecord)], { type: 'application/json' }));
+    formData.append('record', new Blob([JSON.stringify(exerciseRecord)], {type: 'application/json'}));
     if (imageFile.value) {
       formData.append('image', imageFile.value);
     }
@@ -320,6 +355,15 @@ const addExerciseRecord = async () => {
   justify-content: center;
 }
 
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 250px;
+}
+
 .image-upload-area {
   display: flex;
   align-items: center;
@@ -332,7 +376,7 @@ const addExerciseRecord = async () => {
   transition: all 0.2s ease;
   position: relative;
   aspect-ratio: 1/1;
-  width: 40%;
+  width: 100%;
 }
 
 .image-upload-area:hover {
@@ -376,6 +420,47 @@ const addExerciseRecord = async () => {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* 이미지 동작 버튼 스타일 */
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #efefef;
+  background-color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #e3f2fd; /* 연한 파란색 배경 */
+  border-color: #bbdefb;
+  color: #2196f3; /* 파란색 텍스트 */
+}
+
+.delete-btn:hover {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+  color: #e53935;
+}
+
+.action-icon {
+  font-size: 14px;
 }
 
 /* 폼 영역 */
@@ -500,18 +585,32 @@ const addExerciseRecord = async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 모달 스케일 애니메이션 */
 @keyframes modal-in {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes modal-out {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
 }
 
 /* 일관된 모달 클래스 */

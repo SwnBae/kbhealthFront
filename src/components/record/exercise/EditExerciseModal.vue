@@ -10,19 +10,32 @@
 
           <!-- 이미지 업로드 영역 -->
           <div class="image-upload-container">
-            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-              <div v-if="!previewImage" class="upload-placeholder">
-                <div class="plus-icon">+</div>
-                <span class="upload-text">사진을 추가하세요</span>
+            <div class="image-upload-wrapper">
+              <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+                <div v-if="!previewImage" class="upload-placeholder">
+                  <div class="plus-icon">+</div>
+                  <span class="upload-text">사진을 추가하세요</span>
+                </div>
+                <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+                <input
+                    type="file"
+                    @change="handleImageUpload"
+                    accept="image/*"
+                    class="file-input-hidden"
+                    ref="fileInput"
+                />
+              </label>
+
+              <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+              <div v-if="previewImage" class="image-actions">
+                <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                  <span class="action-icon">✏️</span> 변경
+                </button>
+                <button class="image-action-btn delete-btn" @click="removeImage">
+                  <span class="action-icon">🗑️</span> 삭제
+                </button>
               </div>
-              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-              <input
-                  type="file"
-                  @change="handleImageUpload"
-                  accept="image/*"
-                  class="file-input-hidden"
-              />
-            </label>
+            </div>
           </div>
 
           <!-- 입력 폼 -->
@@ -37,7 +50,7 @@
             </div>
 
             <div class="form-group">
-              <select class="input-field" v-model="form.exerciseType">
+              <select class="input-field" v-model="form.exerciseType" @change="updateDefaultImageIfNeeded">
                 <option disabled value="">운동 종류 선택</option>
                 <option value="CARDIO">유산소</option>
                 <option value="WEIGHT">무산소</option>
@@ -94,6 +107,14 @@
 import {ref, defineProps, defineEmits, onMounted, watch} from 'vue';
 import axios from 'axios';
 
+// 기본 이미지 경로를 상수로 정의
+const DEFAULT_EXERCISE_IMAGES = {
+  CARDIO: "/images/default_cardio.png",
+  WEIGHT: "/images/default_weight.png",
+  YOGA: "/images/default_yoga.png",
+  SWIMMING: "/images/default_swim.png"
+};
+
 const props = defineProps({
   recordToEdit: {
     type: Object,
@@ -134,6 +155,9 @@ const formError = ref('');
 const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
+const imageDeleted = ref(false); // 이미지 삭제 여부 추적
+const fileInput = ref(null);
+const isCustomImage = ref(false); // 사용자 업로드 이미지인지 여부
 
 // 모달이 열릴 때 body 스크롤 방지
 onMounted(() => {
@@ -146,6 +170,31 @@ watch(() => localShowModal.value, (isVisible) => {
   document.body.style.overflow = isVisible ? 'hidden' : '';
 });
 
+// 파일 입력 트리거 함수
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
+// 현재 운동 타입에 맞는 기본 이미지 URL 가져오기
+const getDefaultImageForCurrentType = () => {
+  return DEFAULT_EXERCISE_IMAGES[form.value.exerciseType] || DEFAULT_EXERCISE_IMAGES.CARDIO;
+};
+
+// 운동 타입이 변경되었을 때 기본 이미지 업데이트 (이미지가 삭제되었거나 기본 이미지인 경우에만)
+const updateDefaultImageIfNeeded = () => {
+  if (imageDeleted.value || !isCustomImage.value) {
+    form.value.erImgUrl = getDefaultImageForCurrentType();
+    // 이미지가 이미 삭제된 상태라면 previewImage는 null 유지
+    if (!imageDeleted.value) {
+      // 기본 이미지로 설정되어 있지만 아직 삭제 상태가 아니라면, 삭제 상태로 전환
+      imageDeleted.value = true;
+      previewImage.value = null;
+    }
+  }
+};
+
 // 컴포넌트 마운트 시와 props 변경 시 초기화
 const initializeForm = () => {
   form.value = {
@@ -154,17 +203,25 @@ const initializeForm = () => {
     durationMinutes: props.recordToEdit.durationMinutes,
     caloriesBurned: props.recordToEdit.caloriesBurned,
     exerciseType: props.recordToEdit.exerciseType,
-    erImgUrl: props.recordToEdit.erImgUrl,
+    erImgUrl: props.recordToEdit.erImgUrl || getDefaultImageForCurrentType(),
     exercised: props.recordToEdit.exercised,  // 완료 상태 추가
     lastModifyDate: props.recordToEdit.lastModifyDate // 날짜 정보 추가
   };
 
+  // 이미지 삭제 여부 초기화
+  imageDeleted.value = false;
+
   // 기존 이미지 로드 시도
   previewImage.value = null; // 초기화
 
-  if (props.recordToEdit.erImgUrl) {
+  // 프로필 이미지가 있고 기본 이미지가 아닌 경우에만 표시
+  if (props.recordToEdit.erImgUrl && !Object.values(DEFAULT_EXERCISE_IMAGES).includes(props.recordToEdit.erImgUrl)) {
     previewImage.value = props.recordToEdit.erImgUrl;
-    console.log('props에서 이미지 URL 사용:', previewImage.value);
+    isCustomImage.value = true;
+    console.log('props에서 커스텀 이미지 URL 사용:', previewImage.value);
+  } else {
+    isCustomImage.value = false;
+    console.log('기본 이미지이거나 이미지 없음');
   }
 };
 
@@ -172,6 +229,20 @@ const initializeForm = () => {
 watch(() => props.recordToEdit, () => {
   initializeForm();
 }, {deep: true});
+
+// 이미지 삭제 함수
+const removeImage = () => {
+  previewImage.value = null;
+  imageFile.value = null;
+  form.value.erImgUrl = getDefaultImageForCurrentType(); // 현재 운동 타입에 맞는 기본 이미지로 설정
+  imageDeleted.value = true; // 이미지 삭제 상태 설정
+  isCustomImage.value = false; // 사용자 이미지 아님
+
+  // 파일 입력 필드 초기화
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+};
 
 const handleImageUpload = e => {
   const file = e.target.files[0];
@@ -185,6 +256,8 @@ const handleImageUpload = e => {
   const reader = new FileReader();
   reader.onload = () => {
     previewImage.value = reader.result;
+    imageDeleted.value = false; // 이미지 삭제 상태 해제
+    isCustomImage.value = true; // 사용자 이미지로 설정
     console.log('새 이미지 설정됨');
   };
   reader.readAsDataURL(file);
@@ -219,7 +292,8 @@ const updateExerciseRecord = async () => {
       durationMinutes: form.value.durationMinutes,
       caloriesBurned: form.value.caloriesBurned,
       exerciseType: form.value.exerciseType,
-      erImgUrl: form.value.erImgUrl,
+      // 이미지가 삭제되었으면 기본 이미지로 설정
+      erImgUrl: imageDeleted.value ? getDefaultImageForCurrentType() : form.value.erImgUrl,
       exercised: form.value.exercised,  // 완료 상태 추가
       lastModifyDate: form.value.lastModifyDate // 날짜 정보 추가
     };
@@ -229,6 +303,9 @@ const updateExerciseRecord = async () => {
       formData.append('image', imageFile.value);
     }
 
+    // 이미지 삭제 플래그 추가
+    formData.append('imageDeleted', imageDeleted.value);
+
     const response = await axios.put(`/api/records/exercise/${form.value.id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
@@ -236,6 +313,7 @@ const updateExerciseRecord = async () => {
     });
 
     const updatedRecord = response.data || exerciseRecord;
+    startCloseAnimation(); // 애니메이션 시작 후 닫기
     emit('updated', updatedRecord);  // 업데이트된 레코드를 전달
 
   } catch (err) {
@@ -261,8 +339,11 @@ const closeModal = () => {
 };
 
 // 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    startCloseAnimation();
+  }
 };
 </script>
 
@@ -334,6 +415,15 @@ const closeOverlay = () => {
   justify-content: center;
 }
 
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 250px;
+}
+
 .image-upload-area {
   display: flex;
   align-items: center;
@@ -346,7 +436,7 @@ const closeOverlay = () => {
   transition: all 0.2s ease;
   position: relative;
   aspect-ratio: 1/1;
-  width: 40%;
+  width: 100%;
 }
 
 .image-upload-area:hover {
@@ -390,6 +480,47 @@ const closeOverlay = () => {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* 이미지 동작 버튼 스타일 */
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #efefef;
+  background-color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #e3f2fd; /* 연한 파란색 배경 */
+  border-color: #bbdefb;
+  color: #3f51b5; /* 파란색 텍스트 */
+}
+
+.delete-btn:hover {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+  color: #e53935;
+}
+
+.action-icon {
+  font-size: 14px;
 }
 
 /* 폼 영역 */

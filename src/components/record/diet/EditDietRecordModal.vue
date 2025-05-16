@@ -10,19 +10,32 @@
 
           <!-- 이미지 업로드 섹션 -->
           <div class="image-upload-container">
-            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-              <div v-if="!previewImage" class="upload-placeholder">
-                <div class="plus-icon">+</div>
-                <span class="upload-text">사진을 추가하세요</span>
+            <div class="image-upload-wrapper">
+              <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+                <div v-if="!previewImage" class="upload-placeholder">
+                  <div class="plus-icon">+</div>
+                  <span class="upload-text">사진을 추가하세요</span>
+                </div>
+                <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+                <input
+                    type="file"
+                    @change="handleImageUpload"
+                    accept="image/*"
+                    class="file-input-hidden"
+                    ref="fileInput"
+                />
+              </label>
+
+              <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+              <div v-if="previewImage" class="image-actions">
+                <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                  <span class="action-icon">✏️</span> 변경
+                </button>
+                <button class="image-action-btn delete-btn" @click="removeImage">
+                  <span class="action-icon">🗑️</span> 삭제
+                </button>
               </div>
-              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-              <input
-                  type="file"
-                  @change="handleImageUpload"
-                  accept="image/*"
-                  class="file-input-hidden"
-              />
-            </label>
+            </div>
           </div>
 
           <!-- 입력 폼 -->
@@ -101,6 +114,9 @@
 import { ref, defineProps, defineEmits, onMounted, watch } from 'vue';
 import axios from 'axios';
 
+// 기본 이미지 경로를 상수로 정의
+const DEFAULT_FOOD_IMAGE = "/images/default_food.png";
+
 const props = defineProps({
   recordToEdit: {
     type: Object,
@@ -118,7 +134,8 @@ const form = ref({
   id: '',
   dietId: '',
   amount: 0,
-  mealType: 'BREAKFAST'
+  mealType: 'BREAKFAST',
+  drImgUrl: DEFAULT_FOOD_IMAGE
 });
 const dietSearchKeyword = ref('');
 const loading = ref(false);
@@ -126,6 +143,8 @@ const formError = ref('');
 const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
+const imageDeleted = ref(false); // 이미지 삭제 여부 추적
+const fileInput = ref(null);
 
 // 모달이 열릴 때 body 스크롤 방지
 onMounted(() => {
@@ -138,22 +157,36 @@ watch(() => localShowModal.value, (isVisible) => {
   document.body.style.overflow = isVisible ? 'hidden' : '';
 });
 
+// 파일 입력 트리거 함수
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
 // 컴포넌트 마운트 시와 props 변경 시 초기화
 const initializeForm = async () => {
   form.value = {
     id: props.recordToEdit.id,
     dietId: props.recordToEdit.dietId,
     amount: props.recordToEdit.amount,
-    mealType: props.recordToEdit.mealType
+    mealType: props.recordToEdit.mealType,
+    drImgUrl: props.recordToEdit.drImgUrl || DEFAULT_FOOD_IMAGE
   };
   dietSearchKeyword.value = props.recordToEdit.dietMenu || '';
+
+  // 이미지 삭제 여부 초기화
+  imageDeleted.value = false;
 
   // 기존 이미지 로드 시도
   previewImage.value = null; // 초기화
 
-  if (props.recordToEdit.drImgUrl) {
+  // 프로필 이미지가 있고 기본 이미지가 아닌 경우에만 표시
+  if (props.recordToEdit.drImgUrl && props.recordToEdit.drImgUrl !== DEFAULT_FOOD_IMAGE) {
     previewImage.value = props.recordToEdit.drImgUrl;
-    console.log('props에서 이미지 URL 사용:', previewImage.value);
+    console.log('props에서 커스텀 이미지 URL 사용:', previewImage.value);
+  } else {
+    console.log('기본 이미지이거나 이미지 없음');
   }
 };
 
@@ -180,6 +213,19 @@ const selectDiet = (diet) => {
   diets.value = []; // 결과 닫기
 };
 
+// 이미지 삭제 함수
+const removeImage = () => {
+  previewImage.value = null;
+  imageFile.value = null;
+  form.value.drImgUrl = DEFAULT_FOOD_IMAGE; // 기본 이미지 경로로 설정
+  imageDeleted.value = true; // 이미지 삭제 상태 설정
+
+  // 파일 입력 필드 초기화
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+};
+
 const handleImageUpload = e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -192,6 +238,7 @@ const handleImageUpload = e => {
   const reader = new FileReader();
   reader.onload = () => {
     previewImage.value = reader.result;
+    imageDeleted.value = false; // 새 이미지를 업로드했으므로 삭제 상태 초기화
     console.log('새 이미지 설정됨');
   };
   reader.readAsDataURL(file);
@@ -218,13 +265,18 @@ const updateDietRecord = async () => {
       id: form.value.id,
       dietId: form.value.dietId,
       amount: form.value.amount,
-      mealType: form.value.mealType
+      mealType: form.value.mealType,
+      // 이미지가 삭제되었으면 기본 이미지로 설정
+      drImgUrl: imageDeleted.value ? DEFAULT_FOOD_IMAGE : form.value.drImgUrl
     };
 
     formData.append('record', new Blob([JSON.stringify(dietRecord)], { type: 'application/json' }));
     if (imageFile.value) {
       formData.append('image', imageFile.value);
     }
+
+    // 이미지 삭제 플래그 추가
+    formData.append('imageDeleted', imageDeleted.value);
 
     const response = await axios.put(`/api/records/diet/${form.value.id}`, formData, {
       headers: {
@@ -257,8 +309,11 @@ const closeModal = () => {
 };
 
 // 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    startCloseAnimation();
+  }
 };
 </script>
 
@@ -266,7 +321,10 @@ const closeOverlay = () => {
 /* 모달 스타일 */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
@@ -327,6 +385,15 @@ const closeOverlay = () => {
   justify-content: center;
 }
 
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 250px;
+}
+
 .image-upload-area {
   display: flex;
   align-items: center;
@@ -339,7 +406,7 @@ const closeOverlay = () => {
   transition: all 0.2s ease;
   position: relative;
   aspect-ratio: 1/1;
-  width: 40%;
+  width: 100%;
 }
 
 .image-upload-area:hover {
@@ -383,6 +450,47 @@ const closeOverlay = () => {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* 이미지 동작 버튼 스타일 */
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #efefef;
+  background-color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #e8f5e9; /* 연한 초록색 배경 */
+  border-color: #c8e6c9;
+  color: #4caf50; /* 초록색 텍스트 */
+}
+
+.delete-btn:hover {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+  color: #e53935;
+}
+
+.action-icon {
+  font-size: 14px;
 }
 
 /* 폼 영역 */
@@ -491,10 +599,10 @@ const closeOverlay = () => {
 }
 
 .submit-button {
-  background-color: #e1f7e1;  /* 연한 초록색 */
-  color: #4caf50;  /* 초록색 텍스트 */
-  border: 1px solid #b2dfbb;  /* 연한 초록색 테두리 */
-  border-radius: 20px;  /* 둥근 모서리 */
+  background-color: #e1f7e1; /* 연한 초록색 */
+  color: #4caf50; /* 초록색 텍스트 */
+  border: 1px solid #b2dfbb; /* 연한 초록색 테두리 */
+  border-radius: 20px; /* 둥근 모서리 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -507,33 +615,33 @@ const closeOverlay = () => {
 }
 
 .submit-button:hover:not(:disabled) {
-  background-color: #c8e6c9;  /* 약간 더 진한 초록색 */
-  color: #388e3c;  /* 어두운 초록색 텍스트 */
+  background-color: #c8e6c9; /* 약간 더 진한 초록색 */
+  color: #388e3c; /* 어두운 초록색 텍스트 */
 }
 
 .submit-button:disabled {
-  background-color: #c8e6c9;  /* 비활성화 시에도 비슷한 연한 초록색 */
-  color: #a5d6a7;  /* 부드러운 초록색 텍스트 */
-  border-color: #81c784;  /* 더 연한 초록색 테두리 */
+  background-color: #c8e6c9; /* 비활성화 시에도 비슷한 연한 초록색 */
+  color: #a5d6a7; /* 부드러운 초록색 텍스트 */
+  border-color: #81c784; /* 더 연한 초록색 테두리 */
   cursor: not-allowed;
 }
 
 .cancel-button {
   background-color: transparent;
-  color: inherit;  /* 색상은 부모로부터 상속 */
-  border: 1px solid #ddd;  /* 버튼 테두리 */
-  border-radius: 20px;  /* 둥근 모서리 */
-  padding: 8px 20px;  /* 버튼 크기 */
-  font-size: 14px;  /* 글자 크기 */
-  font-weight: 600;  /* 글자 굵기 */
+  color: inherit; /* 색상은 부모로부터 상속 */
+  border: 1px solid #ddd; /* 버튼 테두리 */
+  border-radius: 20px; /* 둥근 모서리 */
+  padding: 8px 20px; /* 버튼 크기 */
+  font-size: 14px; /* 글자 크기 */
+  font-weight: 600; /* 글자 굵기 */
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .cancel-button:hover:not(:disabled) {
-  background-color: #f6f6f6;  /* 호버 시 배경색 */
-  color: #333;  /* 호버 시 텍스트 색상 */
-  border-color: #ddd;  /* 테두리 색상 */
+  background-color: #f6f6f6; /* 호버 시 배경색 */
+  color: #333; /* 호버 시 텍스트 색상 */
+  border-color: #ddd; /* 테두리 색상 */
 }
 
 .cancel-button:disabled {
@@ -554,7 +662,9 @@ const closeOverlay = () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 트랜지션 애니메이션 */
@@ -570,13 +680,25 @@ const closeOverlay = () => {
 
 /* 모달 스케일 애니메이션 */
 @keyframes modal-in {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes modal-out {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
 }
 
 /* 일관된 모달 클래스 */

@@ -1,80 +1,78 @@
 <template>
   <teleport to="body">
-    <transition name="fade" appear>
-      <div class="modal-overlay" v-if="localShowModal" @click="closeOverlay">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
-            <h1 class="header-title">신체정보 수정</h1>
-            <button class="modal-close" @click="closeModal">×</button>
+    <div ref="modalRef" class="modal-overlay" @click.self="closeOverlay">
+      <div class="modal-content animate-on-scroll in-view" @click.stop>
+        <div class="modal-header">
+          <h1 class="header-title">신체정보 수정</h1>
+          <button class="modal-close" @click="closeModal">×</button>
+        </div>
+
+        <!-- 입력 폼 -->
+        <div class="form-container">
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model.number="form.height"
+                type="number"
+                placeholder="키(cm)"
+                min="0"
+                :class="{ 'invalid': showError && !form.height }"
+            />
           </div>
 
-          <!-- 입력 폼 -->
-          <div class="form-container">
-            <div class="form-group">
-              <input
-                  class="input-field"
-                  v-model.number="form.height"
-                  type="number"
-                  placeholder="키(cm)"
-                  min="0"
-                  :class="{ 'invalid': showError && !form.height }"
-              />
-            </div>
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model.number="form.weight"
+                type="number"
+                placeholder="몸무게(kg)"
+                min="0"
+                :class="{ 'invalid': showError && !form.weight }"
+            />
+          </div>
 
-            <div class="form-group">
-              <input
-                  class="input-field"
-                  v-model.number="form.weight"
-                  type="number"
-                  placeholder="몸무게(kg)"
-                  min="0"
-                  :class="{ 'invalid': showError && !form.weight }"
-              />
-            </div>
+          <div class="form-group">
+            <select class="input-field" v-model="form.gender" :class="{ 'invalid': showError && !form.gender }">
+              <option disabled value="">성별 선택</option>
+              <option value="MALE">남성</option>
+              <option value="FEMALE">여성</option>
+            </select>
+          </div>
 
-            <div class="form-group">
-              <select class="input-field" v-model="form.gender" :class="{ 'invalid': showError && !form.gender }">
-                <option disabled value="">성별 선택</option>
-                <option value="MALE">남성</option>
-                <option value="FEMALE">여성</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model.number="form.age"
+                type="number"
+                placeholder="나이"
+                min="0"
+                :class="{ 'invalid': showError && !form.age }"
+            />
+          </div>
 
-            <div class="form-group">
-              <input
-                  class="input-field"
-                  v-model.number="form.age"
-                  type="number"
-                  placeholder="나이"
-                  min="0"
-                  :class="{ 'invalid': showError && !form.age }"
-              />
-            </div>
+          <!-- 오류 메시지 -->
+          <p v-if="formError" class="form-error">
+            {{ formError }}
+          </p>
 
-            <!-- 오류 메시지 -->
-            <p v-if="formError" class="form-error">
-              {{ formError }}
-            </p>
-
-            <!-- 버튼 영역 -->
-            <div class="action-buttons">
-              <button class="cancel-button" @click="closeModal" :disabled="loading">
-                취소
-              </button>
-              <button class="submit-button" @click="updateBodyInfo" :disabled="loading">
-                <span v-if="loading" class="spinner"></span>
-                {{ loading ? '저장 중...' : '저장하기' }}
-              </button>
-            </div>
+          <!-- 버튼 영역 -->
+          <div class="action-buttons">
+            <button class="cancel-button" @click="closeModal" :disabled="loading">
+              취소
+            </button>
+            <button class="submit-button" @click="updateBodyInfo" :disabled="loading">
+              <span v-if="loading" class="spinner"></span>
+              {{ loading ? '저장 중...' : '저장하기' }}
+            </button>
           </div>
         </div>
       </div>
-    </transition>
+    </div>
   </teleport>
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, onMounted, watch } from 'vue';
+import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
@@ -86,8 +84,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated']);
 
-// v-if로 마운트될 때 항상 보이도록 설정
-const localShowModal = ref(true);
+// 모달 상태 및 요소 참조
+const modalRef = ref(null);
+const scrollbarWidth = ref(0);
 
 const form = ref({
   height: null,
@@ -100,15 +99,74 @@ const loading = ref(false);
 const formError = ref('');
 const showError = ref(false);
 
-// 모달이 열릴 때 body 스크롤 방지
-onMounted(() => {
-  document.body.style.overflow = 'hidden';
+// 스크롤바 너비 계산
+const getScrollbarWidth = () => {
+  return window.innerWidth - document.documentElement.clientWidth;
+};
+
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전의 스크롤 위치 저장
+  const scrollY = window.scrollY;
+
+  // 스크롤바 너비 계산
+  scrollbarWidth.value = getScrollbarWidth();
+
+  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
+  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
+
+  // 현재 스크롤 위치를 유지하면서 스크롤 방지
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${scrollY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+
+  // 애니메이션 요소에 in-view 클래스 추가
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  elements.forEach(el => {
+    if (!el.classList.contains('in-view')) {
+      el.classList.add('in-view');
+    }
+  });
+
+  // 모달에 fadeIn 클래스와 모달 콘텐츠에 popIn 클래스 추가
+  if (modalRef.value) {
+    modalRef.value.classList.add('fadeIn');
+    modalRef.value.querySelector('.modal-content').classList.add('popIn');
+  }
+
+  // 폼 초기화
   initializeForm();
+};
+
+// 스타일 초기화 함수
+const resetBodyStyles = () => {
+  // 원래 스크롤 위치 복원
+  const scrollY = parseInt(document.body.style.top || '0', 10) * -1;
+
+  // 모든 스타일 초기화
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  document.body.style.paddingRight = '';
+  document.documentElement.style.setProperty('--scrollbar-width', '0px');
+
+  // 스크롤 위치 복원
+  window.scrollTo(0, scrollY);
+};
+
+// 모달이 열릴 때 초기화
+onMounted(() => {
+  setupModal();
 });
 
-// 모달 표시 상태가 변경될 때 body 스크롤 제어
-watch(() => localShowModal.value, (isVisible) => {
-  document.body.style.overflow = isVisible ? 'hidden' : '';
+// 컴포넌트 제거 시 원래 상태로 복원
+onBeforeUnmount(() => {
+  resetBodyStyles();
 });
 
 // 컴포넌트 마운트 시와 props 변경 시 초기화
@@ -164,7 +222,7 @@ const updateBodyInfo = async () => {
 
     // 성공 시 업데이트된 정보를 전달하고 애니메이션 시작 후 닫기
     emit('updated', form.value);
-    startCloseAnimation();
+    closeModal();
   } catch (err) {
     console.error('신체정보 수정 실패', err);
     formError.value = '수정에 실패했습니다. 다시 시도해주세요.';
@@ -173,40 +231,82 @@ const updateBodyInfo = async () => {
   }
 };
 
-// 닫기 애니메이션 시작 함수
-const startCloseAnimation = () => {
-  localShowModal.value = false;
-  // CSS 애니메이션 시간에 맞춰 지연 후 부모에게 실제 닫힘 알림
-  setTimeout(() => {
-    emit('close');
-  }, 300); // fade 애니메이션 시간(0.3s)과 일치시킴
-};
-
+// 닫기 함수 - 애니메이션 포함
 const closeModal = () => {
-  startCloseAnimation();
+  // 닫기 애니메이션 추가
+  if (modalRef.value) {
+    modalRef.value.classList.remove('fadeIn');
+    modalRef.value.classList.add('fadeOut');
+
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.remove('popIn');
+      contentEl.classList.add('popOut');
+    }
+
+    // 애니메이션 완료 후 모달 닫기 및 스타일 초기화
+    setTimeout(() => {
+      resetBodyStyles();
+      emit('close');
+    }, 300); // 애니메이션 시간에 맞춰 조정
+  } else {
+    resetBodyStyles();
+    emit('close');
+  }
 };
 
 // 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    closeModal();
+  }
 };
 </script>
 
 <style scoped>
-/* 모달 스타일 */
+:root {
+  --scrollbar-width: 0px;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
   backdrop-filter: blur(3px);
-  overflow: hidden; /* 바깥 영역 스크롤 방지 */
+}
+
+.modal-overlay.fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.modal-overlay.fadeOut {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* 모달 컨텐츠 */
@@ -217,6 +317,72 @@ const closeOverlay = () => {
   width: 95%;
   max-width: 500px;
   overflow: hidden;
+  max-height: 80vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e6e6e6 #f5f5f5;
+  /* 스크롤바가 있어도 둥근 모서리 유지 */
+  border-radius: 12px;
+  mask-image: radial-gradient(white, black);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+
+.modal-content.popIn {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.modal-content.popOut {
+  animation: popOut 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* 스크롤바 스타일 수정 */
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
+  margin: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #e6e6e6;
+  border-radius: 3px;
+}
+
+/* 애니메이션 클래스 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 모달 헤더 */
@@ -374,45 +540,6 @@ const closeOverlay = () => {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* 트랜지션 애니메이션 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 모달 스케일 애니메이션 */
-@keyframes modal-in {
-  0% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes modal-out {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-}
-
-/* 일관된 모달 클래스 */
-.modal-standard {
-  animation: modal-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* 반응형 디자인 */

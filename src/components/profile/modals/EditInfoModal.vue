@@ -9,19 +9,32 @@
 
         <!-- 이미지 업로드 영역 -->
         <div class="image-upload-container">
-          <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-            <div v-if="!previewImage" class="upload-placeholder">
-              <div class="plus-icon">+</div>
-              <span class="upload-text">프로필 사진 추가</span>
+          <div class="image-upload-wrapper">
+            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+              <div v-if="!previewImage" class="upload-placeholder">
+                <div class="plus-icon">+</div>
+                <span class="upload-text">프로필 사진 추가</span>
+              </div>
+              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
+              <input
+                  type="file"
+                  @change="handleImageUpload"
+                  accept="image/*"
+                  class="file-input-hidden"
+                  ref="fileInput"
+              />
+            </label>
+
+            <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+            <div v-if="previewImage" class="image-actions">
+              <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                <span class="action-icon">✏️</span> 변경
+              </button>
+              <button class="image-action-btn delete-btn" @click="removeImage">
+                <span class="action-icon">🗑️</span> 삭제
+              </button>
             </div>
-            <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-            <input
-                type="file"
-                @change="handleImageUpload"
-                accept="image/*"
-                class="file-input-hidden"
-            />
-          </label>
+          </div>
         </div>
 
         <!-- 입력 폼 -->
@@ -67,8 +80,12 @@
 </template>
 
 <script setup>
+// 스크립트의 시작 부분 상수 추가
 import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
+
+// 기본 이미지 경로를 상수로 정의
+const DEFAULT_PROFILE_IMAGE = "/images/default_profile.png";
 
 const props = defineProps({
   editInfo: {
@@ -82,6 +99,7 @@ const emit = defineEmits(['close', 'updated']);
 // 모달 상태 및 요소 참조
 const modalRef = ref(null);
 const scrollbarWidth = ref(0);
+const fileInput = ref(null);
 
 const form = ref({
   userName: '',
@@ -94,6 +112,7 @@ const formError = ref('');
 const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
+const imageDeleted = ref(false); // 이미지 삭제 여부 추적
 
 // 스크롤바 너비 계산
 const getScrollbarWidth = () => {
@@ -170,15 +189,21 @@ const initializeForm = () => {
   form.value = {
     userName: props.editInfo.userName || '',
     password: props.editInfo.password || '',
-    profileImageUrl: props.editInfo.profileImageUrl || ''
+    profileImageUrl: props.editInfo.profileImageUrl || DEFAULT_PROFILE_IMAGE
   };
+
+  // 이미지 삭제 여부 초기화
+  imageDeleted.value = false;
 
   // 기존 이미지 로드 시도
   previewImage.value = null; // 초기화
 
-  if (props.editInfo.profileImageUrl) {
+  // 프로필 이미지가 있고 기본 이미지가 아닌 경우에만 표시
+  if (props.editInfo.profileImageUrl && props.editInfo.profileImageUrl !== DEFAULT_PROFILE_IMAGE) {
     previewImage.value = props.editInfo.profileImageUrl;
-    console.log('props에서 이미지 URL 사용:', previewImage.value);
+    console.log('props에서 커스텀 이미지 URL 사용:', previewImage.value);
+  } else {
+    console.log('기본 이미지이거나 이미지 없음');
   }
 };
 
@@ -187,6 +212,14 @@ watch(() => props.editInfo, () => {
   initializeForm();
 }, { deep: true });
 
+// 파일 입력 트리거 함수
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
+// 이미지 업로드 처리
 const handleImageUpload = e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -199,9 +232,23 @@ const handleImageUpload = e => {
   const reader = new FileReader();
   reader.onload = () => {
     previewImage.value = reader.result;
+    imageDeleted.value = false; // 새 이미지를 업로드했으므로 삭제 상태 초기화
     console.log('새 이미지 설정됨');
   };
   reader.readAsDataURL(file);
+};
+
+// 이미지 삭제 함수
+const removeImage = () => {
+  previewImage.value = null;
+  imageFile.value = null;
+  form.value.profileImageUrl = DEFAULT_PROFILE_IMAGE; // 기본 이미지 경로로 설정
+  imageDeleted.value = true; // 이미지 삭제 상태 설정
+
+  // 파일 입력 필드 초기화
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
 };
 
 const updateProfile = async () => {
@@ -222,16 +269,22 @@ const updateProfile = async () => {
   loading.value = true;
   try {
     const formData = new FormData();
+
     const memberEditRequest = {
       userName: form.value.userName,
       password: form.value.password,
-      profileImageUrl: form.value.profileImageUrl
+      // 이미지가 삭제되었거나 프로필 이미지가 없으면 기본 이미지로 설정
+      profileImageUrl: imageDeleted.value ? DEFAULT_PROFILE_IMAGE :
+          previewImage.value ? form.value.profileImageUrl : DEFAULT_PROFILE_IMAGE
     };
 
     formData.append('memberEditRequest', new Blob([JSON.stringify(memberEditRequest)], { type: 'application/json' }));
     if (imageFile.value) {
       formData.append('image', imageFile.value);
     }
+
+    // 이미지 삭제 플래그 추가
+    formData.append('imageDeleted', imageDeleted.value);
 
     await axios.post('/api/profile/editinfo', formData, {
       headers: {
@@ -450,6 +503,13 @@ const closeOverlay = (event) => {
   justify-content: center;
 }
 
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 .image-upload-area {
   display: flex;
   align-items: center;
@@ -507,6 +567,45 @@ const closeOverlay = (event) => {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* 이미지 동작 버튼 스타일 */
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #efefef;
+  background-color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #e8f4fe;
+  border-color: #d0e7fb;
+  color: #1877f2;
+}
+
+.delete-btn:hover {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+  color: #e53935;
+}
+
+.action-icon {
+  font-size: 14px;
 }
 
 /* 폼 영역 */
