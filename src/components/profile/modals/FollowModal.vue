@@ -60,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   title: {
@@ -78,11 +78,31 @@ const emit = defineEmits(['close', 'go-to-profile']);
 const searchQuery = ref('');
 const filteredList = ref([]);
 const modalRef = ref(null);
+const scrollbarWidth = ref(0);
 
-// 모달이 열릴 때 body 스크롤 방지
-onMounted(() => {
-  document.body.style.overflow = 'hidden';
-  filterFollowList();
+// 스크롤바 너비 계산
+const getScrollbarWidth = () => {
+  return window.innerWidth - document.documentElement.clientWidth;
+};
+
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전의 스크롤 위치 저장
+  const scrollY = window.scrollY;
+
+  // 스크롤바 너비 계산
+  scrollbarWidth.value = getScrollbarWidth();
+
+  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
+  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
+
+  // 현재 스크롤 위치를 유지하면서 스크롤 방지
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${scrollY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
 
   // 애니메이션 요소에 in-view 클래스 추가
   const elements = document.querySelectorAll(".animate-on-scroll");
@@ -97,7 +117,37 @@ onMounted(() => {
     modalRef.value.classList.add('fadeIn');
     modalRef.value.querySelector('.modal-content').classList.add('popIn');
   }
+
+  // 모달 리스트 초기 필터링
+  filterFollowList();
+};
+
+onMounted(() => {
+  setupModal();
 });
+
+onBeforeUnmount(() => {
+  // 컴포넌트 제거 시 원래 상태로 복원
+  resetBodyStyles();
+});
+
+// 스타일 초기화 함수
+const resetBodyStyles = () => {
+  // 원래 스크롤 위치 복원
+  const scrollY = parseInt(document.body.style.top || '0', 10) * -1;
+
+  // 모든 스타일 초기화
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  document.body.style.paddingRight = '';
+  document.documentElement.style.setProperty('--scrollbar-width', '0px');
+
+  // 스크롤 위치 복원
+  window.scrollTo(0, scrollY);
+};
 
 // 검색 결과 필터링 함수
 const filterFollowList = () => {
@@ -137,13 +187,13 @@ const closeModal = () => {
       contentEl.classList.add('popOut');
     }
 
-    // 애니메이션 완료 후 모달 닫기
+    // 애니메이션 완료 후 모달 닫기 및 스타일 초기화
     setTimeout(() => {
-      document.body.style.overflow = '';
+      resetBodyStyles();
       emit('close');
     }, 300); // 애니메이션 시간에 맞춰 조정
   } else {
-    document.body.style.overflow = '';
+    resetBodyStyles();
     emit('close');
   }
 };
@@ -168,6 +218,10 @@ const goToProfile = (account) => {
 </script>
 
 <style scoped>
+:root {
+  --scrollbar-width: 0px;
+}
+
 .modal {
   position: fixed;
   top: 0;
