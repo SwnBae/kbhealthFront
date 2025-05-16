@@ -29,15 +29,16 @@
         </div>
 
         <div class="profile-cell">
-          <router-link :to="`/profile/${ranking.account}`" class="profile-container text-decoration-none">
-            <svg class="profile-ring" viewBox="0 0 36 36">
-              <circle class="ring-bg" cx="18" cy="18" r="16" />
-              <circle class="ring-progress" cx="18" cy="18" r="16"
-                      :stroke-dasharray="`${(Math.min(1000, ranking.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
-                      transform="rotate(-90 18 18)"
-              />
-            </svg>
-            <img :src="ranking.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+          <router-link :to="`/profile/${ranking.account}`" class="profile-link text-decoration-none">
+            <!-- ProfileRing 컴포넌트 사용 -->
+            <ProfileRing
+              :profile-image-url="ranking.profileImageUrl"
+              :base-score="ranking.baseScore || 0"
+              :size="48"
+              :stroke-width="3"
+              progress-color="#a5d6a7"
+              alt-text="프로필 이미지"
+            />
           </router-link>
           <div class="user-details">
             <router-link :to="`/profile/${ranking.account}`" class="nickname-link">
@@ -71,10 +72,14 @@
 import axios from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 
 dayjs.extend(relativeTime);
 
 export default {
+  components: {
+    ProfileRing
+  },
   data() {
     return {
       rankingType: 'total',  // 랭킹 타입 (기본값: total)
@@ -376,45 +381,10 @@ export default {
   padding: 0 10px;
 }
 
-.profile-container {
-  position: relative;
-  width: 48px;
-  height: 48px;
+/* ProfileRing 컴포넌트용 스타일 */
+.profile-link {
+  text-decoration: none;
   flex-shrink: 0;
-}
-
-.profile-ring {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  top: 0;
-  left: 0;
-}
-
-.ring-bg {
-  fill: none;
-  stroke: #f0f7f0;
-  stroke-width: 3;
-}
-
-.ring-progress {
-  fill: none;
-  stroke: #a5d6a7;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.6s ease;
-}
-
-.profile-img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 1;
-  border: 1px solid #f0f0f0;
 }
 
 .user-details {
