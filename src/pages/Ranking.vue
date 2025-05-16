@@ -8,17 +8,11 @@
       <button @click="setRankingType('base')" :class="{'active': rankingType === 'base'}">최근 10일 점수</button>
     </div>
 
-    <!-- 로딩 상태 표시 -->
-    <div v-if="isLoading" class="loading-container animate-on-scroll">
-      <div class="loading-spinner"></div>
-      <p>랭킹 정보를 불러오는 중...</p>
-    </div>
-
     <!-- 랭킹 리스트 출력 -->
-    <div v-else-if="rankings.length > 0" class="rankings-container">
+    <div v-if="rankings.length > 0" class="rankings-container" ref="rankingsContainer">
       <div v-for="(ranking, index) in rankings" :key="ranking.memberId"
            class="ranking-card animate-on-scroll"
-           :style="{ animationDelay: `${index * 0.1}s` }">
+           :style="{ animationDelay: `${Math.min(index, 10) * 0.1}s` }">
         <div class="rank">
           <template v-if="ranking.rank === 1">
             <span class="medal gold">🥇</span>
@@ -66,28 +60,24 @@
         </div>
       </div>
 
-      <!-- 페이지네이션 추가 -->
-      <div class="pagination-container" v-if="totalPages > 1">
-        <button 
-          @click="prevPage" 
-          :disabled="currentPage === 0"
-          class="pagination-btn"
-        >
-          이전
-        </button>
-        
-        <div class="page-info">
-          {{ currentPage + 1 }} / {{ totalPages }}
-        </div>
-        
-        <button 
-          @click="nextPage" 
-          :disabled="isLastPage"
-          class="pagination-btn"
-        >
-          다음
-        </button>
+      <!-- 추가 로딩 표시 -->
+      <div v-if="isLoadingMore" class="loading-more">
+        <div class="loading-spinner-small"></div>
+        <p>더 불러오는 중...</p>
       </div>
+      
+      <!-- 모든 데이터 로딩 완료 표시 -->
+      <div v-if="isLastPage && !isLoading" class="end-of-list">
+        <div class="end-marker">
+          <span>모든 랭킹을 불러왔습니다</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 초기 로딩 상태 표시 -->
+    <div v-else-if="isLoading" class="loading-container animate-on-scroll">
+      <div class="loading-spinner"></div>
+      <p>랭킹 정보를 불러오는 중...</p>
     </div>
 
     <!-- 데이터가 없을 경우 표시 -->
@@ -113,30 +103,98 @@ export default {
     return {
       rankingType: 'total',  // 랭킹 타입 (기본값: total)
       rankings: [],          // 랭킹 데이터를 저장할 배열
-      isLoading: false,      // 로딩 상태
+      isLoading: false,      // 초기 로딩 상태
+      isLoadingMore: false,  // 추가 데이터 로딩 상태
       currentPage: 0,        // 현재 페이지 (0부터 시작)
-      pageSize: 10,          // 페이지 크기
+      pageSize: 15,          // 페이지 크기
       totalPages: 0,         // 전체 페이지 수
       totalElements: 0,      // 전체 아이템 수
-      isLastPage: false      // 마지막 페이지 여부
+      isLastPage: false,     // 마지막 페이지 여부
+      scrollThreshold: 200,  // 스크롤 임계값 (px)
+      scrollListener: null   // 스크롤 이벤트 리스너
     };
   },
   mounted() {
     this.fetchRanking();     // 컴포넌트가 로드될 때 랭킹 데이터를 가져옵니다.
+    this.setupInfiniteScroll(); // 무한 스크롤 설정
+  },
+  beforeUnmount() {
+    this.removeScrollListener(); // 컴포넌트가 제거될 때 스크롤 리스너 제거
   },
   methods: {
     // 랭킹 타입을 변경하고 데이터를 다시 가져옵니다.
     setRankingType(type) {
       this.rankingType = type;
-      this.currentPage = 0;  // 랭킹 타입 변경 시 첫 페이지로 리셋
+      // 초기화
+      this.currentPage = 0;
+      this.rankings = [];
+      this.isLastPage = false;
       this.fetchRanking();   // 새 랭킹 데이터 가져오기
     },
 
-    // 선택된 랭킹 타입에 따라 데이터를 가져오는 함수
+    // 스크롤 이벤트 리스너 설정
+    setupInfiniteScroll() {
+      this.scrollListener = this.handleScroll.bind(this);
+      window.addEventListener('scroll', this.scrollListener);
+    },
+
+    // 스크롤 이벤트 리스너 제거
+    removeScrollListener() {
+      if (this.scrollListener) {
+        window.removeEventListener('scroll', this.scrollListener);
+        this.scrollListener = null;
+      }
+    },
+
+    // 스크롤 이벤트 핸들러
+    handleScroll() {
+      // 페이지 끝에 도달했는지 확인
+      const bottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - this.scrollThreshold;
+      
+      // 페이지 끝에 도달하고 로딩 중이 아니며 마지막 페이지가 아닌 경우
+      if (bottom && !this.isLoading && !this.isLoadingMore && !this.isLastPage) {
+        this.loadMoreRankings();
+      }
+    },
+
+    // 추가 랭킹 데이터 로드
+    async loadMoreRankings() {
+      if (this.isLastPage) return;
+      
+      this.isLoadingMore = true;
+      this.currentPage++;
+      
+      try {
+        await this.fetchRankingPage();
+      } finally {
+        this.isLoadingMore = false;
+      }
+    },
+
+    // 선택된 랭킹 타입에 따라 데이터를 가져오는 함수 (초기 로드)
     async fetchRanking() {
       this.isLoading = true;
+      this.currentPage = 0;
+      
       try {
-        const response = await axios.get(`/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`);
+        await this.fetchRankingPage();
+        
+        this.$nextTick(() => {
+          this.observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
+        });
+      } catch (error) {
+        console.error('랭킹 데이터를 불러오는 중 오류가 발생했습니다.', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    
+    // 페이지 데이터 가져오기 (공통 로직)
+    async fetchRankingPage() {
+      try {
+        const response = await axios.get(
+          `/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`
+        );
         
         // 서버가 Page 객체를 반환하므로 그에 맞게 처리
         const pageData = response.data;
@@ -148,24 +206,32 @@ export default {
           lastActiveDate: this.getRandomDate() // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
         }));
 
-        this.rankings = newRankings;
+        // 기존 데이터에 새 데이터 추가 (첫 페이지인 경우 덮어쓰기)
+        if (this.currentPage === 0) {
+          this.rankings = newRankings;
+        } else {
+          this.rankings = [...this.rankings, ...newRankings];
+        }
+        
         this.totalPages = pageData.totalPages;
         this.totalElements = pageData.totalElements;
         this.isLastPage = pageData.last;
-
+        
         this.$nextTick(() => {
-          this.observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
+          this.observeFeedAnimation(); // 새 데이터가 로드된 후 애니메이션 다시 설정
         });
+        
       } catch (error) {
-        console.error('랭킹 데이터를 불러오는 중 오류가 발생했습니다.', error);
-      } finally {
-        this.isLoading = false;
+        console.error(`페이지 ${this.currentPage} 랭킹 데이터를 불러오는 중 오류가 발생했습니다.`, error);
+        this.currentPage = Math.max(0, this.currentPage - 1); // 오류 발생 시 페이지 번호 복구
       }
     },
 
     // 스크롤 애니메이션 관찰자 설정
     observeFeedAnimation() {
-      const elements = document.querySelectorAll(".animate-on-scroll");
+      const elements = document.querySelectorAll(".animate-on-scroll:not(.in-view)");
+      if (elements.length === 0) return;
+      
       const scrollObserver = new IntersectionObserver(
           entries => entries.forEach(entry => {
             if (entry.isIntersecting) entry.target.classList.add("in-view");
@@ -192,29 +258,6 @@ export default {
       const days = [0, 1, 2, 3, 4, 5];
       const randomDay = days[Math.floor(Math.random() * days.length)];
       return dayjs().subtract(randomDay, 'day').toISOString();
-    },
-
-    // 페이지 이동 메서드
-    goToPage(page) {
-      if (page < 0 || page >= this.totalPages) return;
-      this.currentPage = page;
-      this.fetchRanking();
-    },
-
-    // 다음 페이지로 이동
-    nextPage() {
-      if (!this.isLastPage) {
-        this.currentPage++;
-        this.fetchRanking();
-      }
-    },
-
-    // 이전 페이지로 이동
-    prevPage() {
-      if (this.currentPage > 0) {
-        this.currentPage--;
-        this.fetchRanking();
-      }
     }
   }
 };
@@ -255,6 +298,13 @@ export default {
   justify-content: center;
   gap: 16px;
   margin-bottom: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: #fff;
+  padding: 10px 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 0 0 12px 12px;
 }
 
 .ranking-options button {
@@ -294,6 +344,15 @@ export default {
   margin-top: 20px;
 }
 
+.loading-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  color: #999;
+  font-size: 14px;
+}
+
 .loading-spinner {
   width: 40px;
   height: 40px;
@@ -302,6 +361,16 @@ export default {
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 10px;
+}
+
+.loading-spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 8px;
 }
 
 @keyframes spin {
@@ -537,39 +606,20 @@ export default {
   font-weight: 700;
 }
 
-/* 페이지네이션 스타일 */
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 24px;
-  gap: 16px;
+/* 목록 끝 표시 */
+.end-of-list {
+  padding: 20px 0;
+  text-align: center;
 }
 
-.pagination-btn {
-  padding: 8px 16px;
-  background-color: #fff;
-  color: #555;
-  border: 1px solid #ddd;
+.end-marker {
+  display: inline-block;
+  padding: 8px 20px;
+  background-color: #f9f9f9;
   border-radius: 20px;
   font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination-btn:not(:disabled):hover {
-  background-color: #f9f9f9;
-  transform: translateY(-2px);
-}
-
-.page-info {
-  font-size: 14px;
-  color: #666;
+  color: #999;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 
 /* 데이터가 없을 경우 스타일 */
@@ -582,5 +632,34 @@ export default {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   margin-top: 20px;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 768px) {
+  .feed-wrapper {
+    padding: 15px;
+  }
+  
+  .header {
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+  
+  .ranking-options {
+    gap: 10px;
+  }
+  
+  .ranking-options button {
+    padding: 6px 16px;
+    font-size: 13px;
+  }
+  
+  .ranking-card {
+    padding: 12px;
+  }
+  
+  .score {
+    font-size: 16px;
+  }
 }
 </style>
