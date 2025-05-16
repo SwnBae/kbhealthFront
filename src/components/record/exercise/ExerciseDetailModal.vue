@@ -1,64 +1,62 @@
 <template>
   <teleport to="body">
-    <transition name="fade" appear>
-      <div v-if="localShowModal" class="modal-overlay" @click="closeOverlay">
-        <div class="modal-content" @click.stop>
-          <!-- 모달 헤더 -->
-          <div class="modal-header">
-            <h1 class="header-title">운동 상세 정보</h1>
-            <button class="modal-close" @click="closeModal">×</button>
+    <div ref="modalRef" class="modal-overlay" @click.self="closeOverlay" :class="{'fadeIn': localShowModal, 'fadeOut': !localShowModal && modalClosing}">
+      <div class="modal-content animate-on-scroll in-view" @click.stop :class="{'popIn': localShowModal, 'popOut': !localShowModal && modalClosing}">
+        <!-- 모달 헤더 -->
+        <div class="modal-header">
+          <h1 class="header-title">운동 상세 정보</h1>
+          <button class="modal-close" @click="closeModal">×</button>
+        </div>
+
+        <!-- 스크롤 가능한 내용물을 위한 새 컨테이너 -->
+        <div class="modal-scrollable-content">
+          <!-- 운동 이미지 섹션 -->
+          <div class="exercise-image-container">
+            <img :src="record.erImgUrl || '/images/default_exercise.png'" alt="운동 이미지" class="exercise-image" />
           </div>
 
-          <!-- 스크롤 가능한 내용물을 위한 새 컨테이너 -->
-          <div class="modal-scrollable-content">
-            <!-- 운동 이미지 섹션 -->
-            <div class="exercise-image-container">
-              <img :src="record.erImgUrl || '/images/default_exercise.png'" alt="운동 이미지" class="exercise-image" />
+          <!-- 기본 정보 -->
+          <div class="info-section">
+            <h4 class="exercise-name">{{ record.exerciseName }}</h4>
+
+            <div class="exercise-type-container">
+              <span class="exercise-type" :class="getExerciseTypeClass(record.exerciseType)">
+                {{ formatExerciseType(record.exerciseType) }}
+              </span>
+              <span class="completion-badge" :class="record.exercised ? 'completed' : 'not-completed'">
+                {{ record.exercised ? '완료됨' : '미완료' }}
+              </span>
             </div>
 
-            <!-- 기본 정보 -->
-            <div class="info-section">
-              <h4 class="exercise-name">{{ record.exerciseName }}</h4>
-
-              <div class="exercise-type-container">
-                <span class="exercise-type" :class="getExerciseTypeClass(record.exerciseType)">
-                  {{ formatExerciseType(record.exerciseType) }}
-                </span>
-                <span class="completion-badge" :class="record.exercised ? 'completed' : 'not-completed'">
-                  {{ record.exercised ? '완료됨' : '미완료' }}
-                </span>
+            <div class="exercise-stats">
+              <div class="stat-item">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-value">{{ record.durationMinutes }}분</div>
+                <div class="stat-label">소요 시간</div>
               </div>
-
-              <div class="exercise-stats">
-                <div class="stat-item">
-                  <div class="stat-icon">⏱️</div>
-                  <div class="stat-value">{{ record.durationMinutes }}분</div>
-                  <div class="stat-label">소요 시간</div>
-                </div>
-                <div class="stat-item">
-                  <div class="stat-icon">🔥</div>
-                  <div class="stat-value">{{ record.caloriesBurned }}kcal</div>
-                  <div class="stat-label">소모 칼로리</div>
-                </div>
+              <div class="stat-item">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-value">{{ record.caloriesBurned }}kcal</div>
+                <div class="stat-label">소모 칼로리</div>
               </div>
             </div>
+          </div>
 
-            <!-- 메타 정보 -->
-            <div class="meta-section">
-              <p class="record-date">
-                <span class="meta-label">기록 일시:</span>
-                <span>{{ formatDate(record.lastModifyDate) }}</span>
-              </p>
-            </div>
+          <!-- 메타 정보 -->
+          <div class="meta-section">
+            <p class="record-date">
+              <span class="meta-label">기록 일시:</span>
+              <span>{{ formatDate(record.lastModifyDate) }}</span>
+            </p>
           </div>
         </div>
       </div>
-    </transition>
+    </div>
   </teleport>
 </template>
 
 <script setup>
-import {ref, defineProps, defineEmits, onMounted, watch} from 'vue';
+import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import dayjs from 'dayjs';
 
 const props = defineProps({
@@ -74,18 +72,82 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-// 로컬 상태 추가 - 애니메이션을 위한 지연 처리
+// 모달 상태 및 요소 참조
+const modalRef = ref(null);
 const localShowModal = ref(props.showModal);
+const modalClosing = ref(false);
+const scrollbarWidth = ref(0);
+// 스크롤 위치를 저장할 변수 추가
+const savedScrollY = ref(0);
 
 // 부모의 showModal 값이 변경될 때 로컬 상태도 업데이트
 watch(() => props.showModal, (newValue) => {
   if (newValue) {
+    modalClosing.value = false;
     localShowModal.value = true;
+    setupModal();
   } else {
     // 부모가 모달을 닫으려고 할 때 즉시 닫지 않고 애니메이션 후 처리
-    startCloseAnimation();
+    closeModal();
   }
 });
+
+// 스크롤바 너비 계산
+const getScrollbarWidth = () => {
+  return window.innerWidth - document.documentElement.clientWidth;
+};
+
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전의 스크롤 위치 저장
+  savedScrollY.value = window.scrollY;
+
+  // 스크롤바 너비 계산
+  scrollbarWidth.value = getScrollbarWidth();
+
+  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
+  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
+
+  // 현재 스크롤 위치를 유지하면서 스크롤 방지
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${savedScrollY.value}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+
+  // 애니메이션 요소에 in-view 클래스 추가
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  elements.forEach(el => {
+    if (!el.classList.contains('in-view')) {
+      el.classList.add('in-view');
+    }
+  });
+
+  // 모달에 fadeIn 클래스와 모달 콘텐츠에 popIn 클래스 추가
+  if (modalRef.value) {
+    modalRef.value.classList.add('fadeIn');
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.add('popIn');
+    }
+  }
+};
+
+// 스타일 초기화 함수
+const resetBodyStyles = () => {
+  // 모든 스타일 초기화
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  document.body.style.paddingRight = '';
+  document.documentElement.style.setProperty('--scrollbar-width', '0px');
+
+  // 저장된 스크롤 위치로 복원
+  window.scrollTo(0, savedScrollY.value);
+};
 
 const formatExerciseType = (exerciseType) => {
   const types = {
@@ -105,54 +167,98 @@ const formatDate = (dateTimeStr) => {
   return dayjs(dateTimeStr).format('YYYY년 MM월 DD일 HH:mm');
 };
 
-// 닫기 애니메이션 시작 함수
-const startCloseAnimation = () => {
-  localShowModal.value = false;
-  // CSS 애니메이션 시간에 맞춰 지연 후 부모에게 실제 닫힘 알림
-  setTimeout(() => {
-    emit('close');
-  }, 300); // fade 애니메이션 시간(0.3s)과 일치시킴
-};
-
-// 모달 닫기
-const closeModal = () => {
-  startCloseAnimation();
-};
-
-// 오버레이 클릭 시 모달 닫기
-const closeOverlay = () => {
-  startCloseAnimation();
-};
-
-// 컴포넌트 마운트 시 실행
+// 모달이 열릴 때 초기화
 onMounted(() => {
-  // 모달이 열릴 때 body 스크롤 방지
   if (localShowModal.value) {
-    document.body.style.overflow = 'hidden';
+    setupModal();
   }
 });
 
-// 모달 표시 상태가 변경될 때 body 스크롤 제어
-watch(() => localShowModal.value, (isVisible) => {
-  document.body.style.overflow = isVisible ? 'hidden' : '';
+// 컴포넌트 제거 시 원래 상태로 복원
+onBeforeUnmount(() => {
+  resetBodyStyles();
 });
+
+// 닫기 함수 - 애니메이션 포함 (순서 변경)
+const closeModal = () => {
+  // 닫기 애니메이션 추가
+  modalClosing.value = true;
+  if (modalRef.value) {
+    modalRef.value.classList.remove('fadeIn');
+    modalRef.value.classList.add('fadeOut');
+
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.remove('popIn');
+      contentEl.classList.add('popOut');
+    }
+
+    // 애니메이션 완료 후 모달 닫기 및 스타일 초기화 (순서 변경)
+    setTimeout(() => {
+      resetBodyStyles(); // 먼저 스타일 초기화 (스크롤 복원)
+      localShowModal.value = false; // 그 다음 모달 숨김
+      emit('close');
+    }, 300); // 애니메이션 시간에 맞춰 조정
+  } else {
+    resetBodyStyles(); // 먼저 스타일 초기화 (스크롤 복원)
+    localShowModal.value = false; // 그 다음 모달 숨김
+    emit('close');
+  }
+};
+
+// 오버레이 클릭 시 모달 닫기
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal-overlay')) {
+    closeModal();
+  }
+};
 </script>
 
 <style scoped>
+:root {
+  --scrollbar-width: 0px;
+}
+
 /* 모달 스타일 */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 2000;
   backdrop-filter: blur(3px);
-  overflow: hidden; /* 바깥 영역 스크롤 방지 */
+}
+
+.modal-overlay.fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.modal-overlay.fadeOut {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 .modal-content {
@@ -162,10 +268,52 @@ watch(() => localShowModal.value, (isVisible) => {
   width: 92%;
   max-width: 700px;
   max-height: 90vh;
-  overflow: hidden; /* 중요: overflow-y: auto 대신 overflow: hidden 사용 */
+  overflow: hidden;
   padding-bottom: 24px;
   display: flex;
   flex-direction: column;
+}
+
+.modal-content.popIn {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.modal-content.popOut {
+  animation: popOut 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* 애니메이션 클래스 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 스크롤 가능한 내부 컨테이너 */
@@ -357,33 +505,6 @@ watch(() => localShowModal.value, (isVisible) => {
 
 .record-date {
   margin: 0;
-}
-
-/* 트랜지션 애니메이션 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 일관된 모달 클래스 */
-.modal-standard {
-  animation: modal-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-/* 모달 스케일 애니메이션 */
-@keyframes modal-in {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes modal-out {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0; }
 }
 
 /* 반응형 디자인 */

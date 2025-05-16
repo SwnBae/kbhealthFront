@@ -28,6 +28,12 @@
         @updated="onRecordUpdated"
     />
 
+    <!-- 데이터 로딩 오버레이 - 식단 기록 로딩 추가 -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <span>식단 기록 로딩 중...</span>
+    </div>
+
     <!-- 영양소 정보 로딩 -->
     <div v-if="isNutritionLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -64,6 +70,7 @@ const dietRecordToEdit = ref({
 });
 const floatingBtn = ref(null); // 플로팅 버튼 ref 추가
 const isNutritionLoading = ref(false); // 영양소 정보 로딩 상태
+const isLoading = ref(false); // 식단 기록 로딩 상태 추가
 
 // 영양소 기준 데이터
 const nutritionStandard = ref({
@@ -96,7 +103,11 @@ const observeFeedAnimation = () => {
   const elements = document.querySelectorAll(".animate-on-scroll");
   const scrollObserver = new IntersectionObserver(
       entries => entries.forEach(entry => {
-        if (entry.isIntersecting) entry.target.classList.add("in-view");
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          // 관찰 중단 - 한 번 보여진 후에는 계속 표시
+          scrollObserver.unobserve(entry.target);
+        }
       }),
       {threshold: 0.1}
   );
@@ -152,6 +163,7 @@ const fetchNutritionStandard = async () => {
 };
 
 const fetchDietRecords = async () => {
+  isLoading.value = true; // 로딩 시작
   try {
     const { data } = await axios.get('/api/records/diet');
     records.value = data.sort((a, b) => new Date(b.lastModifyDate) - new Date(a.lastModifyDate));
@@ -159,6 +171,8 @@ const fetchDietRecords = async () => {
     observeFeedAnimation();
   } catch (err) {
     console.error('식단 기록 불러오기 실패', err);
+  } finally {
+    isLoading.value = false; // 로딩 종료
   }
 };
 
@@ -176,6 +190,7 @@ const searchDietRecords = async (searchData) => {
     isSearched: true
   };
 
+  isLoading.value = true; // 로딩 시작
   try {
     // API 호출을 통한 서버 검색
     const { data } = await axios.get('/api/records/diet/search', {
@@ -190,10 +205,13 @@ const searchDietRecords = async (searchData) => {
     observeFeedAnimation();
   } catch (err) {
     console.error('식단 기록 검색 실패', err);
+  } finally {
+    isLoading.value = false; // 로딩 종료
   }
 };
 
 const deleteDietRecord = async (id) => {
+  isLoading.value = true; // 로딩 시작
   try {
     await axios.delete(`/api/records/diet/${id}`);
     await fetchDietRecords();
@@ -205,6 +223,8 @@ const deleteDietRecord = async (id) => {
   } catch (err) {
     console.error('식단 기록 삭제 실패', err);
     alert('삭제에 실패했습니다. 다시 시도해주세요.');
+  } finally {
+    isLoading.value = false; // 로딩 종료
   }
 };
 
@@ -215,22 +235,26 @@ const editDietRecord = (record) => {
 
 const onRecordAdded = async () => {
   showAddDietRecordModal.value = false;
+  isLoading.value = true; // 로딩 시작
   await fetchDietRecords();
 
   // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
   if (appliedSearch.value.isSearched) {
     await searchDietRecords();
   }
+  isLoading.value = false; // 로딩 종료
 };
 
 const onRecordUpdated = async () => {
   showEditDietRecordModal.value = false;
+  isLoading.value = true; // 로딩 시작
   await fetchDietRecords();
 
   // 검색이 이미 적용된 상태였다면, 검색 결과 업데이트
   if (appliedSearch.value.isSearched) {
     await searchDietRecords();
   }
+  isLoading.value = false; // 로딩 종료
 };
 
 // 표시할 레코드 계산 (검색 버튼 클릭 시에만 필터링)
@@ -257,10 +281,12 @@ const displayedRecords = computed(() => {
 
 onMounted(async () => {
   // 병렬로 데이터 로드
+  isLoading.value = true; // 로딩 시작
   await Promise.all([
     fetchDietRecords(),
     fetchNutritionStandard()
   ]);
+  isLoading.value = false; // 로딩 종료
 
   // 호버 인텐트 설정 추가
   nextTick(() => {
@@ -280,11 +306,10 @@ onMounted(async () => {
   padding-bottom: 80px; /* 플로팅 버튼 공간 확보 */
 }
 
-/* 애니메이션 공통 스타일 */
 .animate-on-scroll {
   opacity: 0;
-  transform: translateY(40px);
-  transition: all 2s ease;
+  transform: translateY(20px); /* 40px에서 20px로 변경 */
+  transition: all 0.5s ease-out; /* 2s ease에서 0.5s ease-out으로 변경 */
 }
 
 .animate-on-scroll.in-view {
@@ -292,10 +317,10 @@ onMounted(async () => {
   transform: translateY(0);
 }
 
-/* 검색창과 추가 버튼용 페이드인 애니메이션 */
+/* 페이드인 애니메이션 속도 개선 */
 .fade-in-animation {
   opacity: 0;
-  transition: opacity 1.5s ease;
+  transition: opacity 0.5s ease-out; /* 1.5s ease에서 0.5s ease-out으로 변경 */
 }
 
 .fade-in-animation.fade-in-active {

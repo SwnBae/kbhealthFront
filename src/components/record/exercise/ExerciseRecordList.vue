@@ -1,4 +1,3 @@
-
 <script setup>
 import { defineProps, defineEmits, onMounted } from 'vue';
 import dayjs from 'dayjs';
@@ -107,21 +106,30 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.6s ease, box-shadow 0.6s ease;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
   cursor: pointer;
+  position: relative;
 }
 
 .exercise-record-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
 .exercise-record-card.completed {
   border-left: 4px solid #2196F3;
 }
 
+.exercise-record-card.completed:hover {
+  box-shadow: 0 10px 20px rgba(33, 150, 243, 0.15); /* 파란색 그림자 */
+}
+
 .exercise-record-card.not-completed {
   border-left: 4px solid #ff6b6b;
+}
+
+.exercise-record-card.not-completed:hover {
+  box-shadow: 0 10px 20px rgba(255, 107, 107, 0.15); /* 빨간색 그림자 */
 }
 
 .exercise-info {
@@ -209,12 +217,12 @@ onMounted(() => {
   border-radius: 8px;
   border: none;
   cursor: pointer;
-  transition: all 0.6s ease;
+  transition: all 0.15s ease-out;
   font-size: 0.9rem;
 }
 
 .edit-btn {
-  background-color: #f0f7f0;
+  background-color: #eceef8;
   color: #3f51b5;
 }
 
@@ -224,11 +232,13 @@ onMounted(() => {
 }
 
 .edit-btn:hover {
-  background-color: #e0f2e0;
+  background-color: #dfe1f2;
+  transform: translateY(-2px);
 }
 
 .delete-btn:hover {
   background-color: #ffe0e0;
+  transform: translateY(-2px);
 }
 
 .no-records {
@@ -244,8 +254,8 @@ onMounted(() => {
 /* 애니메이션 공통 스타일 */
 .animate-on-scroll {
   opacity: 0;
-  transform: translateY(40px);
-  transition: all 3s ease;
+  transform: translateY(20px);
+  transition: all 0.5s ease-out;
 }
 
 .animate-on-scroll.in-view {

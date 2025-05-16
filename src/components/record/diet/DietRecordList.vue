@@ -112,7 +112,7 @@ const getMealTypeClass = (mealType) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.6s ease, box-shadow 0.6s ease;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out; /* 0.6s ease에서 0.15s ease-out으로 변경 */
   cursor: pointer; /* 클릭 가능함을 표시 */
 }
 
@@ -183,7 +183,7 @@ const getMealTypeClass = (mealType) => {
   border-radius: 8px;
   border: none;
   cursor: pointer;
-  transition: all 0.6s ease;
+  transition: all 0.15s ease-out; /* 0.6s ease에서 0.15s ease-out으로 변경 */
   font-size: 0.9rem;
   z-index: 1; /* 버튼이 카드 클릭 이벤트 위에 오도록 함 */
 }
@@ -221,8 +221,8 @@ const getMealTypeClass = (mealType) => {
 /* 애니메이션 공통 스타일 */
 .animate-on-scroll {
   opacity: 0;
-  transform: translateY(40px);
-  transition: all 2s ease;
+  transform: translateY(20px); /* 40px에서 20px로 변경 */
+  transition: all 0.5s ease-out; /* 2s ease에서 0.5s ease-out으로 변경 */
 }
 
 .animate-on-scroll.in-view {

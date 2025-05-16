@@ -91,12 +91,16 @@ const appliedSearch = ref({
 // API 경로
 const API_BASE_URL = '/api/records'; // 공통 기본 URL
 
-// 스크롤 애니메이션 관찰자 설정
+/* 스크롤 애니메이션 관찰자 설정 개선 */
 const observeFeedAnimation = () => {
   const elements = document.querySelectorAll(".animate-on-scroll");
   const scrollObserver = new IntersectionObserver(
       entries => entries.forEach(entry => {
-        if (entry.isIntersecting) entry.target.classList.add("in-view");
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          // 관찰 중단 - 한 번 보여진 후에는 계속 표시
+          scrollObserver.unobserve(entry.target);
+        }
       }),
       {threshold: 0.1}
   );
@@ -313,11 +317,11 @@ const onRecordUpdated = async () => {
   padding-bottom: 80px; /* 플로팅 버튼 공간 확보 */
 }
 
-/* 애니메이션 공통 스타일 */
+/* 애니메이션 공통 스타일 - 속도 개선 */
 .animate-on-scroll {
   opacity: 0;
-  transform: translateY(40px);
-  transition: all 2s ease;
+  transform: translateY(20px);
+  transition: all 0.5s ease-out;
 }
 
 .animate-on-scroll.in-view {
@@ -325,10 +329,10 @@ const onRecordUpdated = async () => {
   transform: translateY(0);
 }
 
-/* 검색창과 추가 버튼용 페이드인 애니메이션 */
+/* 페이드인 애니메이션 속도 개선 */
 .fade-in-animation {
   opacity: 0;
-  transition: opacity 1.5s ease;
+  transition: opacity 0.5s ease-out;
 }
 
 .fade-in-animation.fade-in-active {

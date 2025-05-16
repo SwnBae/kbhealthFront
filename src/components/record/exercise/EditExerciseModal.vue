@@ -1,110 +1,108 @@
 <template>
   <teleport to="body">
-    <transition name="fade" appear>
-      <div class="modal-overlay" v-if="localShowModal" @click="closeOverlay">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
-            <h1 class="header-title">운동 기록 수정</h1>
-            <button class="modal-close" @click="closeModal">×</button>
-          </div>
+    <div ref="modalRef" class="modal-overlay" @click.self="closeOverlay" :class="{'fadeIn': localShowModal, 'fadeOut': !localShowModal && modalClosing}">
+      <div class="modal-content animate-on-scroll in-view" @click.stop :class="{'popIn': localShowModal, 'popOut': !localShowModal && modalClosing}">
+        <div class="modal-header">
+          <h1 class="header-title">운동 기록 수정</h1>
+          <button class="modal-close" @click="closeModal">×</button>
+        </div>
 
-          <!-- 이미지 업로드 영역 -->
-          <div class="image-upload-container">
-            <div class="image-upload-wrapper">
-              <label class="image-upload-area" :class="{ 'has-image': previewImage }">
-                <div v-if="!previewImage" class="upload-placeholder">
-                  <div class="plus-icon">+</div>
-                  <span class="upload-text">사진을 추가하세요</span>
-                </div>
-                <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
-                <input
-                    type="file"
-                    @change="handleImageUpload"
-                    accept="image/*"
-                    class="file-input-hidden"
-                    ref="fileInput"
-                />
-              </label>
-
-              <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
-              <div v-if="previewImage" class="image-actions">
-                <button class="image-action-btn edit-btn" @click="triggerFileInput">
-                  <span class="action-icon">✏️</span> 변경
-                </button>
-                <button class="image-action-btn delete-btn" @click="removeImage">
-                  <span class="action-icon">🗑️</span> 삭제
-                </button>
+        <!-- 이미지 업로드 영역 -->
+        <div class="image-upload-container">
+          <div class="image-upload-wrapper">
+            <label class="image-upload-area" :class="{ 'has-image': previewImage }">
+              <div v-if="!previewImage" class="upload-placeholder">
+                <div class="plus-icon">+</div>
+                <span class="upload-text">사진을 추가하세요</span>
               </div>
-            </div>
-          </div>
-
-          <!-- 입력 폼 -->
-          <div class="form-container">
-            <div class="form-group">
+              <img v-if="previewImage" :src="previewImage" alt="미리보기" class="preview-image" />
               <input
-                  class="input-field"
-                  v-model="form.exerciseName"
-                  placeholder="운동 이름"
-                  :class="{ 'invalid': showError && !form.exerciseName }"
+                  type="file"
+                  @change="handleImageUpload"
+                  accept="image/*"
+                  class="file-input-hidden"
+                  ref="fileInput"
               />
-            </div>
+            </label>
 
-            <div class="form-group">
-              <select class="input-field" v-model="form.exerciseType" @change="updateDefaultImageIfNeeded">
-                <option disabled value="">운동 종류 선택</option>
-                <option value="CARDIO">유산소</option>
-                <option value="WEIGHT">무산소</option>
-                <option value="YOGA">요가</option>
-                <option value="SWIMMING">수영</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <input
-                  class="input-field"
-                  v-model.number="form.durationMinutes"
-                  type="number"
-                  placeholder="소요 시간(분)"
-                  min="0"
-                  :class="{ 'invalid': showError && !form.durationMinutes }"
-              />
-            </div>
-
-            <div class="form-group">
-              <input
-                  class="input-field"
-                  v-model.number="form.caloriesBurned"
-                  type="number"
-                  placeholder="소모 칼로리(kcal)"
-                  min="0"
-                  :class="{ 'invalid': showError && !form.caloriesBurned }"
-              />
-            </div>
-
-            <!-- 오류 메시지 -->
-            <p v-if="formError" class="form-error">
-              {{ formError }}
-            </p>
-
-            <!-- 버튼 영역 -->
-            <div class="action-buttons">
-              <button class="cancel-button" @click="closeModal" :disabled="loading">
-                취소
+            <!-- 이미지가 있을 때만 표시되는 수정/삭제 옵션 -->
+            <div v-if="previewImage" class="image-actions">
+              <button class="image-action-btn edit-btn" @click="triggerFileInput">
+                <span class="action-icon">✏️</span> 변경
               </button>
-              <button class="submit-button" @click="updateExerciseRecord" :disabled="loading">
-                <span v-if="loading" class="spinner"></span>
-                {{ loading ? '수정 중...' : '수정하기' }}
+              <button class="image-action-btn delete-btn" @click="removeImage">
+                <span class="action-icon">🗑️</span> 삭제
               </button>
             </div>
           </div>
         </div>
+
+        <!-- 입력 폼 -->
+        <div class="form-container">
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model="form.exerciseName"
+                placeholder="운동 이름"
+                :class="{ 'invalid': showError && !form.exerciseName }"
+            />
+          </div>
+
+          <div class="form-group">
+            <select class="input-field" v-model="form.exerciseType" @change="updateDefaultImageIfNeeded">
+              <option disabled value="">운동 종류 선택</option>
+              <option value="CARDIO">유산소</option>
+              <option value="WEIGHT">무산소</option>
+              <option value="YOGA">요가</option>
+              <option value="SWIMMING">수영</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model.number="form.durationMinutes"
+                type="number"
+                placeholder="소요 시간(분)"
+                min="0"
+                :class="{ 'invalid': showError && !form.durationMinutes }"
+            />
+          </div>
+
+          <div class="form-group">
+            <input
+                class="input-field"
+                v-model.number="form.caloriesBurned"
+                type="number"
+                placeholder="소모 칼로리(kcal)"
+                min="0"
+                :class="{ 'invalid': showError && !form.caloriesBurned }"
+            />
+          </div>
+
+          <!-- 오류 메시지 -->
+          <p v-if="formError" class="form-error">
+            {{ formError }}
+          </p>
+
+          <!-- 버튼 영역 -->
+          <div class="action-buttons">
+            <button class="cancel-button" @click="closeModal" :disabled="loading">
+              취소
+            </button>
+            <button class="submit-button" @click="updateExerciseRecord" :disabled="loading">
+              <span v-if="loading" class="spinner"></span>
+              {{ loading ? '수정 중...' : '수정하기' }}
+            </button>
+          </div>
+        </div>
       </div>
-    </transition>
+    </div>
   </teleport>
 </template>
 
 <script setup>
-import {ref, defineProps, defineEmits, onMounted, watch} from 'vue';
+import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 
 // 기본 이미지 경로를 상수로 정의
@@ -128,16 +126,26 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated']);
 
-// 로컬 상태 추가 - 애니메이션을 위한 지연 처리
+// 모달 상태 및 요소 참조
+const modalRef = ref(null);
 const localShowModal = ref(props.showModal);
+const modalClosing = ref(false);
+const scrollbarWidth = ref(0);
+const fileInput = ref(null);
+// 스크롤 위치를 저장할 변수 추가
+const savedScrollY = ref(0);
+// 수정 성공 여부 플래그 추가
+const hasUpdated = ref(false);
 
 // 부모의 showModal 값이 변경될 때 로컬 상태도 업데이트
 watch(() => props.showModal, (newValue) => {
   if (newValue) {
+    modalClosing.value = false;
     localShowModal.value = true;
+    setupModal();
   } else {
     // 부모가 모달을 닫으려고 할 때 즉시 닫지 않고 애니메이션 후 처리
-    startCloseAnimation();
+    closeModal();
   }
 });
 
@@ -156,25 +164,63 @@ const showError = ref(false);
 const imageFile = ref(null);
 const previewImage = ref(null);
 const imageDeleted = ref(false); // 이미지 삭제 여부 추적
-const fileInput = ref(null);
 const isCustomImage = ref(false); // 사용자 업로드 이미지인지 여부
 
-// 모달이 열릴 때 body 스크롤 방지
-onMounted(() => {
-  document.body.style.overflow = 'hidden';
-  initializeForm();
-});
+// 스크롤바 너비 계산
+const getScrollbarWidth = () => {
+  return window.innerWidth - document.documentElement.clientWidth;
+};
 
-// 모달 표시 상태가 변경될 때 body 스크롤 제어
-watch(() => localShowModal.value, (isVisible) => {
-  document.body.style.overflow = isVisible ? 'hidden' : '';
-});
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전의 스크롤 위치 저장
+  savedScrollY.value = window.scrollY;
 
-// 파일 입력 트리거 함수
-const triggerFileInput = () => {
-  if (fileInput.value) {
-    fileInput.value.click();
+  // 스크롤바 너비 계산
+  scrollbarWidth.value = getScrollbarWidth();
+
+  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
+  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
+
+  // 현재 스크롤 위치를 유지하면서 스크롤 방지
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${savedScrollY.value}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+
+  // 애니메이션 요소에 in-view 클래스 추가
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  elements.forEach(el => {
+    if (!el.classList.contains('in-view')) {
+      el.classList.add('in-view');
+    }
+  });
+
+  // 모달에 fadeIn 클래스와 모달 콘텐츠에 popIn 클래스 추가
+  if (modalRef.value) {
+    modalRef.value.classList.add('fadeIn');
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.add('popIn');
+    }
   }
+
+  // 폼 초기화
+  initializeForm();
+};
+
+// 스타일 초기화 함수
+const resetBodyStyles = () => {
+  // 모든 스타일 초기화
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  document.body.style.paddingRight = '';
+  document.documentElement.style.setProperty('--scrollbar-width', '0px');
 };
 
 // 현재 운동 타입에 맞는 기본 이미지 URL 가져오기
@@ -195,6 +241,21 @@ const updateDefaultImageIfNeeded = () => {
   }
 };
 
+// 모달이 열릴 때 초기화
+onMounted(() => {
+  if (localShowModal.value) {
+    setupModal();
+  }
+});
+
+// 컴포넌트 제거 시 원래 상태로 복원
+onBeforeUnmount(() => {
+  if (!hasUpdated.value) {
+    resetBodyStyles();
+    window.scrollTo(0, savedScrollY.value);
+  }
+});
+
 // 컴포넌트 마운트 시와 props 변경 시 초기화
 const initializeForm = () => {
   form.value = {
@@ -210,6 +271,9 @@ const initializeForm = () => {
 
   // 이미지 삭제 여부 초기화
   imageDeleted.value = false;
+
+  // 수정 성공 여부 초기화
+  hasUpdated.value = false;
 
   // 기존 이미지 로드 시도
   previewImage.value = null; // 초기화
@@ -229,6 +293,13 @@ const initializeForm = () => {
 watch(() => props.recordToEdit, () => {
   initializeForm();
 }, {deep: true});
+
+// 파일 입력 트리거 함수
+const triggerFileInput = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
 
 // 이미지 삭제 함수
 const removeImage = () => {
@@ -313,7 +384,9 @@ const updateExerciseRecord = async () => {
     });
 
     const updatedRecord = response.data || exerciseRecord;
-    startCloseAnimation(); // 애니메이션 시작 후 닫기
+    // 수정 성공 플래그 설정
+    hasUpdated.value = true;
+    closeModal(); // 애니메이션 시작 후 닫기
     emit('updated', updatedRecord);  // 업데이트된 레코드를 전달
 
   } catch (err) {
@@ -325,43 +398,102 @@ const updateExerciseRecord = async () => {
   }
 };
 
-// 닫기 애니메이션 시작 함수
-const startCloseAnimation = () => {
-  localShowModal.value = false;
-  // CSS 애니메이션 시간에 맞춰 지연 후 부모에게 실제 닫힘 알림
-  setTimeout(() => {
-    emit('close');
-  }, 300); // fade 애니메이션 시간(0.3s)과 일치시킴
-};
-
+// 닫기 함수 - 애니메이션 포함
 const closeModal = () => {
-  startCloseAnimation();
+  // 닫기 애니메이션 추가
+  modalClosing.value = true;
+  if (modalRef.value) {
+    modalRef.value.classList.remove('fadeIn');
+    modalRef.value.classList.add('fadeOut');
+
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.remove('popIn');
+      contentEl.classList.add('popOut');
+    }
+
+    // 애니메이션 완료 후 모달 닫기 및 스타일 초기화
+    setTimeout(() => {
+      resetBodyStyles();
+
+      // 수정 성공했으면 맨 위로, 아니면 원래 위치로
+      if (hasUpdated.value) {
+        window.scrollTo(0, 0);
+      } else {
+        window.scrollTo(0, savedScrollY.value);
+      }
+
+      localShowModal.value = false;
+      emit('close');
+    }, 300); // 애니메이션 시간에 맞춰 조정
+  } else {
+    resetBodyStyles();
+
+    // 수정 성공했으면 맨 위로, 아니면 원래 위치로
+    if (hasUpdated.value) {
+      window.scrollTo(0, 0);
+    } else {
+      window.scrollTo(0, savedScrollY.value);
+    }
+
+    localShowModal.value = false;
+    emit('close');
+  }
 };
 
 // 오버레이 클릭 시 모달 닫기
 const closeOverlay = (event) => {
   // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
   if (event.target.classList.contains('modal-overlay')) {
-    startCloseAnimation();
+    closeModal();
   }
 };
 </script>
 
 <style scoped>
+:root {
+  --scrollbar-width: 0px;
+}
+
 /* 모달 스타일 */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
   backdrop-filter: blur(3px);
-  overflow: hidden; /* 바깥 영역 스크롤 방지 */
+}
+
+.modal-overlay.fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.modal-overlay.fadeOut {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* 모달 컨텐츠 */
@@ -372,6 +504,48 @@ const closeOverlay = (event) => {
   width: 95%;
   max-width: 500px;
   overflow: hidden;
+}
+
+.modal-content.popIn {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.modal-content.popOut {
+  animation: popOut 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* 애니메이션 클래스 */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s ease;
+}
+
+.animate-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 모달 헤더 */
@@ -648,45 +822,6 @@ const closeOverlay = (event) => {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* 트랜지션 애니메이션 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 모달 스케일 애니메이션 */
-@keyframes modal-in {
-  0% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes modal-out {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-}
-
-/* 일관된 모달 클래스 */
-.modal-standard {
-  animation: modal-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* 반응형 디자인 */
