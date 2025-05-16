@@ -1,19 +1,16 @@
 <!-- components/ProfileInfoCard.vue -->
 <template>
   <div class="profile-info-card animate-on-scroll">
-    <div class="profile-container">
-      <svg class="profile-ring" viewBox="0 0 36 36">
-        <circle class="ring-bg" cx="18" cy="18" r="16" />
-        <circle
-            class="ring-progress"
-            cx="18"
-            cy="18"
-            r="16"
-            :stroke-dasharray="`${(Math.min(1000, profile.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
-            transform="rotate(-90 18 18)"
-        />
-      </svg>
-      <img :src="profile.profileImageUrl" alt="프로필 이미지" class="profile-img" />
+    <!-- ProfileRing 컴포넌트 사용 -->
+    <div class="profile-avatar-container">
+      <ProfileRing
+        :profile-image-url="profile.profileImageUrl"
+        :base-score="profile.baseScore || 0"
+        :size="120"
+        :stroke-width="3"
+        progress-color="#a5d6a7"
+        alt-text="프로필 이미지"
+      />
     </div>
 
     <h2 class="profile-name">{{ profile.userName }}</h2>
@@ -60,6 +57,7 @@
 
 <script setup>
 import { onMounted } from 'vue';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 
 defineProps({
   profile: {
@@ -122,45 +120,11 @@ const observeFeedAnimation = () => {
   transform: translateY(0);
 }
 
-.profile-container {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 1rem;
-}
-
-.profile-ring {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  top: 0;
-  left: 0;
-}
-
-.ring-bg {
-  fill: none;
-  stroke: #f0f7f0;
-  stroke-width: 3;
-}
-
-.ring-progress {
-  fill: none;
-  stroke: #a5d6a7;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.6s ease;
-}
-
-.profile-img {
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  object-fit: cover;
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 1;
-  border: 1px solid #f0f0f0;
+/* 프로필 아바타 컨테이너 - ProfileRing을 위한 래퍼 */
+.profile-avatar-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
 }
 
 .profile-name {
