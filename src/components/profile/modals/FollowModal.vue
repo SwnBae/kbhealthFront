@@ -206,14 +206,12 @@ const closeOverlay = (event) => {
   }
 };
 
-// 프로필로 이동 함수 - 모달 닫고 이동
 const goToProfile = (account) => {
-  // 모달 닫기 후 프로필 이동
+  // 부모 컴포넌트에게 이동 요청 전달 (모달이 닫히기 전에 이벤트 발생)
+  emit('go-to-profile', account);
+
+  // 모달 닫기
   closeModal();
-  // 부모 컴포넌트에게 이동 요청 전달
-  setTimeout(() => {
-    emit('go-to-profile', account);
-  }, 300); // 애니메이션 완료 후 이동
 };
 </script>
 
