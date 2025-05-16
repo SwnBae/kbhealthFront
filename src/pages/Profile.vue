@@ -305,7 +305,6 @@ const showErrorNotification = (message) => {
 };
 
 const openFollowModal = async (type) => {
-  isLoading.value = true; // 팔로우 모달 열 때 로딩 상태 표시
   modalTitle.value = type === 'following' ? '팔로잉' : '팔로워';
   try {
     const {data} = await axios.get(`/api/follow/${type}List/${profile.value.memberId}`);
@@ -314,7 +313,6 @@ const openFollowModal = async (type) => {
     console.error(`${modalTitle.value} 목록을 가져오는 데 실패했습니다.`, error);
     followList.value = [];
   } finally {
-    isLoading.value = false;
     showFollowModal.value = true;
   }
 };
@@ -337,7 +335,6 @@ const goToProfile = (account) => {
 
 // 팔로우/언팔로우 버튼 기능
 const toggleFollow = async () => {
-  isLoading.value = true; // 팔로우/언팔로우 시 로딩 상태 표시
   try {
     // 낙관적 UI 업데이트 - 바로 상태 반영
     const wasFollowing = profile.value.following;
@@ -356,7 +353,7 @@ const toggleFollow = async () => {
     }
 
     // API 호출 결과로 확실한 상태 반영
-    await fetchProfile(route.params.account);
+    // await fetchProfile(route.params.account);
   } catch (error) {
     // 에러 발생시 원래 상태로 복구
     profile.value.following = !profile.value.following;
@@ -368,8 +365,6 @@ const toggleFollow = async () => {
 
     showErrorNotification('팔로우/언팔로우 처리 중 오류가 발생했습니다.');
     console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
-  } finally {
-    isLoading.value = false;
   }
 };
 
