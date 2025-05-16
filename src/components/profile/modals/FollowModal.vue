@@ -30,16 +30,16 @@
                class="follow-card animate-on-scroll in-view"
                @click="goToProfile(user.account)">
             <div class="profile-cell">
-              <div class="profile-container">
-                <svg class="profile-ring" viewBox="0 0 36 36">
-                  <circle class="ring-bg" cx="18" cy="18" r="16" />
-                  <circle class="ring-progress" cx="18" cy="18" r="16"
-                          :stroke-dasharray="`${(Math.min(1000, user.baseScore || 0) / 1000 * 100.48).toFixed(2)} 100.48`"
-                          transform="rotate(-90 18 18)"
-                  />
-                </svg>
-                <img :src="user.profileImageUrl" alt="프로필 이미지" class="profile-img" />
-              </div>
+              <!-- ProfileRing 컴포넌트 사용 -->
+              <ProfileRing
+                :profile-image-url="user.profileImageUrl"
+                :base-score="user.baseScore || 0"
+                :size="48"
+                :stroke-width="3"
+                progress-color="#a5d6a7"
+                alt-text="프로필 이미지"
+                class="profile-avatar"
+              />
               <div class="user-details">
                 <span class="nickname">{{ user.userName }}</span>
                 <div class="account-info">
@@ -61,6 +61,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 
 const props = defineProps({
   title: {
@@ -448,45 +449,9 @@ const goToProfile = (account) => {
   gap: 12px;
 }
 
-.profile-container {
-  position: relative;
-  width: 48px;
-  height: 48px;
+/* ProfileRing 컴포넌트를 위한 스타일 */
+.profile-avatar {
   flex-shrink: 0;
-}
-
-.profile-ring {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  top: 0;
-  left: 0;
-}
-
-.ring-bg {
-  fill: none;
-  stroke: #f0f7f0;
-  stroke-width: 3;
-}
-
-.ring-progress {
-  fill: none;
-  stroke: #a5d6a7;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.6s ease;
-}
-
-.profile-img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 1;
-  border: 1px solid #f0f0f0;
 }
 
 .user-details {

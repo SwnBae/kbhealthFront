@@ -8,23 +8,29 @@
       <button @click="setRankingType('base')" :class="{'active': rankingType === 'base'}">최근 10일 점수</button>
     </div>
 
+    <!-- 로딩 상태 표시 -->
+    <div v-if="isLoading" class="loading-container animate-on-scroll">
+      <div class="loading-spinner"></div>
+      <p>랭킹 정보를 불러오는 중...</p>
+    </div>
+
     <!-- 랭킹 리스트 출력 -->
-    <div v-if="rankings.length > 0" class="rankings-container">
+    <div v-else-if="rankings.length > 0" class="rankings-container">
       <div v-for="(ranking, index) in rankings" :key="ranking.memberId"
            class="ranking-card animate-on-scroll"
            :style="{ animationDelay: `${index * 0.1}s` }">
         <div class="rank">
-          <template v-if="index === 0">
+          <template v-if="ranking.rank === 1">
             <span class="medal gold">🥇</span>
           </template>
-          <template v-else-if="index === 1">
+          <template v-else-if="ranking.rank === 2">
             <span class="medal silver">🥈</span>
           </template>
-          <template v-else-if="index === 2">
+          <template v-else-if="ranking.rank === 3">
             <span class="medal bronze">🥉</span>
           </template>
           <template v-else>
-            {{ index + 1 }}
+            {{ ranking.rank }}
           </template>
         </div>
 
@@ -42,7 +48,7 @@
           </router-link>
           <div class="user-details">
             <router-link :to="`/profile/${ranking.account}`" class="nickname-link">
-              <span :class="{'bold-rank': index < 3}">{{ ranking.userName }}</span>
+              <span :class="{'bold-rank': ranking.rank <= 3}">{{ ranking.userName }}</span>
             </router-link>
             <span class="user-activity">{{ getActivityStatus(ranking.lastActiveDate) }}</span>
           </div>
@@ -52,12 +58,35 @@
           <div class="score">
             {{ rankingType === 'total' ? ranking.totalScore : ranking.baseScore }}
           </div>
-          <div class="trend" v-if="ranking.trend">
+          <div class="trend" v-if="ranking.trend !== undefined">
             <span v-if="ranking.trend > 0" class="trend-up">↑ {{ ranking.trend }}</span>
             <span v-else-if="ranking.trend < 0" class="trend-down">↓ {{ Math.abs(ranking.trend) }}</span>
             <span v-else class="trend-same">―</span>
           </div>
         </div>
+      </div>
+
+      <!-- 페이지네이션 추가 -->
+      <div class="pagination-container" v-if="totalPages > 1">
+        <button 
+          @click="prevPage" 
+          :disabled="currentPage === 0"
+          class="pagination-btn"
+        >
+          이전
+        </button>
+        
+        <div class="page-info">
+          {{ currentPage + 1 }} / {{ totalPages }}
+        </div>
+        
+        <button 
+          @click="nextPage" 
+          :disabled="isLastPage"
+          class="pagination-btn"
+        >
+          다음
+        </button>
       </div>
     </div>
 
@@ -85,16 +114,21 @@ export default {
       rankingType: 'total',  // 랭킹 타입 (기본값: total)
       rankings: [],          // 랭킹 데이터를 저장할 배열
       isLoading: false,      // 로딩 상태
+      currentPage: 0,        // 현재 페이지 (0부터 시작)
+      pageSize: 10,          // 페이지 크기
+      totalPages: 0,         // 전체 페이지 수
+      totalElements: 0,      // 전체 아이템 수
+      isLastPage: false      // 마지막 페이지 여부
     };
   },
   mounted() {
     this.fetchRanking();     // 컴포넌트가 로드될 때 랭킹 데이터를 가져옵니다.
-    this.observeFeedAnimation(); // 애니메이션 관찰자 설정
   },
   methods: {
     // 랭킹 타입을 변경하고 데이터를 다시 가져옵니다.
     setRankingType(type) {
       this.rankingType = type;
+      this.currentPage = 0;  // 랭킹 타입 변경 시 첫 페이지로 리셋
       this.fetchRanking();   // 새 랭킹 데이터 가져오기
     },
 
@@ -102,16 +136,22 @@ export default {
     async fetchRanking() {
       this.isLoading = true;
       try {
-        const response = await axios.get(`/api/ranking?type=${this.rankingType}&limit=10`);
-
+        const response = await axios.get(`/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`);
+        
+        // 서버가 Page 객체를 반환하므로 그에 맞게 처리
+        const pageData = response.data;
+        
         // 가상의 트렌드 데이터 추가 (실제 API에서 제공되면 이 부분 제거)
-        const newRankings = response.data.map(item => ({
+        const newRankings = pageData.content.map(item => ({
           ...item,
           trend: this.getRandomTrend(), // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
           lastActiveDate: this.getRandomDate() // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
         }));
 
-        this.rankings = newRankings; // 기존 데이터 대체
+        this.rankings = newRankings;
+        this.totalPages = pageData.totalPages;
+        this.totalElements = pageData.totalElements;
+        this.isLastPage = pageData.last;
 
         this.$nextTick(() => {
           this.observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
@@ -152,6 +192,29 @@ export default {
       const days = [0, 1, 2, 3, 4, 5];
       const randomDay = days[Math.floor(Math.random() * days.length)];
       return dayjs().subtract(randomDay, 'day').toISOString();
+    },
+
+    // 페이지 이동 메서드
+    goToPage(page) {
+      if (page < 0 || page >= this.totalPages) return;
+      this.currentPage = page;
+      this.fetchRanking();
+    },
+
+    // 다음 페이지로 이동
+    nextPage() {
+      if (!this.isLastPage) {
+        this.currentPage++;
+        this.fetchRanking();
+      }
+    },
+
+    // 이전 페이지로 이동
+    prevPage() {
+      if (this.currentPage > 0) {
+        this.currentPage--;
+        this.fetchRanking();
+      }
     }
   }
 };
@@ -216,6 +279,34 @@ export default {
 .ranking-options button:hover {
   background-color: #f9f9f9;
   transform: translateY(-2px);
+}
+
+/* 로딩 스타일 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-top: 20px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 랭킹 카드 스타일 */
@@ -446,15 +537,17 @@ export default {
   font-weight: 700;
 }
 
-/* 더 보기 버튼 */
-.load-more-container {
+/* 페이지네이션 스타일 */
+.pagination-container {
   display: flex;
   justify-content: center;
-  margin: 20px 0;
+  align-items: center;
+  margin-top: 24px;
+  gap: 16px;
 }
 
-.load-more-btn {
-  padding: 10px 20px;
+.pagination-btn {
+  padding: 8px 16px;
   background-color: #fff;
   color: #555;
   border: 1px solid #ddd;
@@ -464,14 +557,19 @@ export default {
   transition: all 0.3s ease;
 }
 
-.load-more-btn:hover:not(:disabled) {
-  background-color: #f9f9f9;
-  color: #333;
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.load-more-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.pagination-btn:not(:disabled):hover {
+  background-color: #f9f9f9;
+  transform: translateY(-2px);
+}
+
+.page-info {
+  font-size: 14px;
+  color: #666;
 }
 
 /* 데이터가 없을 경우 스타일 */

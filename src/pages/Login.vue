@@ -57,10 +57,17 @@
         </div>
       </transition>
 
-      <!-- Toggle Link for legacy fallback -->
-      <p class="toggle-link">
-        <a href="#" v-if="!isRegistering" @click.prevent="toggleForm">회원이 아니라면 회원가입</a>
-      </p>
+      <!-- 수정된 Toggle Link - 항상 동일한 높이 유지 -->
+      <div class="toggle-link-container">
+        <transition name="fade" mode="out-in">
+          <div v-if="!isRegistering" key="register-link" class="toggle-link">
+            <a href="#" @click.prevent="toggleForm">회원이 아니라면? 회원가입</a>
+          </div>
+          <div v-else key="empty-link" class="toggle-link empty">
+            <!-- 빈 공간 유지용 더미 요소 -->
+          </div>
+        </transition>
+      </div>
     </div>
   </div>
 </template>
@@ -87,7 +94,13 @@ export default {
 
     const form = reactive({ regAccount: '', regPw: '', regUserName: '', regHeight: '', regWeight: '', regGender: 'MALE', regAge: '' })
 
-    const toggleForm = () => { isRegistering.value = !isRegistering.value }
+    const toggleForm = () => { 
+      // 폼 전환 시 부드러운 애니메이션을 위해 약간의 딜레이 추가
+      setTimeout(() => {
+        isRegistering.value = !isRegistering.value 
+      }, 50)
+    }
+    
     const onIdFocus = () => { idFocused.value = true }
     const onIdBlur  = () => { idFocused.value = false }
     const onPwFocus = () => { pwFocused.value = true }
@@ -144,16 +157,15 @@ export default {
   padding: 2rem;
   height: auto;
   overflow: hidden;
+  transition: max-height 0.5s ease;
 }
 
 .login-panel:not(.registering) {
   max-height: 400px; /* 로그인 폼 실제 높이에 맞게 조정 */
-  transition: max-height 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
 .login-panel.registering {
   max-height: 850px; /* 회원가입 폼 실제 높이에 맞게 조정 */
-  transition: max-height 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
 /* Fade transition for inner content */
@@ -230,11 +242,28 @@ export default {
   background: rgba(255,255,255,0.5);
 }
 
-.toggle-link {
-  text-align: center;
+/* 수정된 토글 링크 스타일 */
+.toggle-link-container {
+  height: 2rem; /* 고정된 높이로 설정 */
   margin-top: 1rem;
-  font-size: 0.9rem;
+  position: relative;
 }
+
+.toggle-link {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: 0.9rem;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-link.empty {
+  /* 빈 공간도 동일한 높이 유지 */
+}
+
 .toggle-link a {
   color: #e0e0e0;
   text-decoration: underline;
