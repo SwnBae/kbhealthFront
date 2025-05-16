@@ -7,8 +7,12 @@
     
     <!-- 랭킹 리스트 (가로 스크롤) -->
     <div v-else-if="rankings.length > 0" class="following-ranking-scroll">
+      <!-- 좌우 스크롤 버튼 추가 -->
+      <button @click="scrollLeft" class="scroll-arrow left">
+        <span>◀</span>
+      </button>
+      
       <div class="following-ranking-container" ref="container">
-        <!-- index 변수를 사용하지 않으므로 제거 -->
         <div v-for="ranking in rankings" :key="ranking.memberId"
              class="following-rank-item" 
              :class="{'top-rank': ranking.rank <= 3}"
@@ -37,8 +41,21 @@
             progress-color="#a5d6a7"
             :alt-text="`${ranking.userName} 프로필`"
           />
+          
+          <!-- 이름 추가 -->
+          <div class="user-name">{{ ranking.userName }}</div>
+        </div>
+        
+        <!-- 모든 랭킹 보기 버튼 추가 -->
+        <div class="see-all-button" @click="goToRankingPage">
+          <div class="see-all-icon">👑</div>
+          <div class="see-all-text">전체 보기</div>
         </div>
       </div>
+      
+      <button @click="scrollRight" class="scroll-arrow right">
+        <span>▶</span>
+      </button>
     </div>
     
     <!-- 데이터가 없을 경우 표시 -->
@@ -72,21 +89,84 @@ export default {
   },
   mounted() {
     this.fetchFollowingRanking();
+  },
+  updated() {
+    // DOM 업데이트 후 스크롤 설정을 적용합니다
     this.setupHorizontalScroll();
   },
   methods: {
-    // 가로 스크롤 설정
+    // 가로 스크롤 설정 - 개선된 방법
     setupHorizontalScroll() {
       const container = this.$refs.container;
-      if (container) {
-        container.addEventListener('wheel', (e) => {
-          // 기본 스크롤 동작 방지
-          e.preventDefault();
-          
-          // 스크롤 방향에 따라 가로 스크롤 적용
-          container.scrollLeft += (e.deltaY + e.deltaX);
-        }, { passive: false });
-      }
+      if (!container) return;
+      
+      // 이전에 추가된 이벤트 리스너 제거 (중복 방지)
+      container.removeEventListener('wheel', this.handleWheel);
+      
+      // 새 이벤트 리스너 추가
+      container.addEventListener('wheel', this.handleWheel, { passive: false });
+      
+      // 터치 이벤트 지원 (모바일)
+      this.setupTouchEvents(container);
+    },
+    
+    // 휠 이벤트 핸들러
+    handleWheel(e) {
+      if (!e.deltaY) return;
+      
+      e.preventDefault();
+      
+      // 스크롤 속도 조절 (더 부드러운 스크롤을 위해)
+      const scrollAmount = e.deltaY * 2;
+      this.$refs.container.scrollLeft += scrollAmount;
+    },
+    
+    // 터치 이벤트 설정 (모바일 지원)
+    setupTouchEvents(container) {
+      let startX;
+      let scrollLeft;
+      
+      container.ontouchstart = (e) => {
+        startX = e.touches[0].clientX;
+        scrollLeft = container.scrollLeft;
+      };
+      
+      container.ontouchmove = (e) => {
+        if (!startX) return;
+        
+        const x = e.touches[0].clientX;
+        const distance = startX - x;
+        container.scrollLeft = scrollLeft + distance;
+        
+        // 페이지 스크롤 방지
+        e.preventDefault();
+      };
+      
+      container.ontouchend = () => {
+        startX = null;
+      };
+    },
+    
+    // 좌측으로 스크롤
+    scrollLeft() {
+      if (!this.$refs.container) return;
+      
+      const scrollAmount = this.$refs.container.clientWidth * 0.75; // 75% 이동
+      this.$refs.container.scrollBy({
+        left: -scrollAmount,
+        behavior: 'smooth'
+      });
+    },
+    
+    // 우측으로 스크롤
+    scrollRight() {
+      if (!this.$refs.container) return;
+      
+      const scrollAmount = this.$refs.container.clientWidth * 0.75; // 75% 이동
+      this.$refs.container.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
     },
     
     async fetchFollowingRanking() {
@@ -98,17 +178,16 @@ export default {
         
         const pageData = response.data;
         this.rankings = pageData.content;
-        
-        // 스크롤 핸들러 설정 (데이터 로드 후)
-        this.$nextTick(() => {
-          this.setupHorizontalScroll();
-        });
-        
       } catch (error) {
         console.error('팔로우 랭킹을 불러오는 중 오류가 발생했습니다.', error);
       } finally {
         this.isLoading = false;
       }
+    },
+    
+    // 전체 랭킹 페이지로 이동
+    goToRankingPage() {
+      this.$router.push('/ranking');
     },
     
     // 프로필 페이지로 이동
@@ -128,6 +207,7 @@ export default {
 .following-ranking-wrapper {
   position: relative;
   width: 100%;
+  margin: 0 auto;
 }
 
 .section-title {
@@ -144,6 +224,8 @@ export default {
   overflow: hidden;
   padding: 8px 0;
   width: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .following-ranking-container {
@@ -154,6 +236,7 @@ export default {
   -ms-overflow-style: none; /* IE and Edge */
   padding: 8px 4px 16px 4px;
   width: 100%;
+  -webkit-overflow-scrolling: touch; /* iOS 스크롤 부드럽게 */
 }
 
 /* Webkit 브라우저용 스크롤바 숨기기 */
@@ -296,6 +379,41 @@ export default {
   text-align: center;
 }
 
+/* 스크롤 화살표 버튼 */
+.scroll-arrow {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.scroll-arrow:hover {
+  background-color: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+}
+
+.scroll-arrow.left {
+  left: 0;
+}
+
+.scroll-arrow.right {
+  right: 0;
+}
+
+.scroll-arrow span {
+  font-size: 10px;
+  color: #555;
+}
+
 /* 로딩 스타일 */
 .loading-container {
   display: flex;
@@ -341,5 +459,18 @@ export default {
 
 .find-friends-btn:hover {
   background-color: #45a049;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 768px) {
+  .following-rank-item {
+    min-width: 70px;
+    margin: 0 8px;
+  }
+  
+  .scroll-arrow {
+    width: 24px;
+    height: 24px;
+  }
 }
 </style>
