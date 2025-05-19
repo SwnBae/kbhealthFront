@@ -53,7 +53,8 @@
             {{ rankingType === 'total' ? ranking.totalScore : ranking.baseScore }}
           </div>
           <div class="trend" v-if="ranking.trend !== undefined">
-            <span v-if="ranking.trend > 0" class="trend-up">↑ {{ ranking.trend }}</span>
+            <span v-if="ranking.trend === -9999" class="trend-new">NEW!</span>
+            <span v-else-if="ranking.trend > 0" class="trend-up">↑ {{ ranking.trend }}</span>
             <span v-else-if="ranking.trend < 0" class="trend-down">↓ {{ Math.abs(ranking.trend) }}</span>
             <span v-else class="trend-same">―</span>
           </div>
@@ -195,17 +196,11 @@ export default {
         // 서버가 Page 객체를 반환하므로 그에 맞게 처리
         const pageData = response.data;
 
-        // 가상의 트렌드 데이터 추가 (실제 API에서 제공되면 이 부분 제거)
-        const newRankings = pageData.content.map(item => ({
-          ...item,
-          trend: this.getRandomTrend(), // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
-        }));
-
         // 기존 데이터에 새 데이터 추가 (첫 페이지인 경우 덮어쓰기)
         if (this.currentPage === 0) {
-          this.rankings = newRankings;
+          this.rankings = pageData.content;
         } else {
-          this.rankings = [...this.rankings, ...newRankings];
+          this.rankings = [...this.rankings, ...pageData.content];
         }
 
         this.totalPages = pageData.totalPages;
@@ -234,13 +229,9 @@ export default {
           {threshold: 0.1}
       );
       elements.forEach(el => scrollObserver.observe(el));
-    },
-
-    // 임시 데이터용 랜덤 트렌드 생성 (실제 구현 시 제거)
-    getRandomTrend() {
-      const trends = [-2, -1, 0, 1, 2, 3];
-      return trends[Math.floor(Math.random() * trends.length)];
     }
+
+    // getRandomTrend 메서드 제거 (더 이상 필요 없음)
   }
 };
 </script>
@@ -642,6 +633,26 @@ export default {
 
   .score {
     font-size: 16px;
+  }
+}
+
+.trend-new {
+  color: #FFD700; /* 노란색(골드) */
+  font-weight: bold;
+  font-size: 12px;
+  display: inline-block;
+  animation: pulsate 0.8s infinite alternate;
+  border-radius: 10px;
+}
+
+@keyframes pulsate {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.1);
+    opacity: 1;
   }
 }
 </style>
