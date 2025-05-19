@@ -4,16 +4,20 @@
     <!-- ProfileRing 컴포넌트 사용 -->
     <div class="profile-avatar-container">
       <ProfileRing
-        :profile-image-url="profile.profileImageUrl"
-        :base-score="profile.baseScore || 0"
-        :size="120"
-        :stroke-width="3"
-        progress-color="#a5d6a7"
-        alt-text="프로필 이미지"
+          :profile-image-url="profile.profileImageUrl"
+          :base-score="profile.baseScore || 0"
+          :size="120"
+          :stroke-width="3"
+          progress-color="#a5d6a7"
+          alt-text="프로필 이미지"
       />
     </div>
 
     <h2 class="profile-name">{{ profile.userName }}</h2>
+    <!-- 계정 정보(@account) 추가 -->
+    <div class="account-info">
+      <span class="account-value">@{{ profile.account }}</span>
+    </div>
 
     <div v-if="isCurrentUser" class="edit-buttons">
       <button @click="$emit('edit-info')" class="edit-button">계정정보 수정</button>
@@ -90,6 +94,23 @@ const observeFeedAnimation = () => {
 </script>
 
 <style scoped>
+.account-info {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 0.8rem; /* 아래 여백 추가 */
+}
+
+.account-value {
+  color: #666;
+}
+
+.edit-buttons {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+  justify-content: center;
+}
+
 .profile-info-card {
   background: #fff;
   border-radius: 12px;
@@ -131,14 +152,7 @@ const observeFeedAnimation = () => {
   font-size: 1.3rem;
   font-weight: bold;
   color: #222;
-  margin: 0.4rem 0 0.8rem;
-}
-
-.edit-buttons {
-  display: flex;
-  gap: 0.6rem;
-  margin: 0.8rem 0;
-  justify-content: center;
+  margin: 0.4rem 0 0.2rem; /* 아래 마진 줄임 (0.8rem → 0.2rem) */
 }
 
 .edit-button {

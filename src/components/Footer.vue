@@ -3,52 +3,46 @@
     <div class="footer-container">
       <div class="footer-content">
         <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/home')"
-                :class="{ 'active': isActive('/home') }">
+                :class="{ 'active': isActive('/home') }" title="홈">
           <div class="icon-container">
-            <i class="bi bi-house-fill"></i>
+            <img src="@/assets/icon/home.png" alt="홈" class="nav-icon" />
           </div>
-          <small>홈</small>
         </button>
 
         <div v-if="isLoggedIn" class="position-relative">
-          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal">
+          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal" title="검색">
             <div class="icon-container">
-              <i class="bi bi-search"></i>
+              <img src="@/assets/icon/search.png" alt="검색" class="nav-icon" />
             </div>
-            <small>검색</small>
           </button>
         </div>
 
         <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/ranking')"
-                :class="{ 'active': isActive('/ranking') }">
+                :class="{ 'active': isActive('/ranking') }" title="랭킹">
           <div class="icon-container">
-            <i class="bi bi-bar-chart-fill"></i>
+            <img src="@/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
           </div>
-          <small>랭킹</small>
         </button>
 
         <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/records')"
-                :class="{ 'active': isActive('/records') }">
+                :class="{ 'active': isActive('/records') }" title="기록">
           <div class="icon-container">
-            <i class="bi bi-journal-medical"></i>
+            <img src="@/assets/icon/records.png" alt="기록" class="nav-icon" />
           </div>
-          <small>기록</small>
         </button>
 
         <button class="nav-btn btn d-flex flex-column align-items-center" @click="reloadToProfile"
-                :class="{ 'active': isActive('/profile') }">
+                :class="{ 'active': isActive('/profile') }" title="프로필">
           <div class="icon-container">
-            <i class="bi bi-person-circle"></i>
+            <img src="@/assets/icon/profile.png" alt="프로필" class="nav-icon" />
           </div>
-          <small>프로필</small>
         </button>
 
         <button v-if="isLoggedIn" class="nav-btn btn d-flex flex-column align-items-center"
-                @click="logout">
+                @click="logout" title="로그아웃">
           <div class="icon-container">
-            <i class="bi bi-box-arrow-right"></i>
+            <img src="@/assets/icon/logout.png" alt="로그아웃" class="nav-icon" />
           </div>
-          <small>로그아웃</small>
         </button>
       </div>
     </div>
@@ -87,12 +81,12 @@
                 <router-link :to="`/profile/${member.account}`" class="profile-link" @click.stop>
                   <!-- ProfileRing 컴포넌트 사용 -->
                   <ProfileRing
-                    :profile-image-url="member.profileImageUrl"
-                    :base-score="member.baseScore || 0"
-                    :size="48"
-                    :stroke-width="3"
-                    progress-color="#a5d6a7"
-                    alt-text="프로필 이미지"
+                      :profile-image-url="member.profileImageUrl"
+                      :base-score="member.baseScore || 0"
+                      :size="48"
+                      :stroke-width="3"
+                      progress-color="#a5d6a7"
+                      alt-text="프로필 이미지"
                   />
                 </router-link>
                 <div class="user-details">
@@ -142,7 +136,7 @@ export default {
       return window.innerWidth - document.documentElement.clientWidth;
     };
 
-// 스크롤 잠금 함수 - DietDetailModal 방식으로 변경
+    // 스크롤 잠금 함수 - DietDetailModal 방식으로 변경
     const lockScroll = () => {
       // 현재 스크롤 위치 저장
       savedScrollY.value = window.scrollY;
@@ -155,7 +149,7 @@ export default {
       document.body.style.paddingRight = `${scrollbarWidth.value}px`;
     };
 
-// 스크롤 해제 함수 - DietDetailModal 방식으로 변경
+    // 스크롤 해제 함수 - DietDetailModal 방식으로 변경
     const unlockScroll = () => {
       // body에서 overflow: hidden 제거
       document.body.style.overflow = '';
@@ -184,8 +178,6 @@ export default {
         }
       }
     };
-
-    // 스타일 초기화 함수
 
     // 컴포넌트 제거 시 원래 상태로 복원
     onBeforeUnmount(() => {
@@ -309,73 +301,50 @@ export default {
 .footer {
   display: flex;
   flex-direction: column;
-  /* 내부 요소 세로 배치 */
   align-items: center;
-  /* 가운데 정렬 */
-  width: 5%;
-  /* App.vue에서 너비 조정 */
-  top: 60px;
-  /* 화면 상단에서 50px 떨어진 위치에 고정 */
-  bottom: auto;
-  height: 300px;
-  border: none;
-  margin-top: 0;
-  margin-bottom: 0;
-  padding: 1px;
-  background-color: #fff;
-  /* 배경색 필요 시 추가 */
-  border-radius: 16px;
-  /* 둥근 테두리 */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  /* 부드러운 그림자 효과 */
-}
-
-.footer-container {
-  display: flex;
-  flex-direction: column;
-  /* 내부 요소 세로 배치 */
-  align-items: center;
-  /* 가운데 정렬 */
-  width: 100%;
-  max-width: none;
-  /* 최대 너비 제거 */
-  background-color: transparent;
-  /* 배경 투명하게 */
-  border-radius: 0;
-  box-shadow: none;
+  width: 70px; /* 80px에서 70px로 줄임 - 텍스트가 없어서 더 좁아도 됨 */
+  position: fixed;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: auto;
+  min-height: 450px; /* 500px에서 450px로 줄임 - 버튼 간 간격이 줄어 전체 높이도 줄임 */
   border: none;
   margin: 0;
-  padding: 0;
+  padding: 15px 10px;
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  max-height: 95vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .footer-content {
   display: flex;
   flex-direction: column;
-  /* 내부 버튼 세로 배치 */
   align-items: center;
-  /* 가운데 정렬 */
-  padding: 6px 0;
+  padding: 10px 0;
   width: 100%;
-  max-width: 80px;
-  /* 푸터 너비에 맞게 조정 */
+  max-width: 70px; /* 100px에서 70px로 줄임 */
+  gap: 20px; /* 5px에서 20px로 증가 - 텍스트가 없으므로 버튼 간격 늘림 */
 }
 
 .nav-btn {
   position: relative;
-  font-size: 0.8rem;
-  /* 더 작은 폰트 크기 */
   color: #6c757d;
-  padding: 8px;
-  /* 패딩 조정 */
+  padding: 10px;
   border: none;
   background: transparent;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   overflow: hidden;
-  border-radius: 8px;
-  margin: 5px 0;
-  /* 상하 마진 조정 */
-  width: 100%;
-  /* 버튼 너비 부모에 맞게 */
+  border-radius: 12px; /* 50%에서 12px로 변경 - 둥근 정사각형으로 변경 */
+  margin: 0;
+  width: 50px;
+  height: 50px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -384,34 +353,29 @@ export default {
 
 .nav-btn:hover {
   color: #212529;
-  transform: translateX(3px);
-  /* 호버 시 약간 오른쪽으로 이동 */
+  transform: scale(1.1);
+  background-color: rgba(108, 117, 125, 0.1);
 }
 
 .nav-btn:active {
-  transform: translateX(0);
+  transform: scale(0.95);
 }
 
 .nav-btn.active {
   color: #212529;
   background-color: rgba(108, 117, 125, 0.1);
-  /* 회색 계열로 변경 */
-  border-radius: 8px;
+  border-radius: 12px; /* 50%에서 12px로 변경 */
 }
 
 .nav-btn.active::after {
   content: '';
   position: absolute;
   left: 0;
-  /* 활성 표시줄 위치 변경 */
   top: 50%;
-  width: 2px;
-  /* 얇은 세로 선 */
-  height: 20px;
+  width: 3px;
+  height: 24px;
   background-color: #a5d6a7;
-  /* 초록색 계열로 변경 */
   border-radius: 0 4px 4px 0;
-  /* 오른쪽만 둥글게 */
   transform: translateY(-50%);
 }
 
@@ -421,9 +385,14 @@ export default {
   justify-content: center;
   align-items: center;
   height: auto;
-  /* 높이 자동 조정 */
-  margin-bottom: 5px;
-  /* 아이콘 아래 마진 */
+  margin-bottom: 0; /* 10px에서 0으로 변경 - 텍스트가 없으므로 마진 필요 없음 */
+  transition: transform 0.3s ease;
+}
+
+.nav-icon {
+  width: 30px; /* 36px에서 30px로 변경 */
+  height: 30px; /* 36px에서 30px로 변경 */
+  object-fit: contain;
   transition: transform 0.3s ease;
 }
 
@@ -435,17 +404,11 @@ export default {
   transform: scale(1.2);
 }
 
-.nav-btn.active .bi {
-  color: #6c757d;
-  /* 회색 계열로 유지 */
-}
-
 .footer small {
-  font-size: 0.7rem;
+  font-size: 0.9rem; /* 0.7rem에서 0.9rem으로 폰트 크기 증가 */
   opacity: 0.9;
   transition: opacity 0.3s ease;
   white-space: nowrap;
-  /* 텍스트 줄바꿈 방지 */
 }
 
 .nav-btn:hover small {
@@ -748,12 +711,25 @@ export default {
     border-radius: 12px 12px 0 0;
   }
 
-  .nav-btn {
-    padding: 8px 6px;
+  .footer {
+    width: 60px; /* 모바일에서는 더 작게 */
+    padding: 12px 8px;
+    min-height: 400px;
   }
 
-  .footer small {
-    font-size: 0.7rem;
+  .footer-content {
+    gap: 15px; /* 모바일에서는 간격 약간 줄임 */
+  }
+
+  .nav-btn {
+    width: 45px; /* 모바일에서는 버튼 작게 */
+    height: 45px;
+    padding: 8px;
+  }
+
+  .nav-icon {
+    width: 26px; /* 모바일에서는 아이콘 작게 */
+    height: 26px;
   }
 
   .modal-content {
