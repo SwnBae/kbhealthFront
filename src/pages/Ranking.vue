@@ -32,19 +32,19 @@
           <router-link :to="`/profile/${ranking.account}`" class="profile-link text-decoration-none">
             <!-- ProfileRing 컴포넌트 사용 -->
             <ProfileRing
-              :profile-image-url="ranking.profileImageUrl"
-              :base-score="ranking.baseScore || 0"
-              :size="48"
-              :stroke-width="3"
-              progress-color="#a5d6a7"
-              alt-text="프로필 이미지"
+                :profile-image-url="ranking.profileImageUrl"
+                :base-score="ranking.baseScore || 0"
+                :size="48"
+                :stroke-width="3"
+                progress-color="#a5d6a7"
+                alt-text="프로필 이미지"
             />
           </router-link>
           <div class="user-details">
             <router-link :to="`/profile/${ranking.account}`" class="nickname-link">
               <span :class="{'bold-rank': ranking.rank <= 3}">{{ ranking.userName }}</span>
             </router-link>
-            <span class="user-activity">{{ getActivityStatus(ranking.lastActiveDate) }}</span>
+            <span class="user-activity">@{{ ranking.account }}</span>
           </div>
         </div>
 
@@ -65,7 +65,7 @@
         <div class="loading-spinner-small"></div>
         <p>더 불러오는 중...</p>
       </div>
-      
+
       <!-- 모든 데이터 로딩 완료 표시 -->
       <div v-if="isLastPage && !isLoading" class="end-of-list">
         <div class="end-marker">
@@ -89,11 +89,7 @@
 
 <script>
 import axios from 'axios';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
-
-dayjs.extend(relativeTime);
 
 export default {
   components: {
@@ -150,7 +146,7 @@ export default {
     handleScroll() {
       // 페이지 끝에 도달했는지 확인
       const bottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - this.scrollThreshold;
-      
+
       // 페이지 끝에 도달하고 로딩 중이 아니며 마지막 페이지가 아닌 경우
       if (bottom && !this.isLoading && !this.isLoadingMore && !this.isLastPage) {
         this.loadMoreRankings();
@@ -160,10 +156,10 @@ export default {
     // 추가 랭킹 데이터 로드
     async loadMoreRankings() {
       if (this.isLastPage) return;
-      
+
       this.isLoadingMore = true;
       this.currentPage++;
-      
+
       try {
         await this.fetchRankingPage();
       } finally {
@@ -175,10 +171,10 @@ export default {
     async fetchRanking() {
       this.isLoading = true;
       this.currentPage = 0;
-      
+
       try {
         await this.fetchRankingPage();
-        
+
         this.$nextTick(() => {
           this.observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
         });
@@ -188,22 +184,21 @@ export default {
         this.isLoading = false;
       }
     },
-    
+
     // 페이지 데이터 가져오기 (공통 로직)
     async fetchRankingPage() {
       try {
         const response = await axios.get(
-          `/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`
+            `/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`
         );
-        
+
         // 서버가 Page 객체를 반환하므로 그에 맞게 처리
         const pageData = response.data;
-        
+
         // 가상의 트렌드 데이터 추가 (실제 API에서 제공되면 이 부분 제거)
         const newRankings = pageData.content.map(item => ({
           ...item,
           trend: this.getRandomTrend(), // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
-          lastActiveDate: this.getRandomDate() // 실제 API에서는 제거하고 서버에서 제공하는 값 사용
         }));
 
         // 기존 데이터에 새 데이터 추가 (첫 페이지인 경우 덮어쓰기)
@@ -212,15 +207,15 @@ export default {
         } else {
           this.rankings = [...this.rankings, ...newRankings];
         }
-        
+
         this.totalPages = pageData.totalPages;
         this.totalElements = pageData.totalElements;
         this.isLastPage = pageData.last;
-        
+
         this.$nextTick(() => {
           this.observeFeedAnimation(); // 새 데이터가 로드된 후 애니메이션 다시 설정
         });
-        
+
       } catch (error) {
         console.error(`페이지 ${this.currentPage} 랭킹 데이터를 불러오는 중 오류가 발생했습니다.`, error);
         this.currentPage = Math.max(0, this.currentPage - 1); // 오류 발생 시 페이지 번호 복구
@@ -231,7 +226,7 @@ export default {
     observeFeedAnimation() {
       const elements = document.querySelectorAll(".animate-on-scroll:not(.in-view)");
       if (elements.length === 0) return;
-      
+
       const scrollObserver = new IntersectionObserver(
           entries => entries.forEach(entry => {
             if (entry.isIntersecting) entry.target.classList.add("in-view");
@@ -241,23 +236,10 @@ export default {
       elements.forEach(el => scrollObserver.observe(el));
     },
 
-    // 활동 상태 표시 (최근 활동 시간 기준)
-    getActivityStatus(date) {
-      if (!date) return '';
-      return dayjs(date).fromNow();
-    },
-
     // 임시 데이터용 랜덤 트렌드 생성 (실제 구현 시 제거)
     getRandomTrend() {
       const trends = [-2, -1, 0, 1, 2, 3];
       return trends[Math.floor(Math.random() * trends.length)];
-    },
-
-    // 임시 데이터용 랜덤 날짜 생성 (실제 구현 시 제거)
-    getRandomDate() {
-      const days = [0, 1, 2, 3, 4, 5];
-      const randomDay = days[Math.floor(Math.random() * days.length)];
-      return dayjs().subtract(randomDay, 'day').toISOString();
     }
   }
 };
@@ -639,25 +621,25 @@ export default {
   .feed-wrapper {
     padding: 15px;
   }
-  
+
   .header {
     font-size: 24px;
     margin-bottom: 16px;
   }
-  
+
   .ranking-options {
     gap: 10px;
   }
-  
+
   .ranking-options button {
     padding: 6px 16px;
     font-size: 13px;
   }
-  
+
   .ranking-card {
     padding: 12px;
   }
-  
+
   .score {
     font-size: 16px;
   }
