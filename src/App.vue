@@ -1,26 +1,49 @@
+<!-- App.vue -->
 <template>
   <div class="app-layout">
     <Footer v-if="isLoggedIn" class="sidebar-footer" />
     <div class="contentBox">
       <RouterView />
     </div>
+
+    <!-- 왼쪽 버튼과 캐릭터 영역 분리 -->
+    <!-- 고정된 버튼 영역 -->
+    <div v-if="isLoggedIn" class="fixed-button">
+      <button
+          @click="toggleCharacter"
+          class="character-button"
+          title="캐릭터 보기"
+      >
+        <img src="@/assets/img/rabbit/rabbitgohome1.png" alt="토끼 캐릭터" class="button-image">
+      </button>
+    </div>
+
+    <!-- Character 컴포넌트 분리 -->
+    <div v-if="showCharacter && isLoggedIn" class="fixed-character">
+      <Character
+          @close="showCharacter = false"
+      />
+    </div>
   </div>
 </template>
 
 <script>
 import Footer from "@/components/Footer";
+import Character from "@/components/Character"; // Character 컴포넌트 import
 import userStore from "@/scripts/store";
 import axios from "axios";
-import { onMounted, computed } from "vue";
+import { onMounted, computed, ref } from "vue";
 import { useRouter } from "vue-router";
 
 export default {
   name: 'App',
   components: {
     Footer,
+    Character, // Character 컴포넌트 등록
   },
   setup() {
     const router = useRouter();
+    const showCharacter = ref(false); // 캐릭터 표시 여부 상태
 
     // 로그인 여부 확인
     const check = async () => {
@@ -43,8 +66,15 @@ export default {
     // 로그인 여부 computed로 확인
     const isLoggedIn = computed(() => userStore.state.currentMember.id !== 0);
 
+    // 캐릭터 표시/숨김 토글 함수
+    const toggleCharacter = () => {
+      showCharacter.value = !showCharacter.value;
+    };
+
     return {
-      isLoggedIn
+      isLoggedIn,
+      showCharacter,
+      toggleCharacter
     };
   }
 };
@@ -57,24 +87,65 @@ export default {
 }
 
 .sidebar-footer {
-  width: 30px; /* 적절한 너비 설정 */
-  background-color: #f8f9fa; /* 사이드바 배경색 */
-  border-right: 1px solid #e9ecef;
+  width: 80px; /* 30px에서 80px로 증가 - Footer.vue의 너비(70px)보다 약간 크게 설정 */
+  background-color: transparent; /* 배경색을 투명하게 변경 - Footer.vue에서 이미 배경색을 설정하고 있음 */
+  border-right: none; /* 테두리 제거 */
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 20px; /* 상단 여백 */
-  position: fixed; /* 좌측에 고정 */
+  padding-top: 20px; /* 상단 여백 유지 */
+  position: fixed; /* 좌측에 고정 유지 */
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 10; /* 다른 요소 위에 표시 */
+  z-index: 10; /* 다른 요소 위에 표시 유지 */
 }
 
 .contentBox {
   flex-grow: 1;
-  padding-left: 80px; /* 푸터 너비만큼 왼쪽 패딩을 주어 콘텐츠가 가려지지 않도록 함 */
+  padding-left: 95px; /* 75px에서 95px로 증가 - 푸터 크기가 커졌으므로 패딩도 늘림 */
 }
+
+/* 여기서부터 수정된 캐릭터 버튼 스타일 */
+.fixed-button {
+  position: fixed;
+  left: 50px;
+  bottom: 20px;
+  z-index: 11;
+}
+
+.character-button {
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+  padding: 0;
+}
+
+.character-button:hover {
+  transform: scale(1.1);
+}
+
+.button-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fixed-character {
+  position: fixed;
+  left: 100px; /* 왼쪽에 배치 */
+  top: 50px; /* 상단에서 여백 */
+  z-index: 100;
+  width: 350px; /* 너비 지정 */
+}
+/* 여기까지 수정된 스타일 */
 
 .bd-placeholder-img {
   font-size: 1.125rem;

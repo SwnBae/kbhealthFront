@@ -97,24 +97,28 @@ const getScrollbarWidth = () => {
   return window.innerWidth - document.documentElement.clientWidth;
 };
 
-// 모달 설정 - 개선된 스크롤 처리
-const setupModal = () => {
-  // 모달이 열리기 전의 스크롤 위치 저장
+const lockScroll = () => {
+  // 현재 스크롤 위치 저장
   savedScrollY.value = window.scrollY;
 
   // 스크롤바 너비 계산
   scrollbarWidth.value = getScrollbarWidth();
 
-  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
-  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
-
-  // 현재 스크롤 위치를 유지하면서 스크롤 방지
-  document.body.style.position = 'fixed';
-  document.body.style.top = `-${savedScrollY.value}px`;
-  document.body.style.left = '0';
-  document.body.style.right = '0';
-  document.body.style.width = '100%';
+  // body에 overflow: hidden을 적용하여 스크롤 방지
+  document.body.style.overflow = 'hidden';
   document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+};
+
+const unlockScroll = () => {
+  // body에서 overflow: hidden 제거
+  document.body.style.overflow = '';
+  document.body.style.paddingRight = '';
+};
+
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전 스크롤 잠금
+  lockScroll();
 
   // 애니메이션 요소에 in-view 클래스 추가
   const elements = document.querySelectorAll(".animate-on-scroll");
@@ -124,7 +128,7 @@ const setupModal = () => {
     }
   });
 
-  // 모달에 fadeIn 클래스와 모달 콘텐츠에 popIn 클래스 추가
+  // 모달 애니메이션 클래스 추가
   if (modalRef.value) {
     modalRef.value.classList.add('fadeIn');
     const contentEl = modalRef.value.querySelector('.modal-content');
@@ -132,21 +136,6 @@ const setupModal = () => {
       contentEl.classList.add('popIn');
     }
   }
-};
-
-// 스타일 초기화 함수
-const resetBodyStyles = () => {
-  // 모든 스타일 초기화
-  document.body.style.position = '';
-  document.body.style.top = '';
-  document.body.style.left = '';
-  document.body.style.right = '';
-  document.body.style.width = '';
-  document.body.style.paddingRight = '';
-  document.documentElement.style.setProperty('--scrollbar-width', '0px');
-
-  // 저장된 스크롤 위치로 복원
-  window.scrollTo(0, savedScrollY.value);
 };
 
 const formatExerciseType = (exerciseType) => {
@@ -176,13 +165,14 @@ onMounted(() => {
 
 // 컴포넌트 제거 시 원래 상태로 복원
 onBeforeUnmount(() => {
-  resetBodyStyles();
+  unlockScroll();
 });
 
 // 닫기 함수 - 애니메이션 포함 (순서 변경)
 const closeModal = () => {
   // 닫기 애니메이션 추가
   modalClosing.value = true;
+
   if (modalRef.value) {
     modalRef.value.classList.remove('fadeIn');
     modalRef.value.classList.add('fadeOut');
@@ -193,15 +183,15 @@ const closeModal = () => {
       contentEl.classList.add('popOut');
     }
 
-    // 애니메이션 완료 후 모달 닫기 및 스타일 초기화 (순서 변경)
+    // 애니메이션 완료 후 모달 닫기 및 스크롤 해제
     setTimeout(() => {
-      resetBodyStyles(); // 먼저 스타일 초기화 (스크롤 복원)
-      localShowModal.value = false; // 그 다음 모달 숨김
+      unlockScroll(); // 스크롤 해제
+      localShowModal.value = false;
       emit('close');
-    }, 300); // 애니메이션 시간에 맞춰 조정
+    }, 300);
   } else {
-    resetBodyStyles(); // 먼저 스타일 초기화 (스크롤 복원)
-    localShowModal.value = false; // 그 다음 모달 숨김
+    unlockScroll();
+    localShowModal.value = false;
     emit('close');
   }
 };
