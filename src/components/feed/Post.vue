@@ -28,8 +28,8 @@
       </div>
       
       <!-- 게시글 메뉴 (현재 사용자가 작성자인 경우에만 표시) -->
-      <div class="post-actions-menu" v-if="isCurrentUserPost">
-        <button class="post-menu-btn" @click="togglePostMenu" aria-label="게시글 메뉴">
+      <div class="post-actions-menu" v-if="isCurrentUserPost" ref="menuContainer">
+        <button class="post-menu-btn" @click.stop="togglePostMenu" aria-label="게시글 메뉴">
           <span class="dots">⋯</span>
         </button>
         
@@ -43,11 +43,6 @@
           </button>
         </div>
       </div>
-      
-      <!-- 일반 메뉴 버튼 (다른 사용자의 게시글인 경우) -->
-      <!-- <button v-else class="post-menu-btn" aria-label="게시글 메뉴">
-        <span class="dots">⋯</span>
-      </button> -->
     </div>
 
     <!-- 본문 이미지 -->
@@ -122,7 +117,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, computed } from 'vue';
+import { defineProps, defineEmits, ref, computed, onUnmounted } from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import CommentSystem from '@/components/feed/CommentSystem.vue';
@@ -147,6 +142,7 @@ const emit = defineEmits(['update:post', 'delete:post', 'edit:post']);
 const showPostMenu = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const menuContainer = ref(null);
 
 // 현재 사용자가 게시글 작성자인지 확인
 const isCurrentUserPost = computed(() => {
@@ -173,12 +169,17 @@ const formatCount = (count) => {
 };
 
 // 게시글 메뉴 토글
-const togglePostMenu = () => {
+const togglePostMenu = (event) => {
+  // 이벤트 버블링 방지
+  event.stopPropagation();
+  
   showPostMenu.value = !showPostMenu.value;
   
   // 메뉴가 열렸을 때 외부 클릭 이벤트 추가
   if (showPostMenu.value) {
-    document.addEventListener('click', closeMenuOnOutsideClick);
+    setTimeout(() => {
+      document.addEventListener('click', closeMenuOnOutsideClick);
+    }, 0);
   } else {
     document.removeEventListener('click', closeMenuOnOutsideClick);
   }
@@ -186,14 +187,17 @@ const togglePostMenu = () => {
 
 // 외부 클릭 시 메뉴 닫기
 const closeMenuOnOutsideClick = (event) => {
-  // 메뉴 또는 메뉴 버튼 외부를 클릭했는지 확인
-  const target = event.target;
-  const postActionsMenu = document.querySelector('.post-actions-menu');
-  if (postActionsMenu && !postActionsMenu.contains(target)) {
+  // 현재 컴포넌트의 메뉴 컨테이너가 이벤트 타겟을 포함하지 않는 경우에만 닫기
+  if (menuContainer.value && !menuContainer.value.contains(event.target)) {
     showPostMenu.value = false;
     document.removeEventListener('click', closeMenuOnOutsideClick);
   }
 };
+
+// 컴포넌트 언마운트 시 이벤트 리스너 제거
+onUnmounted(() => {
+  document.removeEventListener('click', closeMenuOnOutsideClick);
+});
 
 // 모달 열기
 const openEditModal = () => {
