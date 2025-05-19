@@ -3,9 +3,9 @@
   <div class="character-container">
     <!-- 캐릭터 애니메이션 -->
     <div class="character" :class="{ 'animate-pop': true }">
-      <!-- 캐릭터 이미지 -->
+      <!-- 캐릭터 이미지 - 동적 이미지로 변경 -->
       <div class="character-face">
-        <img src="@/assets/img/rabbit/rabbitgohome1.png" alt="토끼 캐릭터" class="character-image">
+        <img :src="require(`@/assets/img/rabbit/rabbitchat (${currentFrame}).png`)" alt="토끼 캐릭터" class="character-image">
       </div>
     </div>
 
@@ -53,7 +53,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
 import axios from 'axios';
 
 export default {
@@ -67,15 +67,49 @@ export default {
     const loading = ref(false); // 로딩 상태 추가
     const showRetryButton = ref(false); // 다시 추천 버튼 표시 여부
 
+    // 애니메이션 관련 변수 추가
+    const currentFrame = ref(1);
+    const isTyping = ref(false);
+    const animationTimer = ref(null);
+    const maxFrames = 112; // 총 프레임 수
+    const animationSpeed = 30; // 프레임 간 간격 (밀리초)
+
+    // 토끼 애니메이션 함수 추가
+    const animateRabbit = () => {
+      clearInterval(animationTimer.value);
+      
+      // 1번 프레임부터 시작
+      currentFrame.value = 1;
+      isTyping.value = true;
+      
+      animationTimer.value = setInterval(() => {
+        if (currentFrame.value < maxFrames) {
+          currentFrame.value++;
+        } else {
+          // 애니메이션 시퀀스 끝에 도달
+          if (isTyping.value) {
+            // 아직 타이핑 중이면 1번 프레임으로 돌아감
+            currentFrame.value = 1;
+          } else {
+            // 타이핑이 끝났으면 마지막 프레임에서 정지
+            clearInterval(animationTimer.value);
+          }
+        }
+      }, animationSpeed);
+    };
+
     // 타이핑 효과 관련 변수
     const typingSpeed = 50; // 타이핑 속도 (밀리초)
     let typingTimer = null;
 
-    // 타이핑 효과 함수
+    // 타이핑 효과 함수 수정
     const typeMessage = (message) => {
       let i = 0;
       displayedMessage.value = '';
       showRetryButton.value = false; // 타이핑 시작 시 다시 추천 버튼 숨기기
+      
+      // 애니메이션 시작 추가
+      animateRabbit();
 
       clearInterval(typingTimer);
       typingTimer = setInterval(() => {
@@ -84,6 +118,9 @@ export default {
           i++;
         } else {
           clearInterval(typingTimer);
+          
+          // 타이핑 완료 추가
+          isTyping.value = false;
 
           // 타이핑이 끝난 후 버튼 표시 처리
           if (message === initialMessage) {
@@ -100,6 +137,12 @@ export default {
         }
       }, typingSpeed);
     };
+
+    // 컴포넌트가 언마운트될 때 타이머 정리 추가
+    onUnmounted(() => {
+      clearInterval(typingTimer);
+      clearInterval(animationTimer.value);
+    });
 
     // 줄바꿈을 HTML <br> 태그로 변환하는 계산된 속성
     const formattedMessage = computed(() => {
@@ -177,7 +220,9 @@ export default {
       loading,
       formattedMessage,
       showRetryButton,
-      retryRecommendation
+      retryRecommendation,
+      // 애니메이션 관련 속성 추가
+      currentFrame
     };
   }
 };
@@ -197,8 +242,8 @@ export default {
 }
 
 .character {
-  width: 80px;
-  height: 80px;
+  width: 140px;
+  height: 140px;
   background-color: white;
   border-radius: 50%;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
@@ -211,8 +256,8 @@ export default {
 
 .character-face {
   position: relative;
-  width: 65px;
-  height: 65px;
+  width: 120px;
+  height: 120px;
   background-color: transparent;
   border-radius: 50%;
   overflow: hidden;

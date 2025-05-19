@@ -14,7 +14,7 @@
           class="character-button"
           title="캐릭터 보기"
       >
-        <img src="@/assets/img/rabbit/rabbitgohome1.png" alt="토끼 캐릭터" class="button-image">
+        <img src="@/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
       </button>
     </div>
 
@@ -110,13 +110,13 @@ export default {
 .fixed-button {
   position: fixed;
   left: 50px;
-  bottom: 20px;
+  bottom: 30px;
   z-index: 11;
 }
 
 .character-button {
-  width: 40px;
-  height: 40px;
+  width: 60px;
+  height: 60px;
   background-color: transparent;
   border-radius: 50%;
   border: none;
