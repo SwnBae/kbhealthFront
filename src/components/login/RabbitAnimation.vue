@@ -6,7 +6,6 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 
 // 애니메이션 상수
-const FRAME_DELAY = 60 // 기본 프레임 딜레이 (ms)
 const ANIMATIONS = {
   ID: 'id',
   PW: 'pw',
@@ -19,8 +18,12 @@ export default {
     idLength: { type: Number, default: 0 },
     pwFocused: { type: Boolean, default: false },
     loginSuccess: { type: Boolean, default: false },
-    // 새로운 prop: 애니메이션 속도 조절
-    speed: { type: Number, default: 1 }
+    // 글로벌 속도 조절 (배수)
+    speed: { type: Number, default: 1 },
+    // 애니메이션 유형별 속도 조절 (배수)
+    idSpeed: { type: Number, default: 1 },
+    pwSpeed: { type: Number, default: 1 },
+    successSpeed: { type: Number, default: 1 }
   },
   setup(props, { emit }) {
     // 애니메이션 프레임 저장소
@@ -56,8 +59,8 @@ export default {
         }
         
         // 성공 애니메이션 프레임 로드
-        for (let i = 1; i <= 25; i++) {
-          frames[ANIMATIONS.SUCCESS].push(require(`@/assets/img/rabbit/rabbitgohome${i}.png`))
+        for (let i = 1; i <= 38; i++) {
+          frames[ANIMATIONS.SUCCESS].push(require(`@/assets/img/rabbit/rabbitgo (${i}).png`))
         }
         
         // 초기 이미지 설정
@@ -76,6 +79,36 @@ export default {
         animationFrameId = null
       }
       currentAnimation.value = null
+    }
+
+    /**
+     * 현재 애니메이션 타입에 맞는 속도 계수 가져오기
+     * @returns {Number} 속도 계수 (배수)
+     */
+    function getSpeedMultiplier() {
+      // 기본 글로벌 속도 계수
+      const globalSpeed = Math.max(0.5, Math.min(2, props.speed));
+      
+      // 애니메이션 타입별 속도 계수
+      let typeSpeed = 1;
+      
+      switch(currentAnimation.value) {
+        case ANIMATIONS.ID:
+          typeSpeed = props.idSpeed;
+          break;
+        case ANIMATIONS.PW:
+          typeSpeed = props.pwSpeed;
+          break;
+        case ANIMATIONS.SUCCESS:
+          typeSpeed = props.successSpeed;
+          break;
+      }
+      
+      // 유효 범위 제한 (0.5~2)
+      typeSpeed = Math.max(0.5, Math.min(2, typeSpeed));
+      
+      // 최종 속도 계수 (둘 다 곱함)
+      return globalSpeed * typeSpeed;
     }
 
     /**
@@ -98,9 +131,11 @@ export default {
       const direction = startIdx <= endIdx ? 1 : -1
       let currentIdx = startIdx
       
-      const frameDelay = FRAME_DELAY / Math.max(0.5, Math.min(2, props.speed))
-      
       const animate = (timestamp) => {
+        // 현재 애니메이션 타입에 맞는 속도 계수로 딜레이 계산
+        const speedMultiplier = getSpeedMultiplier();
+        const frameDelay = 60 / speedMultiplier; // 기본 60ms를 속도 계수로 나눔
+        
         if (!lastFrameTime || timestamp - lastFrameTime >= frameDelay) {
           // 현재 프레임 표시
           currentSrc.value = frameList[currentIdx]
