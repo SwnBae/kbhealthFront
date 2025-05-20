@@ -6,13 +6,19 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')  // @ → src 경로
+      '@': path.resolve(__dirname, './src'),
     }
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/images': 'http://localhost:8080'
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/images': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      }
     }
   }
 })
