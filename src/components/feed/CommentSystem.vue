@@ -12,34 +12,27 @@ ProfileRing 컴포넌트 적용
             첫 번째 댓글을 남겨보세요
           </p>
           <transition-group name="fade-comment-item" tag="div">
-            <div
-              v-for="comment in comments"
-              :key="comment.commentId"
-              class="comment-item"
-            >
+            <!-- 댓글 아이템 내부에 삭제 버튼 추가 -->
+            <div v-for="comment in comments" :key="comment.commentId" class="comment-item">
               <div class="comment-profile">
                 <router-link :to="`/profile/${comment.writerAccount}`">
                   <!-- ProfileRing 컴포넌트 사용 -->
-                  <ProfileRing
-                    :profile-image-url="getProfileImage(comment.writerProfileImage)"
-                    :base-score="comment.writerBaseScore || 0"
-                    :size="45"
-                    :stroke-width="2"
-                    progress-color="#4CAF50"
-                    alt-text="프로필"
-                  />
+                  <ProfileRing :profile-image-url="getProfileImage(comment.writerProfileImage)"
+                    :base-score="comment.writerBaseScore || 0" :size="45" :stroke-width="2" progress-color="#4CAF50"
+                    alt-text="프로필" />
                 </router-link>
               </div>
               <div class="comment-content">
-                <router-link
-                  :to="`/profile/${comment.writerAccount}`"
-                  class="comment-writer"
-                >
+                <router-link :to="`/profile/${comment.writerAccount}`" class="comment-writer">
                   {{ comment.writer }}
                 </router-link>
                 <span class="comment-text">{{ comment.comment }}</span>
                 <div class="comment-meta">
                   <span class="comment-time">{{ formatCommentTime(comment.createdAt) }}</span>
+                  <button v-if="isCommentOwner(comment)" class="comment-delete-btn"
+                    @click="deleteComment(comment.commentId)">
+                    삭제
+                  </button>
                 </div>
               </div>
             </div>
@@ -50,26 +43,16 @@ ProfileRing 컴포넌트 적용
         </div>
         <div class="comment-input">
           <!-- 현재 사용자 프로필에도 ProfileRing 적용 -->
-          <ProfileRing
-            :profile-image-url="getCurrentUserProfile()"
-            :base-score="currentUser?.baseScore || 0"
-            :size="32"
-            :stroke-width="2"
-            progress-color="#4CAF50"
-            alt-text="내 프로필"
-          />
-          <input
-            v-model="newComment"
-            type="text"
-            placeholder="댓글 달기..."
-            class="comment-field"
-            @keyup.enter="submitComment"
-          />
-          <button 
-            class="submit-comment" 
-            @click="submitComment"
-            :disabled="!newComment.trim()"
-          >
+          <ProfileRing :profile-image-url="getCurrentUserProfile()" 
+                     :base-score="userStore.state.currentMember?.baseScore || 0" 
+                     :size="40"
+                     :stroke-width="2" 
+                     progress-color="#4CAF50" 
+                     class="comment-profile-ring" 
+                     alt-text="내 프로필" />
+          <input v-model="newComment" type="text" placeholder="댓글 달기..." class="comment-field"
+            @keyup.enter="submitComment" />
+          <button class="submit-comment" @click="submitComment" :disabled="!newComment.trim()">
             게시
           </button>
         </div>
@@ -85,10 +68,14 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 import 'dayjs/locale/ko'; // 한국어 로케일 추가
+// userStore 가져오기
+import userStore from '@/scripts/store'; // 경로는 실제 저장소 위치에 맞게 수정
 
 // dayjs 설정
 dayjs.extend(relativeTime);
 dayjs.locale('ko'); // 한국어 로케일 사용
+
+// 사용자 스토어 가져오기
 
 const props = defineProps({
   postId: {
@@ -116,28 +103,12 @@ const isLoading = ref(false);
 const newComment = ref('');
 const commentScrollEl = ref(null);
 let scrollEventBound = false;
-const currentUser = ref(null);
-
-// 현재 사용자 정보 가져오기
-const fetchCurrentUser = async () => {
-  try {
-    const token = localStorage.getItem('jwt');
-    if (!token) return null;
-    
-    const res = await axios.get('/api/user/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    currentUser.value = res.data;
-  } catch (error) {
-    console.error('사용자 정보 로드 실패', error);
-  }
-};
 
 // 현재 사용자 프로필 이미지
 const getCurrentUserProfile = () => {
-  if (currentUser.value && currentUser.value.profileImage) {
-    return currentUser.value.profileImage;
+  const currentMember = userStore.state.currentMember;
+  if (currentMember && currentMember.profileImage) {
+    return currentMember.profileImage;
   }
   return '/images/default_profile.png';
 };
@@ -150,11 +121,11 @@ const getProfileImage = (url) => {
 // 댓글 작성 시간 포맷팅
 const formatCommentTime = (timestamp) => {
   if (!timestamp) return '';
-  
+
   const now = dayjs();
   const commentTime = dayjs(timestamp);
   const diffHours = now.diff(commentTime, 'hour');
-  
+
   if (diffHours < 24) {
     return commentTime.fromNow(); // 24시간 이내: ~분 전, ~시간 전
   } else if (diffHours < 168) { // 일주일 이내
@@ -167,41 +138,51 @@ const formatCommentTime = (timestamp) => {
 // 댓글 불러오기 메서드
 const loadMoreComments = async () => {
   if (isLoading.value || lastPage.value) return;
-  
+
   isLoading.value = true;
   try {
     console.log(`댓글 로드 중: postId=${props.postId}, page=${page.value}, size=${size}`);
-    
+
     const res = await axios.get(`/api/feed/${props.postId}/commentList`, {
       params: { page: page.value, size },
       headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` }
     });
-    
+
     // 데이터 형식 확인 및 로그
     console.log('댓글 로드 응답:', res.data);
-    
+
     // API 응답이 페이지네이션 형식인지 확인
     if (res.data && res.data.content) {
+      // 각 댓글의 구조 출력 (디버깅용)
+      if (res.data.content.length > 0) {
+        console.log('첫 번째 댓글 객체 구조:', JSON.stringify(res.data.content[0], null, 2));
+      }
+
       comments.value.push(...res.data.content);
       lastPage.value = res.data.last;
-      
+
       console.log(`${res.data.content.length}개 댓글 로드, 마지막 페이지: ${res.data.last}`);
-    } 
+    }
     // 배열 형식인지 확인
     else if (Array.isArray(res.data)) {
+      // 각 댓글의 구조 출력 (디버깅용)
+      if (res.data.length > 0) {
+        console.log('첫 번째 댓글 객체 구조:', JSON.stringify(res.data[0], null, 2));
+      }
+
       comments.value.push(...res.data);
       lastPage.value = res.data.length < size;
-      
+
       console.log(`${res.data.length}개 댓글 로드, 마지막 페이지: ${res.data.length < size}`);
-    } 
+    }
     // 응답 형식 오류
     else {
       console.error('알 수 없는 API 응답 형식:', res.data);
       lastPage.value = true; // 오류 방지를 위해 마지막 페이지로 설정
     }
-    
+
     page.value++;
-    
+
     // 다음 틱에 스크롤 이벤트 재설정
     await nextTick();
     await setupScrollListener();
@@ -213,15 +194,58 @@ const loadMoreComments = async () => {
   }
 };
 
+// 댓글 소유자 확인 메서드 (본인이 작성한 댓글인지 확인)
+const isCommentOwner = (comment) => {
+  const currentMember = userStore.state.currentMember;
+  if (!currentMember) return false;
+  
+  // userStore에서 가져온 현재 사용자 ID와 댓글 작성자 ID 비교
+  console.log('댓글 소유권 확인:', {
+    commentId: comment.commentId,
+    commentWriter: comment.writer,
+    commentWriterAccount: comment.writerAccount,
+    currentUserId: currentMember.id,
+    currentUserAccount: currentMember.account
+  });
+  
+  // account 값으로 비교 (writerAccount 필드 사용)
+  return currentMember.account === comment.writerAccount;
+};
+
+// 댓글 삭제 메서드
+const deleteComment = async (commentId) => {
+  if (!confirm('댓글을 삭제하시겠습니까?')) return;
+
+  try {
+    console.log(`댓글 삭제 요청: postId=${props.postId}, commentId=${commentId}`);
+
+    await axios.delete(
+      `/api/feed/${props.postId}/comment/${commentId}`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
+    );
+
+    // 삭제된 댓글을 배열에서 제거
+    comments.value = comments.value.filter(c => c.commentId !== commentId);
+
+    // 부모 컴포넌트에 댓글 수 업데이트 알림
+    emit('update:commentCount', props.commentCount - 1);
+
+    console.log('댓글이 성공적으로 삭제되었습니다.');
+  } catch (error) {
+    console.error('댓글 삭제 실패', error);
+    alert('댓글 삭제에 실패했습니다: ' + (error.response?.data || error.message));
+  }
+};
+
 // 스크롤 이벤트 핸들러
 const handleScroll = () => {
   const el = commentScrollEl.value;
   if (!el) return;
-  
+
   // 스크롤 위치 계산 (더 일찍 로드 시작하도록 20px 여유 추가)
-  const scrolledToBottom = 
+  const scrolledToBottom =
     Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 30;
-  
+
   // 조건 충족 시 더 많은 댓글 로드
   if (scrolledToBottom && !lastPage.value && !isLoading.value) {
     console.log('스크롤 하단 도달, 더 많은 댓글 로드');
@@ -232,17 +256,17 @@ const handleScroll = () => {
 // 스크롤 이벤트 연결
 const setupScrollListener = async () => {
   await nextTick();
-  
+
   if (commentScrollEl.value) {
     // 이전 이벤트 리스너 제거 (중복 방지)
     if (scrollEventBound) {
       commentScrollEl.value.removeEventListener('scroll', handleScroll);
     }
-    
+
     // 새 이벤트 리스너 추가
     commentScrollEl.value.addEventListener('scroll', handleScroll);
     scrollEventBound = true;
-    
+
     // 초기 실행 (적은 댓글 수로 스크롤이 없을 때도 더 로드)
     const el = commentScrollEl.value;
     if (el.scrollHeight <= el.clientHeight && !lastPage.value && !isLoading.value) {
@@ -255,23 +279,23 @@ const setupScrollListener = async () => {
 const submitComment = async () => {
   const trimmedComment = newComment.value.trim();
   if (!trimmedComment) return;
-  
+
   try {
     await axios.post(
       `/api/feed/${props.postId}/comment`,
       { comment: trimmedComment },
       { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
     );
-    
+
     // 댓글 목록 리셋 후 재로딩
     comments.value = [];
     page.value = 0;
     lastPage.value = false;
     newComment.value = '';
-    
+
     // 부모 컴포넌트에 댓글 수 업데이트 알림
     emit('update:commentCount', props.commentCount + 1);
-    
+
     await loadMoreComments();
   } catch (error) {
     console.error('댓글 작성 실패', error);
@@ -283,7 +307,7 @@ const initComments = async () => {
   comments.value = [];
   page.value = 0;
   lastPage.value = false;
-  
+
   if (props.visible) {
     await loadMoreComments();
     await setupScrollListener();
@@ -297,7 +321,7 @@ watch(() => props.visible, async (newValue) => {
     if (comments.value.length === 0) {
       await loadMoreComments();
     }
-    
+
     // 항상 스크롤 리스너 설정 (재설정)
     await nextTick();
     await setupScrollListener();
@@ -311,8 +335,9 @@ watch(() => props.postId, async () => {
 
 // 컴포넌트 마운트 시 초기화
 onMounted(async () => {
-  await fetchCurrentUser();
-  
+  // fetchCurrentUser() 함수는 제거하고 userStore 사용
+  console.log('현재 로그인 사용자:', userStore.state.currentMember);
+
   if (props.visible) {
     await loadMoreComments();
     await setupScrollListener();
@@ -342,8 +367,10 @@ onMounted(async () => {
   border-radius: 12px;
   scroll-behavior: smooth;
   position: relative;
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 /* 스크롤바 숨기기 */
@@ -398,6 +425,11 @@ onMounted(async () => {
   flex: 1;
 }
 
+/* 댓글 프로필 링 */
+.comment-profile-ring {
+  margin-left: 10px;
+}
+
 /* 댓글 작성자 */
 .comment-writer {
   font-weight: 600;
@@ -416,12 +448,30 @@ onMounted(async () => {
 .comment-meta {
   display: flex;
   margin-top: 4px;
+  align-items: center;
 }
 
 .comment-time {
   font-size: 0.75rem;
   color: #8e8e8e;
   font-weight: 500;
+}
+
+/* 댓글 삭제 버튼 */
+.comment-delete-btn {
+  background: none;
+  border: none;
+  color: #8e8e8e;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0 6px;
+  margin-left: 8px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.comment-delete-btn:hover {
+  color: #ed4956;
 }
 
 /* 댓글 없음 메시지 */
@@ -506,8 +556,10 @@ onMounted(async () => {
     opacity: 0;
     transform: translateY(-8px);
   }
+
   100% {
-    max-height: 400px; /* 충분히 큰 값 */
+    max-height: 400px;
+    /* 충분히 큰 값 */
     opacity: 1;
     transform: translateY(0);
   }
@@ -515,10 +567,12 @@ onMounted(async () => {
 
 @keyframes collapse-animation {
   0% {
-    max-height: 400px; /* 충분히 큰 값 */
+    max-height: 400px;
+    /* 충분히 큰 값 */
     opacity: 1;
     transform: translateY(0);
   }
+
   100% {
     max-height: 0;
     opacity: 0;
