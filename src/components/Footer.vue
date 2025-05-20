@@ -104,192 +104,169 @@
   </footer>
 </template>
 
-<script>
-import userStore from "@/scripts/store";
+<script setup>
+// Pinia 스토어 가져오기
+import { useUserStore } from "@/scripts/store";
 import router from "@/scripts/router";
 import axios from "axios";
 import { ref, computed, onBeforeUnmount } from 'vue';
 import ProfileRing from "@/components/profile/ProfileRing.vue";
 
-export default {
-  name: 'Footer',
-  components: {
-    ProfileRing
-  },
-  setup() {
-    const keyword = ref('');
-    const searchResults = ref([]);
-    const showSearch = ref(false);
-    const localShowSearch = ref(false);
-    const searched = ref(false);
-    const modalRef = ref(null);
-    const scrollbarWidth = ref(0);
-    const savedScrollY = ref(0);
+// Pinia 스토어 인스턴스 생성
+const userStore = useUserStore();
 
-    // 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 본다
-    const isLoggedIn = computed(() => {
-      return userStore.state.currentMember.id !== 0;
-    });
+const keyword = ref('');
+const searchResults = ref([]);
+const showSearch = ref(false);
+const localShowSearch = ref(false);
+const searched = ref(false);
+const modalRef = ref(null);
+const scrollbarWidth = ref(0);
+const savedScrollY = ref(0);
 
-    // 스크롤바 너비 계산
-    const getScrollbarWidth = () => {
-      return window.innerWidth - document.documentElement.clientWidth;
-    };
+// 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 봄
+const isLoggedIn = computed(() => {
+  return userStore.currentMember.id !== 0;
+});
 
-    // 스크롤 잠금 함수 - DietDetailModal 방식으로 변경
-    const lockScroll = () => {
-      // 현재 스크롤 위치 저장
-      savedScrollY.value = window.scrollY;
+// 스크롤바 너비 계산
+const getScrollbarWidth = () => {
+  return window.innerWidth - document.documentElement.clientWidth;
+};
 
-      // 스크롤바 너비 계산
-      scrollbarWidth.value = getScrollbarWidth();
+// 스크롤 잠금 함수
+const lockScroll = () => {
+  // 현재 스크롤 위치 저장
+  savedScrollY.value = window.scrollY;
 
-      // body에 overflow: hidden을 적용하여 스크롤 방지
-      document.body.style.overflow = 'hidden';
-      document.body.style.paddingRight = `${scrollbarWidth.value}px`;
-    };
+  // 스크롤바 너비 계산
+  scrollbarWidth.value = getScrollbarWidth();
 
-    // 스크롤 해제 함수 - DietDetailModal 방식으로 변경
-    const unlockScroll = () => {
-      // body에서 overflow: hidden 제거
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    };
+  // body에 overflow: hidden을 적용하여 스크롤 방지
+  document.body.style.overflow = 'hidden';
+  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+};
 
-    // 모달 설정 - 개선된 스크롤 처리
-    const setupModal = () => {
-      // 모달이 열리기 전 스크롤 잠금
-      lockScroll();
+// 스크롤 해제 함수
+const unlockScroll = () => {
+  // body에서 overflow: hidden 제거
+  document.body.style.overflow = '';
+  document.body.style.paddingRight = '';
+};
 
-      // 애니메이션 요소에 in-view 클래스 추가
-      const elements = document.querySelectorAll(".animate-on-scroll");
-      elements.forEach(el => {
-        if (!el.classList.contains('in-view')) {
-          el.classList.add('in-view');
-        }
-      });
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 모달이 열리기 전 스크롤 잠금
+  lockScroll();
 
-      // 모달 애니메이션 클래스 추가
-      if (modalRef.value) {
-        modalRef.value.classList.add('fadeIn');
-        const contentEl = modalRef.value.querySelector('.modal-content');
-        if (contentEl) {
-          contentEl.classList.add('popIn');
-        }
-      }
-    };
+  // 애니메이션 요소에 in-view 클래스 추가
+  const elements = document.querySelectorAll(".animate-on-scroll");
+  elements.forEach(el => {
+    if (!el.classList.contains('in-view')) {
+      el.classList.add('in-view');
+    }
+  });
 
-    // 컴포넌트 제거 시 원래 상태로 복원
-    onBeforeUnmount(() => {
-      unlockScroll();
-    });
-
-    const goTo = (path) => {
-      if (isActive(path)) return; // 이미 해당 페이지에 있으면 작업 중단
-      router.push(path);
-    };
-
-    const openSearchModal = () => {
-      keyword.value = '';
-      searchResults.value = [];
-      searched.value = false;
-      localShowSearch.value = true;
-      setupModal(); // 모달 열 때 스크롤 방지 및 애니메이션 설정
-    };
-
-    const closeModal = () => {
-      // 닫기 애니메이션 추가
-      if (modalRef.value) {
-        modalRef.value.classList.remove('fadeIn');
-        modalRef.value.classList.add('fadeOut');
-
-        const contentEl = modalRef.value.querySelector('.modal-content');
-        if (contentEl) {
-          contentEl.classList.remove('popIn');
-          contentEl.classList.add('popOut');
-        }
-
-        // 애니메이션 완료 후 모달 닫기 및 스크롤 해제
-        setTimeout(() => {
-          unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
-          localShowSearch.value = false;
-        }, 300);
-      } else {
-        unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
-        localShowSearch.value = false;
-      }
-    };
-
-    // 오버레이 클릭 시 모달 닫기
-    const closeOverlay = (event) => {
-      // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
-      if (event.target.classList.contains('modal')) {
-        closeModal();
-      }
-    };
-
-    const clearSearch = () => {
-      keyword.value = '';
-      searchResults.value = [];
-      searched.value = false;
-    };
-
-    const searchMembers = async () => {
-      if (!keyword.value.trim()) return;
-
-      try {
-        const res = await axios.get(`/api/profile/members/search?keyword=${keyword.value}`);
-        searchResults.value = res.data;
-        searched.value = true;
-      } catch (e) {
-        alert("검색 중 오류가 발생했습니다");
-      }
-    };
-
-    const goToProfile = (account) => {
-      closeModal();
-      router.push(`/profile/${account}`);
-    };
-
-    const reloadToProfile = () => {
-      router.push("/profile");
-    };
-
-    const logout = () => {
-      axios.get("/api/auth/logout")
-          .then((res) => {
-            alert(res.data);
-            userStore.commit("setCurrentMember", { id: 0, account: '', name: '' });
-            router.push("/login");
-          })
-          .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
-    };
-
-    const isActive = (path) => {
-      // 현재 경로가 전달된 경로로 시작하는지 확인
-      return router.currentRoute.value.path.startsWith(path);
-    };
-
-    return {
-      keyword,
-      searchResults,
-      showSearch,
-      localShowSearch,
-      searched,
-      isLoggedIn,
-      modalRef,
-      goTo,
-      openSearchModal,
-      closeModal,
-      closeOverlay,
-      clearSearch,
-      searchMembers,
-      goToProfile,
-      reloadToProfile,
-      logout,
-      isActive
-    };
+  // 모달 애니메이션 클래스 추가
+  if (modalRef.value) {
+    modalRef.value.classList.add('fadeIn');
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.add('popIn');
+    }
   }
+};
+
+// 컴포넌트 제거 시 원래 상태로 복원
+onBeforeUnmount(() => {
+  unlockScroll();
+});
+
+const goTo = (path) => {
+  if (isActive(path)) return; // 이미 해당 페이지에 있으면 작업 중단
+  router.push(path);
+};
+
+const openSearchModal = () => {
+  keyword.value = '';
+  searchResults.value = [];
+  searched.value = false;
+  localShowSearch.value = true;
+  setupModal(); // 모달 열 때 스크롤 방지 및 애니메이션 설정
+};
+
+const closeModal = () => {
+  // 닫기 애니메이션 추가
+  if (modalRef.value) {
+    modalRef.value.classList.remove('fadeIn');
+    modalRef.value.classList.add('fadeOut');
+
+    const contentEl = modalRef.value.querySelector('.modal-content');
+    if (contentEl) {
+      contentEl.classList.remove('popIn');
+      contentEl.classList.add('popOut');
+    }
+
+    // 애니메이션 완료 후 모달 닫기 및 스크롤 해제
+    setTimeout(() => {
+      unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
+      localShowSearch.value = false;
+    }, 300);
+  } else {
+    unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
+    localShowSearch.value = false;
+  }
+};
+
+// 오버레이 클릭 시 모달 닫기
+const closeOverlay = (event) => {
+  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
+  if (event.target.classList.contains('modal')) {
+    closeModal();
+  }
+};
+
+const clearSearch = () => {
+  keyword.value = '';
+  searchResults.value = [];
+  searched.value = false;
+};
+
+const searchMembers = async () => {
+  if (!keyword.value.trim()) return;
+
+  try {
+    const res = await axios.get(`/api/profile/members/search?keyword=${keyword.value}`);
+    searchResults.value = res.data;
+    searched.value = true;
+  } catch (e) {
+    alert("검색 중 오류가 발생했습니다");
+  }
+};
+
+const goToProfile = (account) => {
+  closeModal();
+  router.push(`/profile/${account}`);
+};
+
+const reloadToProfile = () => {
+  router.push("/profile");
+};
+
+const logout = () => {
+  axios.get("/api/auth/logout")
+      .then((res) => {
+        alert(res.data);
+        // Pinia 스토어의 action 직접 호출
+        userStore.setCurrentMember({ id: 0, account: '', name: '' });
+        router.push("/login");
+      })
+      .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
+};
+
+const isActive = (path) => {
+  // 현재 경로가 전달된 경로로 시작하는지 확인
+  return router.currentRoute.value.path.startsWith(path);
 };
 </script>
 

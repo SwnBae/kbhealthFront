@@ -67,8 +67,12 @@
 import {ref, onMounted, watch, nextTick, computed} from 'vue';
 import axios from 'axios';
 import {useRoute, useRouter} from 'vue-router';
-import userStore from "@/scripts/store";
+// Vuex 스토어 → Pinia 스토어로 변경
+import { useUserStore } from "@/scripts/store";
 import FeedBlock from '@/components/feed/FeedBlock.vue'
+
+// Pinia 스토어 인스턴스 생성
+const userStore = useUserStore();
 
 // 컴포넌트 경로 수정
 import ProfileSidebar from '@/components/profile/ProfileSidebar.vue';
@@ -134,7 +138,8 @@ const check = async () => {
   try {
     const {data} = await axios.get(`/api/auth/check`);
     if (data) {
-      userStore.commit("setCurrentMember", data);
+      // Pinia 액션으로 변경
+      userStore.setCurrentMember(data);
       const account = route.params.account || data.account;
       await fetchProfile(account);
     } else {
@@ -157,30 +162,13 @@ const fetchProfile = async (account) => {
 
     const {data} = await axios.get(`/api/profile/${account}`);
     profile.value = data;
-    isCurrentUser.value = data.memberId === userStore.state.currentMember.id;
+    // Pinia 스토어 직접 접근으로 변경
+    isCurrentUser.value = data.memberId === userStore.currentMember.id;
   } catch (error) {
     console.error("프로필 데이터를 가져오는 데 실패했습니다.", error);
     profile.value = null;
   } finally {
     isLoading.value = false;
-  }
-};
-
-// 신체 정보 가져오기 함수 추가
-const fetchBodyInfo = async (memberId) => {
-  isBodyInfoLoading.value = true;
-  try {
-    const {data} = await axios.get(`/api/profile/body-info/${memberId}`);
-    if (profile.value) {
-      profile.value.height = data.height;
-      profile.value.weight = data.weight;
-      profile.value.gender = data.gender;
-      profile.value.age = data.age;
-    }
-  } catch (error) {
-    console.error("신체 정보를 가져오는 데 실패했습니다.", error);
-  } finally {
-    isBodyInfoLoading.value = false;
   }
 };
 
@@ -384,10 +372,6 @@ onMounted(async () => {
   isLoading.value = true;
   await check();
 
-  // 프로필이 로드된 후 신체 정보 추가 로드
-  if (profile.value && profile.value.memberId) {
-    await fetchBodyInfo(profile.value.memberId);
-  }
 });
 </script>
 

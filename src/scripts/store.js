@@ -1,20 +1,18 @@
-import { createStore } from 'vuex';
+import { defineStore } from 'pinia'
 
-const userStore = createStore({  // 'userStore'라는 이름을 사용할 수 있음
-    state() {
-        return {
-            currentMember: {
-                id: 0,
-                account: '' // 사용자 이름
-            }
-        };
-    },
-    mutations: {
-        setCurrentMember(state, payload) {
-            state.currentMember.id = payload.id;
-            state.currentMember.account = payload.account;
-        }
+// Vuex의 userStore를 Pinia의 useUserStore로 변환
+export const useUserStore = defineStore('user', {
+  state: () => ({
+    currentMember: {
+      id: 0,
+      account: ''
     }
-});
-
-export default userStore;
+  }),
+  actions: {
+    // Vuex의 mutation을 Pinia의 action으로 변환
+    setCurrentMember(payload) {
+      this.currentMember.id = payload.id;
+      this.currentMember.account = payload.account;
+    }
+  }
+})

@@ -27,57 +27,48 @@
   </div>
 </template>
 
-<script>
-import Footer from "@/components/Footer";
-import Character from "@/components/Character"; // Character 컴포넌트 import
-import userStore from "@/scripts/store";
+<script setup>
+// 기존 import에 nextTick 추가
+import { onMounted, computed, ref, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
+import Footer from "@/components/Footer.vue";
+import Character from "@/components/Character.vue"; 
+import { useUserStore } from "@/scripts/store"; 
 import axios from "axios";
-import { onMounted, computed, ref } from "vue";
-import { useRouter } from "vue-router";
 
-export default {
-  name: 'App',
-  components: {
-    Footer,
-    Character, // Character 컴포넌트 등록
-  },
-  setup() {
-    const router = useRouter();
-    const showCharacter = ref(false); // 캐릭터 표시 여부 상태
+// 필요한 객체 초기화
+const router = useRouter();
+const userStore = useUserStore(); 
+const showCharacter = ref(false); 
 
-    // 로그인 여부 확인
-    const check = async () => {
-      try {
-        const { data } = await axios.get("/api/auth/check");
-        if (!data) {
-          router.push("/login");
-        } else {
-          userStore.commit("setCurrentMember", data);
-        }
-      } catch (error) {
-        router.push("/login");
-      }
-    };
-
-    onMounted(() => {
-      check();
-    });
-
-    // 로그인 여부 computed로 확인
-    const isLoggedIn = computed(() => userStore.state.currentMember.id !== 0);
-
-    // 캐릭터 표시/숨김 토글 함수
-    const toggleCharacter = () => {
-      showCharacter.value = !showCharacter.value;
-    };
-
-    return {
-      isLoggedIn,
-      showCharacter,
-      toggleCharacter
-    };
+// 로그인 여부 확인
+const check = async () => {
+  try {
+    const { data } = await axios.get("/api/auth/check");
+    if (!data) {
+      router.push("/login");
+    } else {
+      userStore.setCurrentMember(data);
+    }
+  } catch (error) {
+    router.push("/login");
   }
 };
+
+// 로그인 여부 computed로 확인
+const isLoggedIn = computed(() => userStore.currentMember.id !== 0);
+
+// 캐릭터 표시/숨김 토글 함수 - nextTick 사용
+const toggleCharacter = () => {
+  nextTick(() => {
+    showCharacter.value = !showCharacter.value;
+  });
+};
+
+// 컴포넌트 마운트 시 로그인 상태 확인
+onMounted(() => {
+  check();
+});
 </script>
 
 <style>
