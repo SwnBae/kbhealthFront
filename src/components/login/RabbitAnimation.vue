@@ -54,13 +54,13 @@ function getImageUrl(type, index) {
   
   switch(type) {
     case ANIMATIONS.ID:
-      path = `/src/assets/img/rabbit/rabbitid${index}.png`;
+      path = `/assets/img/rabbit/rabbitid${index}.png`;
       break;
     case ANIMATIONS.PW:
-      path = `/src/assets/img/rabbit/rabbitpw${index}.png`;
+      path = `/assets/img/rabbit/rabbitpw${index}.png`;
       break;
     case ANIMATIONS.SUCCESS:
-      path = `/src/assets/img/rabbit/rabbitgo (${index}).png`;
+      path = `/assets/img/rabbit/rabbitgo (${index}).png`;
       break;
   }
   

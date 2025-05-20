@@ -14,7 +14,7 @@
           class="character-button"
           title="캐릭터 보기"
       >
-        <img src="@/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
+        <img src="/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
       </button>
     </div>
 
