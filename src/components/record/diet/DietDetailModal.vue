@@ -10,10 +10,15 @@
 
         <!-- 스크롤 가능한 내용물을 위한 새 컨테이너 -->
         <div class="modal-scrollable-content">
-          <!-- 음식 이미지 및 기본 정보 -->
+          <!-- 음식 이미지 및 기본 정보 (이미지 처리 로직 변경) -->
           <div class="food-info-container">
             <div class="food-image-container">
-              <img :src="record.drImgUrl || '/images/default_food.png'" alt="음식 이미지" class="food-image" />
+              <img 
+                :src="getImageUrl(record.drImgUrl)" 
+                alt="음식 이미지" 
+                class="food-image"
+                @error="handleImageError" 
+              />
             </div>
             <div class="food-basic-info">
               <h2 class="food-name">{{ record.dietMenu }}</h2>
@@ -65,6 +70,8 @@ import {ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch} from '
 import dayjs from 'dayjs';
 import axios from 'axios';
 import NutritionSummary from './detail/NutritionSummary.vue';
+// 기본 이미지 import
+import defaultFoodImage from '@/assets/img/default_food.png';
 
 const props = defineProps({
   record: {
@@ -86,6 +93,17 @@ const modalClosing = ref(false);
 const scrollbarWidth = ref(0);
 // 스크롤 위치를 저장할 변수 추가
 const savedScrollY = ref(0);
+
+// 이미지 URL 처리 함수 추가
+const getImageUrl = (url) => {
+  return url && url.trim() !== '' ? url : defaultFoodImage;
+};
+
+// 이미지 오류 처리 함수 추가
+const handleImageError = (event) => {
+  event.target.src = defaultFoodImage;
+  event.target.onerror = null; // 오류 이벤트 재발생 방지
+};
 
 // 부모의 showModal 값이 변경될 때 로컬 상태도 업데이트
 watch(() => props.showModal, (newValue) => {

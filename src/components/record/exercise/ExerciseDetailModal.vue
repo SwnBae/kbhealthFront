@@ -10,9 +10,14 @@
 
         <!-- 스크롤 가능한 내용물을 위한 새 컨테이너 -->
         <div class="modal-scrollable-content">
-          <!-- 운동 이미지 섹션 -->
+          <!-- 운동 이미지 섹션 (이미지 처리 로직 변경) -->
           <div class="exercise-image-container">
-            <img :src="record.erImgUrl || '/images/default_exercise.png'" alt="운동 이미지" class="exercise-image" />
+            <img 
+              :src="getImageUrl(record.erImgUrl)" 
+              alt="운동 이미지" 
+              class="exercise-image"
+              @error="handleImageError" 
+            />
           </div>
 
           <!-- 기본 정보 -->
@@ -58,6 +63,8 @@
 <script setup>
 import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import dayjs from 'dayjs';
+// 기본 이미지 import
+import defaultExerciseImage from '@/assets/img/default_weight.png';
 
 const props = defineProps({
   record: {
@@ -79,6 +86,17 @@ const modalClosing = ref(false);
 const scrollbarWidth = ref(0);
 // 스크롤 위치를 저장할 변수 추가
 const savedScrollY = ref(0);
+
+// 이미지 URL 처리 함수 추가
+const getImageUrl = (url) => {
+  return url && url.trim() !== '' ? url : defaultExerciseImage;
+};
+
+// 이미지 오류 처리 함수 추가
+const handleImageError = (event) => {
+  event.target.src = defaultExerciseImage;
+  event.target.onerror = null; // 오류 이벤트 재발생 방지
+};
 
 // 부모의 showModal 값이 변경될 때 로컬 상태도 업데이트
 watch(() => props.showModal, (newValue) => {

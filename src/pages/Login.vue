@@ -72,63 +72,96 @@
   </div>
 </template>
 
-<script>
+<script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import RabbitAnimation from '@/components/login/RabbitAnimation.vue'
-import userStore from '@/scripts/store'
+// Vuex 스토어 → Pinia 스토어로 변경
+import { useUserStore } from '@/scripts/store'
 
-export default {
-  name: 'LoginRegisterPage',
-  components: { RabbitAnimation },
-  setup() {
-    const router = useRouter()
-    const isRegistering = ref(false)
+// 라우터 및 유저 스토어 초기화
+const router = useRouter()
+const userStore = useUserStore()
 
-    const state = reactive({ currentMember: { id: 0, name: '', account: '' }, form: { loginId: '', loginPw: '' } })
-    const pwFocused = ref(false)
-    const idFocused = ref(false)
-    const loginSuccess = ref(false)
-    const pendingMember = ref(null)
+// 상태 관리
+const isRegistering = ref(false)
+const state = reactive({ 
+  currentMember: { id: 0, name: '', account: '' }, 
+  form: { loginId: '', loginPw: '' } 
+})
+const pwFocused = ref(false)
+const idFocused = ref(false)
+const loginSuccess = ref(false)
+const pendingMember = ref(null)
 
-    const form = reactive({ regAccount: '', regPw: '', regUserName: '', regHeight: '', regWeight: '', regGender: 'MALE', regAge: '' })
+// 회원가입 폼 상태
+const form = reactive({ 
+  regAccount: '', 
+  regPw: '', 
+  regUserName: '', 
+  regHeight: '', 
+  regWeight: '', 
+  regGender: 'MALE', 
+  regAge: '' 
+})
 
-    const toggleForm = () => { 
-      // 폼 전환 시 부드러운 애니메이션을 위해 약간의 딜레이 추가
-      setTimeout(() => {
-        isRegistering.value = !isRegistering.value 
-      }, 50)
-    }
-    
-    const onIdFocus = () => { idFocused.value = true }
-    const onIdBlur  = () => { idFocused.value = false }
-    const onPwFocus = () => { pwFocused.value = true }
-    const onPwBlur  = () => { pwFocused.value = false }
+// 폼 전환 메서드
+const toggleForm = () => { 
+  // 폼 전환 시 부드러운 애니메이션을 위해 약간의 딜레이 추가
+  setTimeout(() => {
+    isRegistering.value = !isRegistering.value 
+  }, 50)
+}
 
-    const submitLogin = () => {
-      const args = { account: state.form.loginId, password: state.form.loginPw }
-      axios.post('/api/auth/login', args)
-        .then(({ data }) => { pendingMember.value = { id: data.id, account: data.account, name: data.name }; loginSuccess.value = true })
-        .catch(() => { alert('로그인에 실패했습니다. 계정 정보를 확인해주세요.') })
-    }
+// 폼 포커스 이벤트 핸들러
+const onIdFocus = () => { idFocused.value = true }
+const onIdBlur = () => { idFocused.value = false }
+const onPwFocus = () => { pwFocused.value = true }
+const onPwBlur = () => { pwFocused.value = false }
 
-    const onAnimationEnd = () => {
-      if (pendingMember.value) {
-        userStore.commit('setCurrentMember', pendingMember.value)
-        router.push('/home')
-      }
-    }
+// 로그인 제출
+const submitLogin = () => {
+  const args = { account: state.form.loginId, password: state.form.loginPw }
+  axios.post('/api/auth/login', args)
+    .then(({ data }) => { 
+      pendingMember.value = { id: data.id, account: data.account, name: data.name }
+      loginSuccess.value = true 
+    })
+    .catch(() => { 
+      alert('로그인에 실패했습니다. 계정 정보를 확인해주세요.') 
+    })
+}
 
-    const registerUser = () => {
-      const args = { account: form.regAccount, password: form.regPw, userName: form.regUserName, height: form.regHeight, weight: form.regWeight, gender: form.regGender, age: form.regAge }
-      axios.post('/api/auth/regist', args)
-        .then(({ data }) => { alert(data.message || '회원가입에 성공했습니다.'); toggleForm() })
-        .catch(() => { alert('회원가입에 실패했습니다. 입력 정보를 확인해주세요.') })
-    }
-
-    return { state, form, isRegistering, pwFocused, idFocused, loginSuccess, onIdFocus, onIdBlur, onPwFocus, onPwBlur, submitLogin, registerUser, toggleForm, onAnimationEnd }
+// 애니메이션 완료 후 호출되는 메서드
+const onAnimationEnd = () => {
+  if (pendingMember.value) {
+    // Vuex mutation → Pinia action으로 변경
+    userStore.setCurrentMember(pendingMember.value)
+    router.push('/home')
   }
+}
+
+// 회원가입 메서드
+const registerUser = () => {
+  const args = { 
+    account: form.regAccount, 
+    password: form.regPw, 
+    userName: form.regUserName, 
+    height: form.regHeight, 
+    weight: form.regWeight, 
+    gender: form.regGender, 
+    age: form.regAge 
+  }
+  
+  axios.post('/api/auth/regist', args)
+    .then(({ data }) => { 
+      alert(data.message || '회원가입에 성공했습니다.')
+      toggleForm() 
+    })
+    .catch(() => { 
+      alert('회원가입에 실패했습니다. 입력 정보를 확인해주세요.') 
+    })
 }
 </script>
 

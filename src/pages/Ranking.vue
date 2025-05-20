@@ -88,152 +88,148 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import axios from 'axios';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 
-export default {
-  components: {
-    ProfileRing
-  },
-  data() {
-    return {
-      rankingType: 'total',  // 랭킹 타입 (기본값: total)
-      rankings: [],          // 랭킹 데이터를 저장할 배열
-      isLoading: false,      // 초기 로딩 상태
-      isLoadingMore: false,  // 추가 데이터 로딩 상태
-      currentPage: 0,        // 현재 페이지 (0부터 시작)
-      pageSize: 15,          // 페이지 크기
-      totalPages: 0,         // 전체 페이지 수
-      totalElements: 0,      // 전체 아이템 수
-      isLastPage: false,     // 마지막 페이지 여부
-      scrollThreshold: 200,  // 스크롤 임계값 (px)
-      scrollListener: null   // 스크롤 이벤트 리스너
-    };
-  },
-  mounted() {
-    this.fetchRanking();     // 컴포넌트가 로드될 때 랭킹 데이터를 가져옵니다.
-    this.setupInfiniteScroll(); // 무한 스크롤 설정
-  },
-  beforeUnmount() {
-    this.removeScrollListener(); // 컴포넌트가 제거될 때 스크롤 리스너 제거
-  },
-  methods: {
-    // 랭킹 타입을 변경하고 데이터를 다시 가져옵니다.
-    setRankingType(type) {
-      this.rankingType = type;
-      // 초기화
-      this.currentPage = 0;
-      this.rankings = [];
-      this.isLastPage = false;
-      this.fetchRanking();   // 새 랭킹 데이터 가져오기
-    },
+// reactive 대신 ref를 사용하여 기본 타입과 객체 모두 일관되게 처리
+const rankingType = ref('total');  // 랭킹 타입 (기본값: total)
+const rankings = ref([]);          // 랭킹 데이터를 저장할 배열
+const isLoading = ref(false);      // 초기 로딩 상태
+const isLoadingMore = ref(false);  // 추가 데이터 로딩 상태
+const currentPage = ref(0);        // 현재 페이지 (0부터 시작)
+const pageSize = ref(15);          // 페이지 크기
+const totalPages = ref(0);         // 전체 페이지 수
+const totalElements = ref(0);      // 전체 아이템 수
+const isLastPage = ref(false);     // 마지막 페이지 여부
+const scrollThreshold = ref(200);  // 스크롤 임계값 (px)
+const scrollListener = ref(null);  // 스크롤 이벤트 리스너
+const rankingsContainer = ref(null); // 랭킹 컨테이너 ref
 
-    // 스크롤 이벤트 리스너 설정
-    setupInfiniteScroll() {
-      this.scrollListener = this.handleScroll.bind(this);
-      window.addEventListener('scroll', this.scrollListener);
-    },
+// 랭킹 타입을 변경하고 데이터를 다시 가져옵니다.
+const setRankingType = (type) => {
+  rankingType.value = type;
+  // 초기화
+  currentPage.value = 0;
+  rankings.value = [];
+  isLastPage.value = false;
+  fetchRanking();   // 새 랭킹 데이터 가져오기
+};
 
-    // 스크롤 이벤트 리스너 제거
-    removeScrollListener() {
-      if (this.scrollListener) {
-        window.removeEventListener('scroll', this.scrollListener);
-        this.scrollListener = null;
-      }
-    },
+// 스크롤 이벤트 리스너 설정
+const setupInfiniteScroll = () => {
+  const handleScrollFn = handleScroll;
+  scrollListener.value = handleScrollFn;
+  window.addEventListener('scroll', handleScrollFn);
+};
 
-    // 스크롤 이벤트 핸들러
-    handleScroll() {
-      // 페이지 끝에 도달했는지 확인
-      const bottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - this.scrollThreshold;
-
-      // 페이지 끝에 도달하고 로딩 중이 아니며 마지막 페이지가 아닌 경우
-      if (bottom && !this.isLoading && !this.isLoadingMore && !this.isLastPage) {
-        this.loadMoreRankings();
-      }
-    },
-
-    // 추가 랭킹 데이터 로드
-    async loadMoreRankings() {
-      if (this.isLastPage) return;
-
-      this.isLoadingMore = true;
-      this.currentPage++;
-
-      try {
-        await this.fetchRankingPage();
-      } finally {
-        this.isLoadingMore = false;
-      }
-    },
-
-    // 선택된 랭킹 타입에 따라 데이터를 가져오는 함수 (초기 로드)
-    async fetchRanking() {
-      this.isLoading = true;
-      this.currentPage = 0;
-
-      try {
-        await this.fetchRankingPage();
-
-        this.$nextTick(() => {
-          this.observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
-        });
-      } catch (error) {
-        console.error('랭킹 데이터를 불러오는 중 오류가 발생했습니다.', error);
-      } finally {
-        this.isLoading = false;
-      }
-    },
-
-    // 페이지 데이터 가져오기 (공통 로직)
-    async fetchRankingPage() {
-      try {
-        const response = await axios.get(
-            `/api/ranking?type=${this.rankingType}&page=${this.currentPage}&size=${this.pageSize}`
-        );
-
-        // 서버가 Page 객체를 반환하므로 그에 맞게 처리
-        const pageData = response.data;
-
-        // 기존 데이터에 새 데이터 추가 (첫 페이지인 경우 덮어쓰기)
-        if (this.currentPage === 0) {
-          this.rankings = pageData.content;
-        } else {
-          this.rankings = [...this.rankings, ...pageData.content];
-        }
-
-        this.totalPages = pageData.totalPages;
-        this.totalElements = pageData.totalElements;
-        this.isLastPage = pageData.last;
-
-        this.$nextTick(() => {
-          this.observeFeedAnimation(); // 새 데이터가 로드된 후 애니메이션 다시 설정
-        });
-
-      } catch (error) {
-        console.error(`페이지 ${this.currentPage} 랭킹 데이터를 불러오는 중 오류가 발생했습니다.`, error);
-        this.currentPage = Math.max(0, this.currentPage - 1); // 오류 발생 시 페이지 번호 복구
-      }
-    },
-
-    // 스크롤 애니메이션 관찰자 설정
-    observeFeedAnimation() {
-      const elements = document.querySelectorAll(".animate-on-scroll:not(.in-view)");
-      if (elements.length === 0) return;
-
-      const scrollObserver = new IntersectionObserver(
-          entries => entries.forEach(entry => {
-            if (entry.isIntersecting) entry.target.classList.add("in-view");
-          }),
-          {threshold: 0.1}
-      );
-      elements.forEach(el => scrollObserver.observe(el));
-    }
-
-    // getRandomTrend 메서드 제거 (더 이상 필요 없음)
+// 스크롤 이벤트 리스너 제거
+const removeScrollListener = () => {
+  if (scrollListener.value) {
+    window.removeEventListener('scroll', scrollListener.value);
+    scrollListener.value = null;
   }
 };
+
+// 스크롤 이벤트 핸들러
+const handleScroll = () => {
+  // 페이지 끝에 도달했는지 확인
+  const bottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - scrollThreshold.value;
+
+  // 페이지 끝에 도달하고 로딩 중이 아니며 마지막 페이지가 아닌 경우
+  if (bottom && !isLoading.value && !isLoadingMore.value && !isLastPage.value) {
+    loadMoreRankings();
+  }
+};
+
+// 추가 랭킹 데이터 로드
+const loadMoreRankings = async () => {
+  if (isLastPage.value) return;
+
+  isLoadingMore.value = true;
+  currentPage.value++;
+
+  try {
+    await fetchRankingPage();
+  } finally {
+    isLoadingMore.value = false;
+  }
+};
+
+// 선택된 랭킹 타입에 따라 데이터를 가져오는 함수 (초기 로드)
+const fetchRanking = async () => {
+  isLoading.value = true;
+  currentPage.value = 0;
+
+  try {
+    await fetchRankingPage();
+
+    nextTick(() => {
+      observeFeedAnimation(); // 데이터가 로드된 후 애니메이션 다시 설정
+    });
+  } catch (error) {
+    console.error('랭킹 데이터를 불러오는 중 오류가 발생했습니다.', error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// 페이지 데이터 가져오기 (공통 로직)
+const fetchRankingPage = async () => {
+  try {
+    const response = await axios.get(
+      `/api/ranking?type=${rankingType.value}&page=${currentPage.value}&size=${pageSize.value}`
+    );
+
+    // 서버가 Page 객체를 반환하므로 그에 맞게 처리
+    const pageData = response.data;
+
+    // 기존 데이터에 새 데이터 추가 (첫 페이지인 경우 덮어쓰기)
+    if (currentPage.value === 0) {
+      rankings.value = pageData.content;
+    } else {
+      rankings.value = [...rankings.value, ...pageData.content];
+    }
+
+    totalPages.value = pageData.totalPages;
+    totalElements.value = pageData.totalElements;
+    isLastPage.value = pageData.last;
+
+    nextTick(() => {
+      observeFeedAnimation(); // 새 데이터가 로드된 후 애니메이션 다시 설정
+    });
+
+  } catch (error) {
+    console.error(`페이지 ${currentPage.value} 랭킹 데이터를 불러오는 중 오류가 발생했습니다.`, error);
+    currentPage.value = Math.max(0, currentPage.value - 1); // 오류 발생 시 페이지 번호 복구
+  }
+};
+
+// 스크롤 애니메이션 관찰자 설정
+const observeFeedAnimation = () => {
+  const elements = document.querySelectorAll(".animate-on-scroll:not(.in-view)");
+  if (elements.length === 0) return;
+
+  const scrollObserver = new IntersectionObserver(
+    entries => entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add("in-view");
+    }),
+    {threshold: 0.1}
+  );
+  elements.forEach(el => scrollObserver.observe(el));
+};
+
+// 컴포넌트 마운트 시 실행
+onMounted(() => {
+  fetchRanking();     // 컴포넌트가 로드될 때 랭킹 데이터를 가져옵니다.
+  setupInfiniteScroll(); // 무한 스크롤 설정
+});
+
+// 컴포넌트 언마운트 시 실행
+onBeforeUnmount(() => {
+  removeScrollListener(); // 컴포넌트가 제거될 때 스크롤 리스너 제거
+});
 </script>
 
 <style scoped>

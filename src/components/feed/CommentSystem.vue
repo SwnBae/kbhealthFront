@@ -1,7 +1,3 @@
-<!--
-파일 위치: @/components/feed/CommentSystem.vue
-ProfileRing 컴포넌트 적용
--->
 <template>
   <div class="comment-system">
     <!-- 댓글 목록 -->
@@ -44,7 +40,7 @@ ProfileRing 컴포넌트 적용
         <div class="comment-input">
           <!-- 현재 사용자 프로필에도 ProfileRing 적용 -->
           <ProfileRing :profile-image-url="getCurrentUserProfile()" 
-                     :base-score="userStore.state.currentMember?.baseScore || 0" 
+                     :base-score="userStore.currentMember?.baseScore || 0" 
                      :size="40"
                      :stroke-width="2" 
                      progress-color="#4CAF50" 
@@ -68,14 +64,14 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 import 'dayjs/locale/ko'; // 한국어 로케일 추가
-// userStore 가져오기
-import userStore from '@/scripts/store'; // 경로는 실제 저장소 위치에 맞게 수정
+
+// Vuex 스토어 -> Pinia 스토어로 변경
+import { useUserStore } from '@/scripts/store'; 
+const userStore = useUserStore();
 
 // dayjs 설정
 dayjs.extend(relativeTime);
 dayjs.locale('ko'); // 한국어 로케일 사용
-
-// 사용자 스토어 가져오기
 
 const props = defineProps({
   postId: {
@@ -106,7 +102,8 @@ let scrollEventBound = false;
 
 // 현재 사용자 프로필 이미지
 const getCurrentUserProfile = () => {
-  const currentMember = userStore.state.currentMember;
+  // Pinia에서는 state 없이 직접 접근
+  const currentMember = userStore.currentMember;
   if (currentMember && currentMember.profileImage) {
     return currentMember.profileImage;
   }
@@ -196,7 +193,8 @@ const loadMoreComments = async () => {
 
 // 댓글 소유자 확인 메서드 (본인이 작성한 댓글인지 확인)
 const isCommentOwner = (comment) => {
-  const currentMember = userStore.state.currentMember;
+  // Pinia에서는 state 없이 직접 접근
+  const currentMember = userStore.currentMember;
   if (!currentMember) return false;
   
   // userStore에서 가져온 현재 사용자 ID와 댓글 작성자 ID 비교
@@ -335,8 +333,8 @@ watch(() => props.postId, async () => {
 
 // 컴포넌트 마운트 시 초기화
 onMounted(async () => {
-  // fetchCurrentUser() 함수는 제거하고 userStore 사용
-  console.log('현재 로그인 사용자:', userStore.state.currentMember);
+  // Pinia 스토어에서 현재 사용자 정보 확인
+  console.log('현재 로그인 사용자:', userStore.currentMember);
 
   if (props.visible) {
     await loadMoreComments();

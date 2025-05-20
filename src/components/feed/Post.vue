@@ -1,4 +1,3 @@
-<!-- ProfileRing을 사용하는 Post.vue 업데이트 - 수정/삭제 기능 포함 -->
 <template>
   <div class="feed-card animate-on-scroll">
     <!-- 작성자 -->
@@ -7,14 +6,15 @@
         :to="`/profile/${post.writerAccount}`"
         class="profile-link"
       >
-        <!-- ProfileRing 컴포넌트 사용 -->
+        <!-- ProfileRing 컴포넌트 사용 (프로필 이미지 오류 처리 추가) -->
         <ProfileRing
-          :profile-image-url="getImageUrl(post.writerProfileImage)"
+          :profile-image-url="getImageUrl(post.writerProfileImage, true)"
           :base-score="post.baseScore"
           :size="42"
           :stroke-width="2.5"
           progress-color="#4CAF50"
           alt-text="profile"
+          @error="handleImageError($event, true)"
         />
       </router-link>
       <div class="user-details">
@@ -45,12 +45,13 @@
       </div>
     </div>
 
-    <!-- 본문 이미지 -->
+    <!-- 본문 이미지 (이미지 오류 처리 추가) -->
     <img
-      :src="getImageUrl(post.imageUrl)"
+      :src="getImageUrl(post.imageUrl, false)"
       class="post-img"
       alt="post"
       loading="lazy"
+      @error="handleImageError($event, false)"
     />
 
     <!-- 액션 -->
@@ -125,7 +126,11 @@ import ProfileRing from '@/components/profile/ProfileRing.vue';
 import PostEditModal from '@/components/feed/PostEditModal.vue';
 import DeleteConfirmModal from '@/components/feed/DeleteConfirmModal.vue';
 import axios from 'axios';
-import userStore from "@/scripts/store";
+// Vuex 스토어 -> Pinia 스토어로 변경
+import { useUserStore } from "@/scripts/store";
+import defaultPostImage from '@/assets/img/default_post_image.png';
+import defaultProfileImage from '@/assets/img/default_profile.png';
+const userStore = useUserStore();
 
 dayjs.extend(relativeTime);
 
@@ -146,13 +151,25 @@ const menuContainer = ref(null);
 
 // 현재 사용자가 게시글 작성자인지 확인
 const isCurrentUserPost = computed(() => {
-  const currentUserId = userStore.state.currentMember?.id;
+  // Pinia에서는 state 없이 직접 접근
+  const currentUserId = userStore.currentMember?.id;
   return currentUserId && props.post.writerId === currentUserId;
 });
 
-// 이미지 URL 처리
-const getImageUrl = url => 
-  url && url.trim() !== '' ? url : '/images/default_post_image.png';
+// 이미지 URL 처리 - 프로필과 게시물 이미지 구분
+const getImageUrl = (url, isProfile = false) => {
+  // 이미지 유형에 따라 다른 기본 이미지 반환
+  const defaultImage = isProfile ? defaultProfileImage : defaultPostImage;
+  return url && url.trim() !== '' ? url : defaultImage;
+};
+
+// 이미지 로드 에러 처리 함수
+const handleImageError = (event, isProfile = false) => {
+  // 이미지 로드 실패시 기본 이미지로 대체
+  event.target.src = isProfile ? defaultProfileImage : defaultPostImage;
+  // 오류 이벤트 재발생 방지
+  event.target.onerror = null;
+};
 
 // 시간 포맷팅
 const formatTime = t => dayjs(t).fromNow();
