@@ -12,7 +12,8 @@
       <button
           @click="toggleCharacter"
           class="character-button"
-          title="캐릭터 보기"
+          data-tooltip="안녕하세요! 식단 도움이 필요하면 눌러주세요!"
+          :class="{ 'show-initial-tooltip': showInitialTooltip }"
       >
         <img src="@/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
       </button>
@@ -42,6 +43,7 @@ import axios from "axios";
 const router = useRouter();
 const userStore = useUserStore(); 
 const showCharacter = ref(false); 
+const showInitialTooltip = ref(false); // 초기 말풍선 표시 여부를 위한 상태 추가
 
 // 로그인 여부 확인
 const check = async () => {
@@ -67,9 +69,22 @@ const toggleCharacter = () => {
   });
 };
 
-// 컴포넌트 마운트 시 로그인 상태 확인
-onMounted(() => {
-  check();
+// 컴포넌트 마운트 시 로그인 상태 확인 및 초기 말풍선 표시
+onMounted(async () => {
+  await check();
+  
+  // 로그인되어 있을 경우 초기 말풍선 표시
+  if (isLoggedIn.value) {
+    // 페이지 로드 후 1초 뒤에 말풍선 표시
+    setTimeout(() => {
+      showInitialTooltip.value = true;
+      
+      // 5초 후에 말풍선 숨기기
+      setTimeout(() => {
+        showInitialTooltip.value = false;
+      }, 5000);
+    }, 1000);
+  }
 });
 </script>
 
@@ -102,27 +117,103 @@ onMounted(() => {
 /* 여기서부터 수정된 캐릭터 버튼 스타일 */
 .fixed-button {
   position: fixed;
-  left: 50px;
-  bottom: 30px;
+  left: 60px;
+  bottom: 40px;
   z-index: 11;
 }
 
 .character-button {
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 80px;
   background-color: transparent;
   border-radius: 50%;
-  border: none;
+  border: 3px solid white; /* 흰색 테두리 추가 */
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.25); /* 테두리가 더 잘 보이도록 그림자 강화 */
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s;
+  transition: all 0.3s ease;
   padding: 0;
+  position: relative; /* 말풍선의 위치 기준점으로 설정 */
+  overflow: visible;
 }
 
 .character-button:hover {
   transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(120, 200, 100, 0.4); /* 호버 시 연두색 그림자 추가 */
+  border-color: #A5D69A; /* 호버 시 테두리 색상 변경 */
+}
+
+/* 말풍선 스타일 추가 */
+.character-button[data-tooltip]::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  width: 240px;
+  padding: 12px 16px;
+  background-color: #E8F5E4;
+  color: #4A7C40;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.4;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  pointer-events: none;
+  margin-left: 15px;
+  text-align: center;
+  z-index: 12;
+  border: 2px solid #A5D69A;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: translateY(-50%) translateX(-20px);
+}
+
+/* 말풍선 꼬리 부분 */
+.character-button[data-tooltip]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  border-width: 8px;
+  border-style: solid;
+  border-color: transparent #A5D69A transparent transparent;
+  margin-left: 0px;
+  z-index: 12;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: translateY(-50%) translateX(-10px);
+}
+
+/* 마우스 오버 시 애니메이션 */
+.character-button[data-tooltip]:hover::before,
+.character-button.show-initial-tooltip[data-tooltip]::before {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.character-button[data-tooltip]:hover::after,
+.character-button.show-initial-tooltip[data-tooltip]::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* 초기 말풍선 등장 효과 */
+.character-button.show-initial-tooltip {
+  animation: gentle-pulse 1s infinite alternate;
+}
+
+@keyframes gentle-pulse {
+  from {
+    box-shadow: 0 0 8px rgba(120, 200, 100, 0.4);
+  }
+  to {
+    box-shadow: 0 0 15px rgba(120, 200, 100, 0.7);
+  }
 }
 
 .button-image {

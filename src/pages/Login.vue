@@ -335,10 +335,6 @@ const registerUser = () => {
   justify-content: center;
 }
 
-.toggle-link.empty {
-  /* 빈 공간도 동일한 높이 유지 */
-}
-
 .toggle-link a {
   color: #e0e0e0;
   text-decoration: underline;
