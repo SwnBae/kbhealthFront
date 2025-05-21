@@ -1,45 +1,37 @@
 <template>
-  <aside class="sidebar" 
-          ref="sidebarRef" 
-          :class="{'expanded': isExpanded}" 
-          @mouseenter="expandSidebar" 
-          @mouseleave="collapseSidebar">
+  <aside class="sidebar" ref="sidebarRef" :class="{ 'expanded': isExpanded }" @mouseenter="expandSidebar"
+    @mouseleave="collapseSidebar">
     <div class="sidebar-container">
       <div class="sidebar-content">
-        <button class="nav-btn btn" @click="goTo('/home')"
-                :class="{ 'active': isActive('/home') }" title="홈">
+        <button class="nav-btn btn" @click="goTo('/home')" :class="{ 'active': isActive('/home') }" title="홈">
           <div class="icon-container">
             <img src="/assets/icon/home.png" alt="홈" class="nav-icon" />
           </div>
           <span class="nav-text">홈</span>
         </button>
 
-        <div v-if="isLoggedIn" class="position-relative">
-          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal" title="검색">
-            <div class="icon-container">
-              <img src="/assets/icon/search.png" alt="검색" class="nav-icon" />
-            </div>
-          </button>
-        </div>
+        <button v-if="isLoggedIn" class="nav-btn btn" @click="openSearchModal" title="검색">
+          <div class="icon-container">
+            <img src="/assets/icon/search.png" alt="검색" class="nav-icon" />
+          </div>
+          <span class="nav-text">검색</span>
+        </button>
 
-        <button class="nav-btn btn" @click="goTo('/ranking')"
-                :class="{ 'active': isActive('/ranking') }" title="랭킹">
+        <button class="nav-btn btn" @click="goTo('/ranking')" :class="{ 'active': isActive('/ranking') }" title="랭킹">
           <div class="icon-container">
             <img src="/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
           </div>
           <span class="nav-text">랭킹</span>
         </button>
 
-        <button class="nav-btn btn" @click="goTo('/records')"
-                :class="{ 'active': isActive('/records') }" title="기록">
+        <button class="nav-btn btn" @click="goTo('/records')" :class="{ 'active': isActive('/records') }" title="기록">
           <div class="icon-container">
             <img src="/assets/icon/records.png" alt="기록" class="nav-icon" />
           </div>
           <span class="nav-text">기록</span>
         </button>
 
-        <button class="nav-btn btn" @click="reloadToProfile"
-                :class="{ 'active': isActive('/profile') }" title="프로필">
+        <button class="nav-btn btn" @click="reloadToProfile" :class="{ 'active': isActive('/profile') }" title="프로필">
           <div class="icon-container">
             <img src="/assets/icon/profile.png" alt="프로필" class="nav-icon" />
           </div>
@@ -57,21 +49,17 @@
 
     <!-- Teleport를 사용하여 모달을 body에 렌더링 -->
     <teleport to="body">
-      <div ref="modalRef" class="modal" v-if="localShowSearch" @click.self="closeOverlay" :class="{'fadeIn': localShowSearch}">
-        <div class="modal-content animate-on-scroll in-view" :class="{'popIn': localShowSearch}" @click.stop>
+      <div ref="modalRef" class="modal" v-if="localShowSearch" @click.self="closeOverlay"
+        :class="{ 'fadeIn': localShowSearch }">
+        <div class="modal-content animate-on-scroll in-view" :class="{ 'popIn': localShowSearch }" @click.stop>
           <div class="modal-header">
             <h3 class="modal-title">유저 검색</h3>
             <button class="close-icon" @click="closeModal">✕</button>
           </div>
 
           <div class="search-container">
-            <input
-                type="text"
-                v-model="keyword"
-                placeholder="계정명 또는 사용자명으로 검색"
-                class="search-input"
-                @keyup.enter="searchMembers"
-            />
+            <input type="text" v-model="keyword" placeholder="계정명 또는 사용자명으로 검색" class="search-input"
+              @keyup.enter="searchMembers" />
             <button class="search-button" @click="clearSearch">
               <span v-if="keyword">✕</span>
             </button>
@@ -81,21 +69,13 @@
             <div v-if="searchResults.length === 0 && searched" class="no-results">
               검색 결과가 없습니다.
             </div>
-            <div v-for="member in searchResults"
-                 :key="member.memberId"
-                 class="search-result-item animate-on-scroll in-view"
-                 @click="goToProfile(member.account)">
+            <div v-for="member in searchResults" :key="member.memberId"
+              class="search-result-item animate-on-scroll in-view" @click="goToProfile(member.account)">
               <div class="profile-cell">
                 <router-link :to="`/profile/${member.account}`" class="profile-link" @click.stop>
                   <!-- ProfileRing 컴포넌트 사용 -->
-                  <ProfileRing
-                      :profile-image-url="member.profileImageUrl"
-                      :base-score="member.baseScore || 0"
-                      :size="48"
-                      :stroke-width="3"
-                      progress-color="#a5d6a7"
-                      alt-text="프로필 이미지"
-                  />
+                  <ProfileRing :profile-image-url="member.profileImageUrl" :base-score="member.baseScore || 0"
+                    :size="48" :stroke-width="3" progress-color="#a5d6a7" alt-text="프로필 이미지" />
                 </router-link>
                 <div class="user-details">
                   <span class="nickname">{{ member.userName }}</span>
@@ -283,13 +263,13 @@ const reloadToProfile = () => {
 
 const logout = () => {
   axios.get("/api/auth/logout")
-      .then((res) => {
-        alert(res.data);
-        // Pinia 스토어의 action 직접 호출
-        userStore.setCurrentMember({ id: 0, account: '', name: '' });
-        router.push("/login");
-      })
-      .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
+    .then((res) => {
+      alert(res.data);
+      // Pinia 스토어의 action 직접 호출
+      userStore.setCurrentMember({ id: 0, account: '', name: '' });
+      router.push("/login");
+    })
+    .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
 };
 
 const isActive = (path) => {
@@ -462,13 +442,23 @@ const isActive = (path) => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .modal-content {
@@ -498,13 +488,27 @@ const isActive = (path) => {
 }
 
 @keyframes popIn {
-  0% { opacity: 0; transform: scale(0.95); }
-  100% { opacity: 1; transform: scale(1); }
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes popOut {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.95); }
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 /* 스크롤바 스타일 */
@@ -707,35 +711,35 @@ const isActive = (path) => {
     padding: 12px 8px;
     min-height: 400px;
   }
-  
+
   .sidebar.expanded {
     width: 160px;
   }
-  
+
   .sidebar-content {
     gap: 15px;
   }
-  
+
   .nav-btn {
     width: 45px;
     height: 45px;
   }
-  
+
   .icon-container {
     width: 45px;
     height: 45px;
   }
-  
+
   .nav-icon {
     width: 26px;
     height: 26px;
   }
-  
+
   .nav-text {
     left: 55px;
     font-size: 13px;
   }
-  
+
   .modal-content {
     width: 95%;
     max-height: 70vh;
