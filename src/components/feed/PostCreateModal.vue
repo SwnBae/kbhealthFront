@@ -1,4 +1,4 @@
-// 모달이 열리는지 체크 (computed 대신 ref로 직접 localVisible 사용)<template>
+<template>
   <teleport to="body">
     <div v-if="localVisible" ref="modalRef" class="modal-overlay" @click.self="closeOverlay" :class="{'fadeIn': localVisible, 'fadeOut': !localVisible && modalClosing}">
       <div class="modal-content animate-on-scroll in-view" @click.stop :class="{'popIn': localVisible, 'popOut': !localVisible && modalClosing}">
@@ -135,24 +135,27 @@ const getScrollbarWidth = () => {
   return window.innerWidth - document.documentElement.clientWidth;
 };
 
-// 모달 설정 - 개선된 스크롤 처리
-const setupModal = () => {
-  // 모달이 열리기 전의 스크롤 위치 저장
-  const scrollY = window.scrollY;
-
+// 스크롤 잠금 함수 - 개선된 방식
+const lockScroll = () => {
   // 스크롤바 너비 계산
   scrollbarWidth.value = getScrollbarWidth();
 
-  // CSS 변수로 패딩 설정 (스크롤바 자리 대체)
-  document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth.value}px`);
-
-  // 현재 스크롤 위치를 유지하면서 스크롤 방지
-  document.body.style.position = 'fixed';
-  document.body.style.top = `-${scrollY}px`;
-  document.body.style.left = '0';
-  document.body.style.right = '0';
-  document.body.style.width = '100%';
+  // body에 overflow: hidden을 적용하여 스크롤 방지
+  document.body.style.overflow = 'hidden';
   document.body.style.paddingRight = `${scrollbarWidth.value}px`;
+};
+
+// 스크롤 해제 함수 - 개선된 방식
+const unlockScroll = () => {
+  // body에서 overflow: hidden 제거
+  document.body.style.overflow = '';
+  document.body.style.paddingRight = '';
+};
+
+// 모달 설정 - 개선된 스크롤 처리
+const setupModal = () => {
+  // 스크롤 잠금
+  lockScroll();
 
   // 애니메이션 요소에 in-view 클래스 추가
   const elements = document.querySelectorAll(".animate-on-scroll");
@@ -170,24 +173,6 @@ const setupModal = () => {
       contentEl.classList.add('popIn');
     }
   }
-};
-
-// 스타일 초기화 함수
-const resetBodyStyles = () => {
-  // 원래 스크롤 위치 복원
-  const scrollY = parseInt(document.body.style.top || '0', 10) * -1;
-
-  // 모든 스타일 초기화
-  document.body.style.position = '';
-  document.body.style.top = '';
-  document.body.style.left = '';
-  document.body.style.right = '';
-  document.body.style.width = '';
-  document.body.style.paddingRight = '';
-  document.documentElement.style.setProperty('--scrollbar-width', '0px');
-
-  // 스크롤 위치 복원
-  window.scrollTo(0, scrollY);
 };
 
 // 파일 입력 트리거 함수 (이미지 변경 버튼 클릭 시)
@@ -248,12 +233,12 @@ const closeModal = () => {
 
     // 애니메이션 완료 후 모달 닫기 및 스타일 초기화
     setTimeout(() => {
-      resetBodyStyles();
+      unlockScroll(); // 스크롤 해제
       localVisible.value = false;
       emit('close');
     }, 300); // 애니메이션 시간에 맞춰 조정
   } else {
-    resetBodyStyles();
+    unlockScroll(); // 스크롤 해제
     localVisible.value = false;
     emit('close');
   }
@@ -305,14 +290,9 @@ const submit = async () => {
   }
 };
 
-// 모달이 열릴 때 초기화
-onMounted(() => {
-  // 여기서 초기 setupModal 호출 제거 - 위 watch 내부에서 처리
-});
-
 // 컴포넌트 제거 시 원래 상태로 복원
 onBeforeUnmount(() => {
-  resetBodyStyles();
+  unlockScroll();
 });
 
 // visible 변경 시 상태 초기화
