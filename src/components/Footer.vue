@@ -1,48 +1,55 @@
 <template>
-  <footer class="footer">
-    <div class="footer-container">
-      <div class="footer-content">
-        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/home')"
+  <aside class="sidebar" 
+          ref="sidebarRef" 
+          :class="{'expanded': isExpanded}" 
+          @mouseenter="expandSidebar" 
+          @mouseleave="collapseSidebar">
+    <div class="sidebar-container">
+      <div class="sidebar-content">
+        <button class="nav-btn btn" @click="goTo('/home')"
                 :class="{ 'active': isActive('/home') }" title="홈">
           <div class="icon-container">
             <img src="@/assets/icon/home.png" alt="홈" class="nav-icon" />
           </div>
+          <span class="nav-text">홈</span>
         </button>
 
-        <div v-if="isLoggedIn" class="position-relative">
-          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal" title="검색">
-            <div class="icon-container">
-              <img src="@/assets/icon/search.png" alt="검색" class="nav-icon" />
-            </div>
-          </button>
-        </div>
+        <button v-if="isLoggedIn" class="nav-btn btn" @click="openSearchModal" title="검색">
+          <div class="icon-container">
+            <img src="@/assets/icon/search.png" alt="검색" class="nav-icon" />
+          </div>
+          <span class="nav-text">검색</span>
+        </button>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/ranking')"
+        <button class="nav-btn btn" @click="goTo('/ranking')"
                 :class="{ 'active': isActive('/ranking') }" title="랭킹">
           <div class="icon-container">
             <img src="@/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
           </div>
+          <span class="nav-text">랭킹</span>
         </button>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center" @click="goTo('/records')"
+        <button class="nav-btn btn" @click="goTo('/records')"
                 :class="{ 'active': isActive('/records') }" title="기록">
           <div class="icon-container">
             <img src="@/assets/icon/records.png" alt="기록" class="nav-icon" />
           </div>
+          <span class="nav-text">기록</span>
         </button>
 
-        <button class="nav-btn btn d-flex flex-column align-items-center" @click="reloadToProfile"
+        <button class="nav-btn btn" @click="reloadToProfile"
                 :class="{ 'active': isActive('/profile') }" title="프로필">
           <div class="icon-container">
             <img src="@/assets/icon/profile.png" alt="프로필" class="nav-icon" />
           </div>
+          <span class="nav-text">프로필</span>
         </button>
 
-        <button v-if="isLoggedIn" class="nav-btn btn d-flex flex-column align-items-center"
-                @click="logout" title="로그아웃">
+        <button v-if="isLoggedIn" class="nav-btn btn" @click="logout" title="로그아웃">
           <div class="icon-container">
             <img src="@/assets/icon/logout.png" alt="로그아웃" class="nav-icon" />
           </div>
+          <span class="nav-text">로그아웃</span>
         </button>
       </div>
     </div>
@@ -101,7 +108,7 @@
         </div>
       </div>
     </teleport>
-  </footer>
+  </aside>
 </template>
 
 <script setup>
@@ -109,7 +116,7 @@
 import { useUserStore } from "@/scripts/store";
 import router from "@/scripts/router";
 import axios from "axios";
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
 import ProfileRing from "@/components/profile/ProfileRing.vue";
 
 // Pinia 스토어 인스턴스 생성
@@ -121,13 +128,38 @@ const showSearch = ref(false);
 const localShowSearch = ref(false);
 const searched = ref(false);
 const modalRef = ref(null);
+const sidebarRef = ref(null);
 const scrollbarWidth = ref(0);
 const savedScrollY = ref(0);
+const isExpanded = ref(false);
 
 // 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 봄
 const isLoggedIn = computed(() => {
   return userStore.currentMember.id !== 0;
 });
+
+// 사이드바 마우스 이벤트 핸들러 설정
+onMounted(() => {
+  console.log('사이드바 컴포넌트 마운트됨');
+  // 이벤트 리스너는 template에서 직접 설정했으므로 여기서는 추가 설정 불필요
+});
+
+// 컴포넌트 제거 시 이벤트 리스너 제거
+onBeforeUnmount(() => {
+  unlockScroll();
+});
+
+// 사이드바 확장
+const expandSidebar = () => {
+  console.log('사이드바 확장');
+  isExpanded.value = true;
+};
+
+// 사이드바 축소
+const collapseSidebar = () => {
+  console.log('사이드바 축소');
+  isExpanded.value = false;
+};
 
 // 스크롤바 너비 계산
 const getScrollbarWidth = () => {
@@ -176,11 +208,6 @@ const setupModal = () => {
     }
   }
 };
-
-// 컴포넌트 제거 시 원래 상태로 복원
-onBeforeUnmount(() => {
-  unlockScroll();
-});
 
 const goTo = (path) => {
   if (isActive(path)) return; // 이미 해당 페이지에 있으면 작업 중단
@@ -275,17 +302,17 @@ const isActive = (path) => {
   --scrollbar-width: 0px;
 }
 
-.footer {
+.sidebar {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: 70px; /* 80px에서 70px로 줄임 - 텍스트가 없어서 더 좁아도 됨 */
+  align-items: flex-start;
+  width: 70px;
   position: fixed;
   left: 5px;
   top: 50%;
   transform: translateY(-50%);
   height: auto;
-  min-height: 450px; /* 500px에서 450px로 줄임 - 버튼 간 간격이 줄어 전체 높이도 줄임 */
+  min-height: 450px;
   border: none;
   margin: 0;
   padding: 15px 10px;
@@ -295,43 +322,95 @@ const isActive = (path) => {
   z-index: 100;
   max-height: 95vh;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  scrollbar-width: none;
+  transition: width 0.3s ease;
 }
 
-.footer-content {
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar.expanded {
+  width: 180px;
+}
+
+.sidebar-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 10px 0;
   width: 100%;
-  max-width: 70px; /* 100px에서 70px로 줄임 */
-  gap: 20px; /* 5px에서 20px로 증가 - 텍스트가 없으므로 버튼 간격 늘림 */
+  gap: 20px;
 }
 
+/* 버튼 기본 스타일 */
 .nav-btn {
   position: relative;
-  color: #6c757d;
-  padding: 10px;
-  border: none;
-  background: transparent;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  overflow: hidden;
-  border-radius: 12px; /* 50%에서 12px로 변경 - 둥근 정사각형으로 변경 */
+  padding: 0;
   margin: 0;
   width: 50px;
   height: 50px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  overflow: visible;
+  transition: background-color 0.3s ease;
 }
 
+/* 확장된 상태에서도 버튼 크기 유지 */
+.sidebar.expanded .nav-btn {
+  width: 50px;
+}
+
+/* 아이콘 컨테이너 */
+.icon-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: none;
+}
+
+.nav-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+/* 텍스트 요소를 버튼 영역 바깥에 배치 */
+.nav-text {
+  position: absolute;
+  left: 60px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6c757d;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.sidebar.expanded .nav-text {
+  opacity: 1;
+}
+
+/* 호버 및 액티브 상태 */
 .nav-btn:hover {
   color: #212529;
-  transform: scale(1.1);
   background-color: rgba(108, 117, 125, 0.1);
+}
+
+.nav-btn:hover .nav-icon {
+  transform: scale(1.15);
 }
 
 .nav-btn:active {
@@ -341,7 +420,10 @@ const isActive = (path) => {
 .nav-btn.active {
   color: #212529;
   background-color: rgba(108, 117, 125, 0.1);
-  border-radius: 12px; /* 50%에서 12px로 변경 */
+}
+
+.nav-btn.active .nav-icon {
+  transform: scale(1.2);
 }
 
 .nav-btn.active::after {
@@ -354,42 +436,6 @@ const isActive = (path) => {
   background-color: #a5d6a7;
   border-radius: 0 4px 4px 0;
   transform: translateY(-50%);
-}
-
-.icon-container {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: auto;
-  margin-bottom: 0; /* 10px에서 0으로 변경 - 텍스트가 없으므로 마진 필요 없음 */
-  transition: transform 0.3s ease;
-}
-
-.nav-icon {
-  width: 30px; /* 36px에서 30px로 변경 */
-  height: 30px; /* 36px에서 30px로 변경 */
-  object-fit: contain;
-  transition: transform 0.3s ease;
-}
-
-.nav-btn:hover .icon-container {
-  transform: scale(1.15);
-}
-
-.nav-btn.active .icon-container {
-  transform: scale(1.2);
-}
-
-.footer small {
-  font-size: 0.9rem; /* 0.7rem에서 0.9rem으로 폰트 크기 증가 */
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
-  white-space: nowrap;
-}
-
-.nav-btn:hover small {
-  opacity: 1;
 }
 
 /* FollowModal에서 가져온 모달 스타일 */
@@ -415,28 +461,20 @@ const isActive = (path) => {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .modal-content {
   background-color: white;
   padding: 1.5rem 1.5rem;
   padding-top: 0.3rem;
-  padding-right: 1rem;/* 상단 여백 줄임 */
+  padding-right: 1rem;
   border-radius: 12px;
   width: 90%;
   max-width: 600px;
@@ -445,7 +483,6 @@ const isActive = (path) => {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #e6e6e6 #f5f5f5;
-  /* 스크롤바가 있어도 둥근 모서리 유지 */
   border-radius: 12px;
   mask-image: radial-gradient(white, black);
   -webkit-mask-image: -webkit-radial-gradient(white, black);
@@ -460,28 +497,16 @@ const isActive = (path) => {
 }
 
 @keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes popOut {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.95); }
 }
 
-/* 스크롤바 스타일 수정 */
+/* 스크롤바 스타일 */
 .modal-content::-webkit-scrollbar {
   width: 6px;
 }
@@ -501,14 +526,14 @@ const isActive = (path) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px; /* 여백 줄임 */
+  margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e6e6e6;
   position: relative;
 }
 
 .modal-title {
-  font-size: 24px; /* 폰트 크기 약간 줄임 */
+  font-size: 24px;
   font-weight: bold;
   color: #222;
   text-align: left;
@@ -669,46 +694,47 @@ const isActive = (path) => {
   color: #ddd;
 }
 
-/* 푸터에 다음과 같은 스타일 추가 (실제 푸터 클래스명에 맞게 수정) */
-.footer {
-  pointer-events: none; /* 푸터가 마우스 이벤트를 차단하지 않도록 설정 */
-}
-
-/* 푸터 내의 실제 상호작용이 필요한 요소들에는 pointer-events 재활성화 */
-.footer a,
-.footer button,
-.footer input {
-  pointer-events: auto;
-}
-
 /* 모바일 화면 최적화 */
 @media (max-width: 480px) {
-  .footer-container {
+  .sidebar-container {
     width: 95%;
     border-radius: 12px 12px 0 0;
   }
 
-  .footer {
-    width: 60px; /* 모바일에서는 더 작게 */
+  .sidebar {
+    width: 60px;
     padding: 12px 8px;
     min-height: 400px;
   }
-
-  .footer-content {
-    gap: 15px; /* 모바일에서는 간격 약간 줄임 */
+  
+  .sidebar.expanded {
+    width: 160px;
   }
-
+  
+  .sidebar-content {
+    gap: 15px;
+  }
+  
   .nav-btn {
-    width: 45px; /* 모바일에서는 버튼 작게 */
+    width: 45px;
     height: 45px;
-    padding: 8px;
   }
-
+  
+  .icon-container {
+    width: 45px;
+    height: 45px;
+  }
+  
   .nav-icon {
-    width: 26px; /* 모바일에서는 아이콘 작게 */
+    width: 26px;
     height: 26px;
   }
-
+  
+  .nav-text {
+    left: 55px;
+    font-size: 13px;
+  }
+  
   .modal-content {
     width: 95%;
     max-height: 70vh;

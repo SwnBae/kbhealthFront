@@ -18,12 +18,14 @@
       </button>
     </div>
 
-    <!-- Character 컴포넌트 분리 -->
-    <div v-if="showCharacter && isLoggedIn" class="fixed-character">
-      <Character
-          @close="showCharacter = false"
-      />
-    </div>
+    <!-- Character 컴포넌트 분리 및 애니메이션 추가 -->
+    <transition name="character-animation">
+      <div v-if="showCharacter && isLoggedIn" class="fixed-character">
+        <Character
+            @close="showCharacter = false"
+        />
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -135,6 +137,46 @@ onMounted(() => {
   top: 50px; /* 상단에서 여백 */
   z-index: 100;
   width: 350px; /* 너비 지정 */
+}
+
+/* Character 컴포넌트 애니메이션 스타일 추가 */
+.character-animation-enter-active {
+  animation: bounce-in 0.5s;
+}
+
+.character-animation-leave-active {
+  animation: bounce-out 0.4s;
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3) translateY(40px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  70% { 
+    transform: scale(0.95); 
+  }
+  100% { 
+    transform: scale(1); 
+  }
+}
+
+@keyframes bounce-out {
+  0% { 
+    transform: scale(1); 
+    opacity: 1;
+  }
+  30% { 
+    transform: scale(1.05); 
+  }
+  100% {
+    transform: scale(0.3) translateY(40px);
+    opacity: 0;
+  }
 }
 /* 여기까지 수정된 스타일 */
 

@@ -2,7 +2,7 @@
 <template>
   <div class="character-container">
     <!-- 캐릭터 애니메이션 -->
-    <div class="character" :class="{ 'animate-pop': true }">
+    <div class="character">
       <!-- 캐릭터 이미지 - 동적 이미지로 변경 -->
       <div class="character-face">
         <img :src="getImageUrl(currentFrame)" alt="토끼 캐릭터" class="character-image">
@@ -11,37 +11,39 @@
 
     <!-- 말풍선 (대화상자) -->
     <div class="speech-bubble">
-      <p v-html="formattedMessage"></p>
+      <div class="speech-content">
+        <p v-html="formattedMessage"></p>
 
-      <!-- 로딩 표시 -->
-      <div v-if="loading" class="loading-indicator">
-        <span>음식을 추천 중이에요...</span>
-      </div>
+        <!-- 로딩 표시 -->
+        <div v-if="loading" class="loading-indicator">
+          <span>음식을 추천 중이에요...</span>
+        </div>
 
-      <!-- 초기 선택 버튼들 (대화 후 표시) -->
-      <div v-if="showOptions" class="option-buttons">
-        <button
-            @click="selectOption(0)"
-            class="option-button"
-        >
-          {{ options[0].label }}
-        </button>
-        <button
-            @click="selectOption(1)"
-            class="option-button"
-        >
-          {{ options[1].label }}
-        </button>
-      </div>
+        <!-- 초기 선택 버튼들 (대화 후 표시) -->
+        <div v-if="showOptions" class="option-buttons">
+          <button
+              @click="selectOption(0)"
+              class="option-button"
+          >
+            {{ options[0].label }}
+          </button>
+          <button
+              @click="selectOption(1)"
+              class="option-button"
+          >
+            {{ options[1].label }}
+          </button>
+        </div>
 
-      <!-- 다시 추천 받기 버튼 (1번 응답 후 표시) -->
-      <div v-if="showRetryButton" class="retry-button-container">
-        <button
-            @click="retryRecommendation"
-            class="retry-button"
-        >
-          이게 뭐야?! 다시 추천해줘!!
-        </button>
+        <!-- 다시 추천 받기 버튼 (1번 응답 후 표시) -->
+        <div v-if="showRetryButton" class="retry-button-container">
+          <button
+              @click="retryRecommendation"
+              class="retry-button"
+          >
+            이게 뭐야?! 다시 추천해줘!!
+          </button>
+        </div>
       </div>
     </div>
 
@@ -104,6 +106,16 @@ const animateRabbit = () => {
 const typingSpeed = 50; // 타이핑 속도 (밀리초)
 let typingTimer = null;
 
+// 메시지가 표시될 때마다 스크롤 맨 아래로 이동
+const scrollToBottom = () => {
+  nextTick(() => {
+    const speechContent = document.querySelector('.speech-content');
+    if (speechContent) {
+      speechContent.scrollTop = speechContent.scrollHeight;
+    }
+  });
+};
+
 // 타이핑 효과 함수 수정
 const typeMessage = (message) => {
   let i = 0;
@@ -118,6 +130,8 @@ const typeMessage = (message) => {
     if (i < message.length) {
       displayedMessage.value += message.charAt(i);
       i++;
+      // 타이핑 중에도 스크롤 위치 업데이트
+      scrollToBottom();
     } else {
       clearInterval(typingTimer);
       
@@ -129,11 +143,13 @@ const typeMessage = (message) => {
         // 초기 메시지 후 선택지 표시
         setTimeout(() => {
           showOptions.value = true;
+          scrollToBottom();
         }, 500);
       } else if (options[0].response && message === options[0].response) {
         // GPT 응답 후 '다시 추천' 버튼 표시
         setTimeout(() => {
           showRetryButton.value = true;
+          scrollToBottom();
         }, 500);
       }
     }
@@ -265,13 +281,39 @@ defineEmits(['close']);
 .speech-bubble {
   position: relative;
   width: 330px; /* 너비 증가 */
-  padding: 18px;
+  padding: 0;
   background-color: white;
   border-radius: 10px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
   z-index: 1;
-  animation: fadeIn 0.5s ease-out 0.5s forwards;
   margin-top: 10px;
+}
+
+/* 말풍선 안에 스크롤 가능한 내용 컨테이너 */
+.speech-content {
+  max-height: 300px; /* 최대 높이 설정 - 필요에 따라 조정 가능 */
+  overflow-y: auto; /* 세로 스크롤 자동 표시 */
+  padding: 18px;
+  border-radius: 10px;
+}
+
+/* 스크롤바 스타일 커스터마이징 */
+.speech-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.speech-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.speech-content::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 10px;
+}
+
+.speech-content::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
 }
 
 .speech-bubble::before {
@@ -397,21 +439,11 @@ defineEmits(['close']);
 }
 
 /* 애니메이션 정의 */
-@keyframes popOut {
-  0% { transform: scale(0); opacity: 0; }
-  50% { transform: scale(1.2); opacity: 1; }
-  75% { transform: scale(0.9); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-.animate-pop {
-  animation: popOut 0.8s ease-out forwards;
-}
 
 @keyframes expandOptions {
   from {

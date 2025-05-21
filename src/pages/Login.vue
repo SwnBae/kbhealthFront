@@ -188,17 +188,19 @@ const registerUser = () => {
   color: #fff;
   font-family: 'Arial', sans-serif;
   padding: 2rem;
-  height: auto;
   overflow: hidden;
+  
+  /* 애니메이션 복원 */
   transition: max-height 0.5s ease;
 }
 
+/* 애니메이션을 위한 높이 복원 - 조정된 값 */
 .login-panel:not(.registering) {
-  max-height: 400px; /* 로그인 폼 실제 높이에 맞게 조정 */
+  max-height: 380px; /* 로그인 폼에 맞게 조정 */
 }
 
 .login-panel.registering {
-  max-height: 850px; /* 회원가입 폼 실제 높이에 맞게 조정 */
+  max-height: min(850px, 80vh); /* 고정값과 뷰포트 비율 중 작은 값 사용 */
 }
 
 /* Fade transition for inner content */
@@ -213,6 +215,46 @@ const registerUser = () => {
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+/* 로그인 모드와 회원가입 모드에 따른 스크롤 설정 */
+.login-panel:not(.registering) .panel-content {
+  overflow-y: visible;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+.login-panel.registering .panel-content {
+  max-height: calc(min(850px, 80vh) - 5rem); /* 패널 최대 높이에서 패딩과 링크 영역 제외 */
+  overflow-y: auto; /* 세로 스크롤 활성화 */
+  padding-right: 12px; /* 스크롤바와 콘텐츠 사이 간격 추가 */
+  margin-right: -12px; /* 패딩 추가에 따른 너비 조정 */
+}
+
+/* 개선된 스크롤바 스타일링 */
+.panel-content::-webkit-scrollbar {
+  width: 6px; /* 스크롤바 너비 약간 증가 */
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03); /* 더 투명하게 */
+  border-radius: 10px;
+  margin: 4px 0; /* 스크롤바 위아래 여백 */
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15); /* 더 투명하게 */
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05); /* 테두리 추가 */
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 스크롤바 호버 시 더 잘 보이게 */
+.login-panel.registering .panel-content:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .btn-back {
@@ -275,7 +317,7 @@ const registerUser = () => {
   background: rgba(255,255,255,0.5);
 }
 
-/* 수정된 토글 링크 스타일 */
+/* 토글 링크 스타일 */
 .toggle-link-container {
   height: 2rem; /* 고정된 높이로 설정 */
   margin-top: 1rem;
