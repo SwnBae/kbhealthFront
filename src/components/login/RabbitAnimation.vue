@@ -158,7 +158,7 @@ function playAnimation(frameList, startIdx, endIdx, onComplete) {
   const animate = (timestamp) => {
     // 현재 애니메이션 타입에 맞는 속도 계수로 딜레이 계산
     const speedMultiplier = getSpeedMultiplier();
-    const frameDelay = 60 / speedMultiplier; // 기본 60ms를 속도 계수로 나눔
+    const frameDelay = 40 / speedMultiplier; // 기본 60ms를 속도 계수로 나눔
     
     if (!lastFrameTime || timestamp - lastFrameTime >= frameDelay) {
       // 현재 프레임 표시
