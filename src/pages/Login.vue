@@ -169,7 +169,7 @@ const registerUser = () => {
 .login-page {
   position: fixed;
   inset: 0;
-  background: url('/src/assets/img/background_image.png') no-repeat center/cover;
+  background: url('/assets/img/background_image.png') no-repeat center/cover;
   display: flex;
   flex-direction: column;
   align-items: center;

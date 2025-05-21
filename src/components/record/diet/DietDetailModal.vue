@@ -71,7 +71,7 @@ import dayjs from 'dayjs';
 import axios from 'axios';
 import NutritionSummary from './detail/NutritionSummary.vue';
 // 기본 이미지 import
-import defaultFoodImage from '@/assets/img/default_food.png';
+import defaultFoodImage from '/assets/img/default_food.png';
 
 const props = defineProps({
   record: {

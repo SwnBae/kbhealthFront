@@ -64,7 +64,7 @@
 import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
 import dayjs from 'dayjs';
 // 기본 이미지 import
-import defaultExerciseImage from '@/assets/img/default_weight.png';
+import defaultExerciseImage from '/assets/img/default_weight.png';
 
 const props = defineProps({
   record: {

@@ -9,22 +9,23 @@
         <button class="nav-btn btn" @click="goTo('/home')"
                 :class="{ 'active': isActive('/home') }" title="홈">
           <div class="icon-container">
-            <img src="@/assets/icon/home.png" alt="홈" class="nav-icon" />
+            <img src="/assets/icon/home.png" alt="홈" class="nav-icon" />
           </div>
           <span class="nav-text">홈</span>
         </button>
 
-        <button v-if="isLoggedIn" class="nav-btn btn" @click="openSearchModal" title="검색">
-          <div class="icon-container">
-            <img src="@/assets/icon/search.png" alt="검색" class="nav-icon" />
-          </div>
-          <span class="nav-text">검색</span>
-        </button>
+        <div v-if="isLoggedIn" class="position-relative">
+          <button class="nav-btn btn d-flex flex-column align-items-center" @click="openSearchModal" title="검색">
+            <div class="icon-container">
+              <img src="/assets/icon/search.png" alt="검색" class="nav-icon" />
+            </div>
+          </button>
+        </div>
 
         <button class="nav-btn btn" @click="goTo('/ranking')"
                 :class="{ 'active': isActive('/ranking') }" title="랭킹">
           <div class="icon-container">
-            <img src="@/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
+            <img src="/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
           </div>
           <span class="nav-text">랭킹</span>
         </button>
@@ -32,7 +33,7 @@
         <button class="nav-btn btn" @click="goTo('/records')"
                 :class="{ 'active': isActive('/records') }" title="기록">
           <div class="icon-container">
-            <img src="@/assets/icon/records.png" alt="기록" class="nav-icon" />
+            <img src="/assets/icon/records.png" alt="기록" class="nav-icon" />
           </div>
           <span class="nav-text">기록</span>
         </button>
@@ -40,14 +41,14 @@
         <button class="nav-btn btn" @click="reloadToProfile"
                 :class="{ 'active': isActive('/profile') }" title="프로필">
           <div class="icon-container">
-            <img src="@/assets/icon/profile.png" alt="프로필" class="nav-icon" />
+            <img src="/assets/icon/profile.png" alt="프로필" class="nav-icon" />
           </div>
           <span class="nav-text">프로필</span>
         </button>
 
         <button v-if="isLoggedIn" class="nav-btn btn" @click="logout" title="로그아웃">
           <div class="icon-container">
-            <img src="@/assets/icon/logout.png" alt="로그아웃" class="nav-icon" />
+            <img src="/assets/icon/logout.png" alt="로그아웃" class="nav-icon" />
           </div>
           <span class="nav-text">로그아웃</span>
         </button>

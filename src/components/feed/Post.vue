@@ -128,8 +128,8 @@ import DeleteConfirmModal from '@/components/feed/DeleteConfirmModal.vue';
 import axios from 'axios';
 // Vuex 스토어 -> Pinia 스토어로 변경
 import { useUserStore } from "@/scripts/store";
-import defaultPostImage from '@/assets/img/default_post_image.png';
-import defaultProfileImage from '@/assets/img/default_profile.png';
+import defaultPostImage from '/assets/img/default_post_image.png';
+import defaultProfileImage from '/assets/img/default_profile.png';
 const userStore = useUserStore();
 
 dayjs.extend(relativeTime);

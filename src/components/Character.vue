@@ -61,7 +61,7 @@ import axios from 'axios';
 // 이미지 경로 관리를 위한 함수
 const getImageUrl = (frame) => {
   // Vite에서는 import.meta.url을 사용
-  return new URL(`/src/assets/img/rabbit/rabbitchat (${frame}).png`, import.meta.url).href;
+  return `/assets/img/rabbit/rabbitchat (${frame}).png`;
 };
 
 // 초기 메시지

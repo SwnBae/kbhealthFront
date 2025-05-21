@@ -15,7 +15,7 @@
           data-tooltip="안녕하세요! 식단 도움이 필요하면 눌러주세요!"
           :class="{ 'show-initial-tooltip': showInitialTooltip }"
       >
-        <img src="@/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
+        <img src="/assets/img/rabbit/rabbitgo (1).png" alt="토끼 캐릭터" class="button-image">
       </button>
     </div>
 
