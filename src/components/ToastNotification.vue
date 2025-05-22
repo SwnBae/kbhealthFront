@@ -1,0 +1,303 @@
+<!-- components/ToastNotification.vue -->
+<template>
+  <teleport to="body">
+    <transition name="toast-slide" appear>
+      <div v-if="visible" class="toast-notification" :class="typeClass">
+        <div class="toast-content">
+          <!-- 알림 아이콘 -->
+          <div class="toast-icon">
+            <component :is="iconComponent" />
+          </div>
+
+          <!-- 알림 내용 -->
+          <div class="toast-text">
+            <div class="toast-title">{{ title }}</div>
+            <div class="toast-message">{{ message }}</div>
+          </div>
+
+          <!-- 닫기 버튼 -->
+          <button @click="close" class="toast-close" aria-label="알림 닫기">
+            ✕
+          </button>
+        </div>
+
+        <!-- 진행 바 -->
+        <div class="toast-progress">
+          <div class="toast-progress-bar" :style="progressStyle"></div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
+</template>
+
+<script setup>
+import { ref, onMounted, computed, onUnmounted } from 'vue';
+
+const props = defineProps({
+  title: {
+    type: String,
+    default: '알림'
+  },
+  message: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    default: 'info', // info, success, warning, error
+    validator: (value) => ['info', 'success', 'warning', 'error'].includes(value)
+  },
+  duration: {
+    type: Number,
+    default: 5000 // 5초
+  },
+  showProgress: {
+    type: Boolean,
+    default: true
+  }
+});
+
+const emit = defineEmits(['close']);
+
+const visible = ref(false);
+const progress = ref(100);
+let progressInterval = null;
+let autoCloseTimer = null;
+
+// 타입별 클래스
+const typeClass = computed(() => `toast-${props.type}`);
+
+// 타입별 아이콘 컴포넌트
+const iconComponent = computed(() => {
+  const icons = {
+    info: 'InfoIcon',
+    success: 'CheckIcon',
+    warning: 'WarningIcon',
+    error: 'ErrorIcon'
+  };
+  return icons[props.type] || 'InfoIcon';
+});
+
+// 진행 바 스타일
+const progressStyle = computed(() => ({
+  width: `${progress.value}%`,
+  transition: progress.value === 100 ? 'none' : `width ${props.duration}ms linear`
+}));
+
+// 토스트 닫기
+const close = () => {
+  visible.value = false;
+  clearTimers();
+  setTimeout(() => {
+    emit('close');
+  }, 300); // 애니메이션 시간
+};
+
+// 타이머 정리
+const clearTimers = () => {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+  if (autoCloseTimer) {
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
+  }
+};
+
+// 마운트 시 토스트 표시 및 자동 닫기 설정
+onMounted(() => {
+  visible.value = true;
+
+  if (props.duration > 0) {
+    // 진행 바 애니메이션
+    if (props.showProgress) {
+      const startTime = Date.now();
+      progressInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, props.duration - elapsed);
+        progress.value = (remaining / props.duration) * 100;
+
+        if (remaining <= 0) {
+          clearInterval(progressInterval);
+        }
+      }, 16); // 60fps
+    }
+
+    // 자동 닫기
+    autoCloseTimer = setTimeout(() => {
+      close();
+    }, props.duration);
+  }
+});
+
+// 컴포넌트 해제 시 타이머 정리
+onUnmounted(() => {
+  clearTimers();
+});
+</script>
+
+<style scoped>
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  min-width: 300px;
+  max-width: 400px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.toast-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+  color: #1a1a1a;
+}
+
+.toast-message {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #6b7280;
+  word-break: break-word;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.toast-close:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.toast-progress {
+  height: 3px;
+  background-color: rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.toast-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  transition: width 16ms linear;
+}
+
+/* 타입별 스타일 */
+.toast-info .toast-icon {
+  background-color: #dbeafe;
+  color: #3b82f6;
+}
+
+.toast-info .toast-progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+}
+
+.toast-success .toast-icon {
+  background-color: #d1fae5;
+  color: #10b981;
+}
+
+.toast-success .toast-progress-bar {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.toast-warning .toast-icon {
+  background-color: #fef3c7;
+  color: #f59e0b;
+}
+
+.toast-warning .toast-progress-bar {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.toast-error .toast-icon {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+.toast-error .toast-progress-bar {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+/* 애니메이션 */
+.toast-slide-enter-active {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.toast-slide-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.toast-slide-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.toast-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 480px) {
+  .toast-notification {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    min-width: auto;
+    max-width: none;
+  }
+
+  .toast-content {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .toast-title {
+    font-size: 13px;
+  }
+
+  .toast-message {
+    font-size: 12px;
+  }
+}
+</style>

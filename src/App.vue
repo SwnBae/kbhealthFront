@@ -6,7 +6,7 @@
       <RouterView />
     </div>
 
-    <!-- 우측 상단 알림 버튼 추가 -->
+    <!-- 우측 상단 알림 버튼 -->
     <div v-if="isLoggedIn" class="notification-button-container">
       <button
           @click="toggleNotification"
@@ -14,7 +14,6 @@
           data-tooltip="알림 확인하기"
       >
         <img src="/assets/icon/notification.png" alt="알림" class="notification-icon">
-        <!-- 읽지 않은 알림 개수 뱃지 -->
         <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </button>
     </div>
@@ -26,8 +25,7 @@
         @close="closeNotification"
     />
 
-    <!-- 왼쪽 버튼과 캐릭터 영역 분리 -->
-    <!-- 고정된 버튼 영역 -->
+    <!-- 캐릭터 버튼 -->
     <div v-if="isLoggedIn" class="fixed-button">
       <button
           @click="toggleCharacter"
@@ -39,35 +37,41 @@
       </button>
     </div>
 
-    <!-- Character 컴포넌트 분리 및 애니메이션 추가 -->
+    <!-- 캐릭터 컴포넌트 -->
     <transition name="character-animation">
       <div v-if="showCharacter && isLoggedIn" class="fixed-character">
-        <Character
-            @close="showCharacter = false"
-        />
+        <Character @close="showCharacter = false" />
       </div>
     </transition>
+
+    <!-- 🍞 토스트 컨테이너 추가 -->
+    <ToastContainer />
   </div>
 </template>
 
 <script setup>
-// 기존 import에 nextTick 추가
 import { onMounted, computed, ref, nextTick, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import Footer from "@/components/Footer.vue";
 import Character from "@/components/Character.vue";
-import Notification from "@/components/Notification.vue"; // 알림 컴포넌트 추가
+import Notification from "@/components/Notification.vue";
+import ToastContainer from "@/components/ToastContainer.vue"; // 🍞 토스트 컨테이너 추가
 import { useUserStore } from "@/scripts/store";
+import { useWebSocket } from '@/composables/useWebSocket';
+import { useToast } from '@/composables/useToast'; // 🍞 토스트 훅 추가
 import axios from "axios";
 
 // 필요한 객체 초기화
 const router = useRouter();
 const userStore = useUserStore();
+const { notification: showToastNotification } = useToast(); // 🍞 토스트 함수
 const showCharacter = ref(false);
-const showInitialTooltip = ref(false); // 초기 말풍선 표시 여부를 위한 상태 추가
-const showNotification = ref(false); // 알림 모달 표시 여부
-const unreadCount = ref(0); // 읽지 않은 알림 개수
-const notificationCheckInterval = ref(null); // 알림 확인 인터벌
+const showInitialTooltip = ref(false);
+const showNotification = ref(false);
+const unreadCount = ref(0);
+const { stompClient, isConnected, connect, disconnect, subscribe } = useWebSocket();
+const notificationSubscription = ref(null);
+const countSubscription = ref(null);
 
 // 로그인 여부 확인
 const check = async () => {
@@ -77,78 +81,137 @@ const check = async () => {
       router.push("/login");
     } else {
       userStore.setCurrentMember(data);
-      // 로그인 성공 시 읽지 않은 알림 개수 확인
-      fetchUnreadCount();
+      fetchUnreadCountOnce();
     }
   } catch (error) {
     router.push("/login");
   }
 };
 
-// 읽지 않은 알림 개수 가져오기
-const fetchUnreadCount = async () => {
+// 한 번만 알림 개수 가져오기
+const fetchUnreadCountOnce = async () => {
   if (!isLoggedIn.value) return;
 
   try {
     const response = await axios.get('/api/notifications/unread/count');
     unreadCount.value = response.data;
+    console.log('초기 알림 개수:', response.data);
   } catch (error) {
     console.error('알림 개수 조회 중 오류 발생:', error);
   }
 };
 
-// 로그인 여부 computed로 확인
+// WebSocket을 통한 실시간 알림 구독
+const subscribeToNotifications = () => {
+  if (!isConnected.value) {
+    setTimeout(subscribeToNotifications, 1000);
+    return;
+  }
+
+  // 개인 알림 구독
+  notificationSubscription.value = subscribe(
+      '/user/queue/notifications',
+      (message) => {
+        const notification = JSON.parse(message.body);
+        console.log('🔔 새 알림 수신:', notification);
+
+        // 🍞 토스트 알림 표시
+        showToastNotification(notification);
+
+        // 브라우저 알림도 함께 표시
+        showRealtimeNotification(notification);
+      }
+  );
+
+  // 읽지 않은 알림 개수 실시간 구독
+  countSubscription.value = subscribe(
+      '/user/queue/notification-count',
+      (message) => {
+        const count = JSON.parse(message.body);
+        console.log('🔢 알림 개수 실시간 업데이트:', count);
+        unreadCount.value = count;
+      }
+  );
+
+  console.log('✅ WebSocket 구독 완료');
+};
+
+// 브라우저 알림 표시
+const showRealtimeNotification = (notification) => {
+  if (Notification.permission === 'granted') {
+    new Notification(`🔔 새 알림`, {
+      body: notification.content,
+      icon: '/assets/icon/notification.png',
+      tag: 'health-notification'
+    });
+  }
+};
+
+// 브라우저 알림 권한 요청
+const requestNotificationPermission = async () => {
+  if ('Notification' in window && Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    console.log('알림 권한:', permission);
+  }
+};
+
+// 로그인 여부
 const isLoggedIn = computed(() => userStore.currentMember.id !== 0);
 
-// 캐릭터 표시/숨김 토글 함수 - nextTick 사용
+// 캐릭터 토글
 const toggleCharacter = () => {
   nextTick(() => {
     showCharacter.value = !showCharacter.value;
   });
 };
 
-// 알림 모달 표시/숨김 토글 함수
+// 알림 모달 토글
 const toggleNotification = () => {
   nextTick(() => {
     showNotification.value = !showNotification.value;
   });
 };
 
-// 알림 모달 닫기 함수
+// 알림 모달 닫기
 const closeNotification = () => {
   showNotification.value = false;
-  // 알림 창을 닫았을 때 다시 읽지 않은 알림 개수 확인
-  fetchUnreadCount();
 };
 
-// 컴포넌트 마운트 시 로그인 상태 확인 및 초기 말풍선 표시
+// 컴포넌트 마운트
 onMounted(async () => {
   await check();
 
-  // 로그인되어 있을 경우 초기 말풍선 표시
   if (isLoggedIn.value) {
-    // 페이지 로드 후 1초 뒤에 말풍선 표시
+    // 초기 말풍선
     setTimeout(() => {
       showInitialTooltip.value = true;
-
-      // 5초 후에 말풍선 숨기기
       setTimeout(() => {
         showInitialTooltip.value = false;
       }, 5000);
     }, 1000);
 
-    // 알림 개수 확인 인터벌 설정 (1분마다)
-    notificationCheckInterval.value = setInterval(fetchUnreadCount, 60000);
+    // WebSocket 연결
+    connect();
+    setTimeout(subscribeToNotifications, 1000);
+
+    // 브라우저 알림 권한
+    requestNotificationPermission();
   }
 });
 
-// 컴포넌트 제거 시 인터벌 제거
+// 컴포넌트 해제
 onBeforeUnmount(() => {
-  if (notificationCheckInterval.value) {
-    clearInterval(notificationCheckInterval.value);
+  if (notificationSubscription.value) {
+    notificationSubscription.value.unsubscribe();
   }
+  if (countSubscription.value) {
+    countSubscription.value.unsubscribe();
+  }
+  disconnect();
 });
 </script>
+
+<!-- 기존 스타일 유지 -->
 
 <style>
 .app-layout {
