@@ -1,75 +1,75 @@
+<!-- Notification.vue - Non-modal 방식 -->
 <template>
-  <teleport to="body">
-    <div ref="modalRef" class="notification-modal" @click.self="closeOverlay"
-         :class="{'fadeIn': isVisible, 'fadeOut': isClosing}">
-      <div class="notification-content animate-on-scroll in-view"
-           :class="{'popIn': isVisible, 'popOut': isClosing}">
-        <div class="modal-header">
-          <h3 class="modal-title">알림</h3>
-          <div class="header-controls">
-            <button class="filter-button" @click="toggleUnreadOnly">
-              {{ unreadOnly ? '모든 알림 보기' : '안 읽은 알림만 보기' }}
-            </button>
-            <button v-if="notifications.length > 0" class="read-all-button" @click="markAllAsRead">
-              모두 읽음
-            </button>
-            <button class="close-icon" @click="closeModal">✕</button>
-          </div>
-        </div>
+  <!-- 🔥 teleport 제거, 전체 화면 오버레이 제거 -->
+  <div v-if="isVisible" class="notification-container"
+       :class="{'bounceIn': isVisible && !isClosing, 'bounceOut': isClosing}">
 
-        <!-- 알림이 없을 때 -->
-        <div v-if="filteredNotifications.length === 0" class="no-notifications">
-          {{ unreadOnly ? '읽지 않은 알림이 없습니다.' : '알림이 없습니다.' }}
-        </div>
-
-        <!-- 알림 목록 -->
-        <div class="notifications-container">
-          <div v-for="notification in filteredNotifications"
-               :key="notification.notificationId"
-               class="notification-item animate-on-scroll in-view"
-               :class="{'unread': !notification.read}"
-               @click="handleNotificationClick(notification)">
-            <div class="notification-cell">
-              <!-- ProfileRing 컴포넌트 사용 -->
-              <ProfileRing
-                  v-if="notification.actorProfileImage"
-                  :profile-image-url="notification.actorProfileImage"
-                  :base-score="0"
-                  :size="48"
-                  :stroke-width="3"
-                  progress-color="#a5d6a7"
-                  alt-text="프로필 이미지"
-                  class="profile-avatar"
-              />
-              <div v-else class="default-avatar">
-                <img src="/assets/img/default_profile.png" alt="기본 이미지" class="default-avatar-img">
-              </div>
-
-              <div class="notification-details">
-                <div class="notification-content-text" v-html="formatContent(notification)"></div>
-                <div class="notification-time">{{ formatTime(notification.createdAt) }}</div>
-              </div>
-
-              <button class="delete-button" @click.stop="deleteNotification(notification.notificationId)">
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 추가 기능 버튼 -->
-        <div class="notification-actions">
-          <button v-if="notifications.length > 0" class="delete-all-button" @click="deleteAllNotifications">
-            모든 알림 삭제
+    <div class="notification-content">
+      <div class="modal-header">
+        <h3 class="modal-title">알림</h3>
+        <div class="header-controls">
+          <button class="filter-button" @click="toggleUnreadOnly">
+            {{ unreadOnly ? '모든 알림 보기' : '안 읽은 알림만 보기' }}
           </button>
+          <button v-if="notifications.length > 0" class="read-all-button" @click="markAllAsRead">
+            모두 읽음
+          </button>
+          <button class="close-icon" @click="closeModal">✕</button>
         </div>
       </div>
+
+      <!-- 알림이 없을 때 -->
+      <div v-if="filteredNotifications.length === 0" class="no-notifications">
+        {{ unreadOnly ? '읽지 않은 알림이 없습니다.' : '알림이 없습니다.' }}
+      </div>
+
+      <!-- 알림 목록 -->
+      <div class="notifications-container">
+        <div v-for="notification in filteredNotifications"
+             :key="notification.notificationId"
+             class="notification-item"
+             :class="{'unread': !notification.read}"
+             @click="handleNotificationClick(notification)">
+          <div class="notification-cell">
+            <!-- ProfileRing 컴포넌트 사용 -->
+            <ProfileRing
+                v-if="notification.actorProfileImage"
+                :profile-image-url="notification.actorProfileImage"
+                :base-score="0"
+                :size="48"
+                :stroke-width="3"
+                progress-color="#a5d6a7"
+                alt-text="프로필 이미지"
+                class="profile-avatar"
+            />
+            <div v-else class="default-avatar">
+              <img src="/assets/img/default_profile.png" alt="기본 이미지" class="default-avatar-img">
+            </div>
+
+            <div class="notification-details">
+              <div class="notification-content-text" v-html="formatContent(notification)"></div>
+              <div class="notification-time">{{ formatTime(notification.createdAt) }}</div>
+            </div>
+
+            <button class="delete-button" @click.stop="deleteNotification(notification.notificationId)">
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 추가 기능 버튼 -->
+      <div class="notification-actions">
+        <button v-if="notifications.length > 0" class="delete-all-button" @click="deleteAllNotifications">
+          모든 알림 삭제
+        </button>
+      </div>
     </div>
-  </teleport>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 import axios from 'axios';
 import router from '@/scripts/router';
@@ -91,9 +91,6 @@ const currentPage = ref(0);
 const pageSize = ref(20);
 const hasMorePages = ref(true);
 const isLoading = ref(false);
-const modalRef = ref(null);
-const scrollbarWidth = ref(0);
-const savedScrollY = ref(0);
 
 // 필터링된 알림 계산
 const filteredNotifications = computed(() => {
@@ -103,18 +100,17 @@ const filteredNotifications = computed(() => {
   return notifications.value;
 });
 
+// 🔥 스크롤 잠금 관련 함수들 제거 (Non-modal이므로 불필요)
+
 // 알림 내용 포맷팅
 const formatContent = (notification) => {
   let content = notification.content;
-
-  // 액터 이름이 있으면 굵게 표시
   if (notification.actorName) {
     content = content.replace(
         notification.actorName,
         `<strong>${notification.actorName}</strong>`
     );
   }
-
   return content;
 };
 
@@ -167,23 +163,19 @@ const loadNotifications = async (page = 0) => {
 
 // 알림 클릭 이벤트 처리
 const handleNotificationClick = async (notification) => {
-  // 읽음 처리
   if (!notification.read) {
     await markAsRead(notification.notificationId);
   }
 
-  // 알림 타입에 따른 네비게이션
   if (notification.type === 'FOLLOW') {
-    if (notification.actorAccount) {  // actorId 대신 actorAccount 사용
+    if (notification.actorAccount) {
       closeModal();
-      router.push(`/profile/${notification.actorAccount}`);  // ID 대신 account 사용
+      router.push(`/profile/${notification.actorAccount}`);
     }
   } else if (['LIKE', 'COMMENT', 'MENTION'].includes(notification.type)) {
     if (notification.relatedId) {
       closeModal();
-      // 게시글 페이지가 아직 구현되지 않았으므로 임시 처리
       alert('게시글 페이지로 이동합니다(미구현)');
-      // 추후 구현 시: router.push(`/posts/${notification.relatedId}`);
     }
   }
 };
@@ -192,12 +184,8 @@ const handleNotificationClick = async (notification) => {
 const markAsRead = async (notificationId) => {
   try {
     await axios.put(`/api/notifications/${notificationId}/read`);
-
     const index = notifications.value.findIndex(n => n.notificationId === notificationId);
     if (index !== -1) {
-      console.log('알림 읽음 처리 완료:', notificationId);
-
-      // 반응형 업데이트를 위해 새 객체로 교체
       notifications.value.splice(index, 1, {
         ...notifications.value[index],
         read: true
@@ -212,10 +200,9 @@ const markAsRead = async (notificationId) => {
 const markAllAsRead = async () => {
   try {
     await axios.put('/api/notifications/read-all');
-    // 모든 알림의 상태 업데이트
     notifications.value = notifications.value.map(n => ({
       ...n,
-      isRead: true
+      read: true
     }));
   } catch (error) {
     console.error('모든 알림 읽음 처리 중 오류 발생:', error);
@@ -226,7 +213,6 @@ const markAllAsRead = async () => {
 const deleteNotification = async (notificationId) => {
   try {
     await axios.delete(`/api/notifications/${notificationId}`);
-    // 삭제된 알림을 배열에서 제거
     notifications.value = notifications.value.filter(n => n.notificationId !== notificationId);
   } catch (error) {
     console.error('알림 삭제 중 오류 발생:', error);
@@ -250,66 +236,13 @@ const toggleUnreadOnly = () => {
   unreadOnly.value = !unreadOnly.value;
 };
 
-// 스크롤바 너비 계산
-const getScrollbarWidth = () => {
-  return window.innerWidth - document.documentElement.clientWidth;
-};
-
-// 스크롤 잠금 함수
-const lockScroll = () => {
-  // 현재 스크롤 위치 저장
-  savedScrollY.value = window.scrollY;
-
-  // 스크롤바 너비 계산
-  scrollbarWidth.value = getScrollbarWidth();
-
-  // body에 overflow: hidden을 적용하여 스크롤 방지
-  document.body.style.overflow = 'hidden';
-  document.body.style.paddingRight = `${scrollbarWidth.value}px`;
-};
-
-// 스크롤 해제 함수
-const unlockScroll = () => {
-  // body에서 overflow: hidden 제거
-  document.body.style.overflow = '';
-  document.body.style.paddingRight = '';
-};
-
-// 모달 설정 - 개선된 스크롤 처리
-const setupModal = () => {
-  // 모달이 열리기 전 스크롤 잠금
-  lockScroll();
-
-  // 애니메이션 요소에 in-view 클래스 추가
-  const elements = document.querySelectorAll(".animate-on-scroll");
-  elements.forEach(el => {
-    if (!el.classList.contains('in-view')) {
-      el.classList.add('in-view');
-    }
-  });
-};
-
-// 컴포넌트 제거 시 원래 상태로 복원
-onBeforeUnmount(() => {
-  unlockScroll();
-});
-
-// 모달 닫기 함수
+// 🔥 애니메이션 시간 조정
 const closeModal = () => {
   isClosing.value = true;
   setTimeout(() => {
-    unlockScroll();
     emit('close');
     isClosing.value = false;
-  }, 300);
-};
-
-// 오버레이 클릭 시 모달 닫기
-const closeOverlay = (event) => {
-  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
-  if (event.target.classList.contains('notification-modal')) {
-    closeModal();
-  }
+  }, 250); // 부드러운 애니메이션 시간과 맞춤
 };
 
 // 무한 스크롤 구현을 위한 스크롤 이벤트 핸들러
@@ -325,7 +258,6 @@ const handleScroll = (e) => {
 // isVisible prop이 변경될 때마다 알림 목록 새로고침
 watch(() => props.isVisible, (newValue) => {
   if (newValue) {
-    setupModal();
     loadNotifications(0);
 
     // 스크롤 이벤트 리스너 추가
@@ -347,104 +279,70 @@ watch(() => props.isVisible, (newValue) => {
 // 컴포넌트 마운트 시 초기화
 onMounted(() => {
   if (props.isVisible) {
-    setupModal();
     loadNotifications(0);
   }
 });
 </script>
 
 <style scoped>
-:root {
-  --scrollbar-width: 0px;
-}
-
-.notification-modal {
+/* 🔥 알림 버튼 바로 왼쪽에 위치 */
+.notification-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  top: 20px; /* 알림 버튼과 같은 높이 */
+  right: 80px; /* 알림 버튼(48px) + 여백(32px) = 80px */
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
 }
 
-.notification-modal.fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+/* 🔥 부드러운 애니메이션으로 수정 */
+.notification-container.bounceIn {
+  animation: gentleBounceIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
-.notification-modal.fadeOut {
-  animation: fadeOut 0.3s ease-out forwards;
+.notification-container.bounceOut {
+  animation: gentleBounceOut 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
-@keyframes fadeIn {
-  from {
+/* 🔥 과하지 않은 부드러운 애니메이션 */
+@keyframes gentleBounceIn {
+  0% {
+    transform: scale(0.8) translateY(-10px);
     opacity: 0;
   }
-  to {
+  60% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
     opacity: 1;
   }
 }
 
-@keyframes fadeOut {
-  from {
+@keyframes gentleBounceOut {
+  0% {
+    transform: scale(1);
     opacity: 1;
   }
-  to {
+  100% {
+    transform: scale(0.8) translateY(-10px);
     opacity: 0;
   }
 }
 
 .notification-content {
-  background-color: white;
-  padding: 1.5rem;
-  padding-top: 0.3rem;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  max-height: 80vh;
+  width: 400px;
+  max-height: 500px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #e6e6e6 #f5f5f5;
-  /* 스크롤바가 있어도 둥근 모서리 유지 */
-  border-radius: 12px;
-  mask-image: radial-gradient(white, black);
-  -webkit-mask-image: -webkit-radial-gradient(white, black);
-}
-
-.notification-content.popIn {
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-.notification-content.popOut {
-  animation: popOut 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-@keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes popOut {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
 }
 
 .modal-header {
@@ -454,27 +352,25 @@ onMounted(() => {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e6e6e6;
-  position: relative;
 }
 
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .modal-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
   color: #222;
-  text-align: left;
   margin: 0;
 }
 
 .filter-button, .read-all-button {
-  padding: 6px 10px;
-  font-size: 12px;
-  border-radius: 16px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 12px;
   background-color: #f3f4f6;
   border: 1px solid #e5e7eb;
   color: #6c757d;
@@ -488,13 +384,13 @@ onMounted(() => {
 }
 
 .close-icon {
-  font-size: 18px;
+  font-size: 16px;
   color: #888;
   background: none;
   border: none;
   cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,44 +406,39 @@ onMounted(() => {
 .notifications-container {
   flex: 1;
   overflow-y: auto;
-  margin: 0 -1rem;
-  padding: 0 1rem;
+  max-height: 300px;
   scroll-behavior: smooth;
 }
 
 /* 스크롤바 스타일 */
 .notifications-container::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .notifications-container::-webkit-scrollbar-track {
   background: #f5f5f5;
-  border-radius: 3px;
-  margin: 4px;
+  border-radius: 2px;
 }
 
 .notifications-container::-webkit-scrollbar-thumb {
   background-color: #e6e6e6;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .notification-item {
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-bottom: 12px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 8px;
+  padding: 12px;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
   border: 1px solid #f0f0f0;
 }
 
 .notification-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
 .notification-item.unread {
@@ -558,14 +449,13 @@ onMounted(() => {
 .notification-cell {
   display: flex;
   align-items: center;
-  flex: 1;
-  gap: 12px;
+  gap: 10px;
 }
 
 .profile-avatar, .default-avatar {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   overflow: hidden;
 }
@@ -587,27 +477,27 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .notification-content-text {
-  font-size: 14px;
+  font-size: 13px;
   color: #333;
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .notification-time {
-  font-size: 12px;
+  font-size: 11px;
   color: #888;
 }
 
 .delete-button {
   background: none;
   border: none;
-  font-size: 14px;
+  font-size: 12px;
   color: #ccc;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -627,14 +517,14 @@ onMounted(() => {
 }
 
 .notification-actions {
-  margin-top: 16px;
+  margin-top: 12px;
   text-align: center;
 }
 
 .delete-all-button {
-  padding: 8px 16px;
-  font-size: 14px;
-  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 16px;
   background-color: #fff0f0;
   border: 1px solid #ffe0e0;
   color: #e74c3c;
@@ -648,41 +538,51 @@ onMounted(() => {
 
 .no-notifications {
   text-align: center;
-  padding: 30px 0;
+  padding: 20px 0;
   color: #888;
-  font-size: 15px;
+  font-size: 13px;
 }
 
-.animate-on-scroll {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: all 0.8s ease;
+/* 🔥 화살표 추가 - 알림 버튼을 가리키는 꼬리 */
+.notification-container::after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  right: -8px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid rgba(255, 255, 255, 0.95);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  filter: drop-shadow(2px 0 4px rgba(0, 0, 0, 0.1));
 }
 
-.animate-on-scroll.in-view {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* 모바일 화면 최적화 */
+/* 모바일 최적화 */
 @media (max-width: 480px) {
-  .notification-content {
-    width: 95%;
-    max-height: 70vh;
-    padding: 1rem;
+  .notification-container {
+    top: 60px;
+    right: 10px;
+    left: 10px;
   }
 
-  .notification-item {
-    padding: 12px;
+  /* 모바일에서는 화살표 제거 */
+  .notification-container::after {
+    display: none;
+  }
+
+  .notification-content {
+    width: 100%;
+    max-height: 400px;
+    padding: 15px;
   }
 
   .modal-title {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .filter-button, .read-all-button {
     font-size: 10px;
-    padding: 4px 8px;
+    padding: 3px 6px;
   }
 }
 </style>
