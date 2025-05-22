@@ -55,21 +55,32 @@ import { useRouter } from 'vue-router';
 import Footer from "@/components/Footer.vue";
 import Character from "@/components/Character.vue";
 import Notification from "@/components/Notification.vue";
-import ToastContainer from "@/components/ToastContainer.vue"; // 🍞 토스트 컨테이너 추가
+import ToastContainer from "@/components/ToastContainer.vue";
 import { useUserStore } from "@/scripts/store";
 import { useWebSocket } from '@/composables/useWebSocket';
-import { useToast } from '@/composables/useToast'; // 🍞 토스트 훅 추가
+import { useToast } from '@/composables/useToast';
 import axios from "axios";
 
 // 필요한 객체 초기화
 const router = useRouter();
 const userStore = useUserStore();
-const { notification: showToastNotification } = useToast(); // 🍞 토스트 함수
+const { notification: showToastNotification } = useToast();
 const showCharacter = ref(false);
 const showInitialTooltip = ref(false);
 const showNotification = ref(false);
 const unreadCount = ref(0);
-const { stompClient, isConnected, connect, disconnect, subscribe } = useWebSocket();
+
+// 🔥 WebSocket 관련 수정
+const {
+  stompClient,
+  isConnected,
+  connect,
+  disconnect,
+  subscribe,
+  checkConnection,  // 🆕 디버깅용
+  forceReconnect    // 🆕 강제 재연결용
+} = useWebSocket();
+
 const notificationSubscription = ref(null);
 const countSubscription = ref(null);
 
@@ -81,9 +92,11 @@ const check = async () => {
       router.push("/login");
     } else {
       userStore.setCurrentMember(data);
+      console.log('✅ 사용자 로그인 확인 완료:', data.id);
       fetchUnreadCountOnce();
     }
   } catch (error) {
+    console.error('❌ 사용자 인증 확인 실패:', error);
     router.push("/login");
   }
 };
@@ -95,18 +108,24 @@ const fetchUnreadCountOnce = async () => {
   try {
     const response = await axios.get('/api/notifications/unread/count');
     unreadCount.value = response.data;
-    console.log('초기 알림 개수:', response.data);
+    console.log('📊 초기 알림 개수:', response.data);
   } catch (error) {
-    console.error('알림 개수 조회 중 오류 발생:', error);
+    console.error('❌ 알림 개수 조회 중 오류 발생:', error);
   }
 };
 
-// WebSocket을 통한 실시간 알림 구독
+// 🔥 WebSocket을 통한 실시간 알림 구독 (수정됨)
 const subscribeToNotifications = () => {
+  console.log('📡 알림 구독 시작...');
+  console.log('📡 현재 연결 상태:', isConnected.value);
+
   if (!isConnected.value) {
+    console.log('⏰ WebSocket 미연결 - 1초 후 재시도...');
     setTimeout(subscribeToNotifications, 1000);
     return;
   }
+
+  console.log('🚀 WebSocket 구독 시작...');
 
   // 개인 알림 구독
   notificationSubscription.value = subscribe(
@@ -133,7 +152,51 @@ const subscribeToNotifications = () => {
       }
   );
 
-  console.log('✅ WebSocket 구독 완료');
+  if (notificationSubscription.value && countSubscription.value) {
+    console.log('✅✅✅ WebSocket 구독 완료 ✅✅✅');
+  } else {
+    console.error('❌ WebSocket 구독 실패');
+  }
+};
+
+// 🔥 WebSocket 연결 관리 (새로 추가)
+const initializeWebSocket = async () => {
+  console.log('🔌 WebSocket 초기화 시작...');
+
+  if (!isLoggedIn.value) {
+    console.log('❌ 로그인되지 않음 - WebSocket 연결 안함');
+    return;
+  }
+
+  console.log('🚀 WebSocket 연결 시도...');
+  connect();
+
+  // 연결 상태 확인
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  const waitForConnection = () => {
+    attempts++;
+    console.log(`🔍 연결 상태 확인 시도 ${attempts}/${maxAttempts}...`);
+
+    if (isConnected.value) {
+      console.log('✅ WebSocket 연결 성공! 구독 시작...');
+      setTimeout(subscribeToNotifications, 500);
+    } else if (attempts < maxAttempts) {
+      console.log('⏰ 아직 연결 안됨 - 1초 후 재확인...');
+      setTimeout(waitForConnection, 1000);
+    } else {
+      console.error('❌ WebSocket 연결 최대 시도 횟수 초과');
+      console.log('🔧 연결 상태 디버깅:');
+      checkConnection();
+
+      // 강제 재연결 시도
+      console.log('🔄 강제 재연결 시도...');
+      forceReconnect();
+    }
+  };
+
+  waitForConnection();
 };
 
 // 브라우저 알림 표시
@@ -151,7 +214,7 @@ const showRealtimeNotification = (notification) => {
 const requestNotificationPermission = async () => {
   if ('Notification' in window && Notification.permission === 'default') {
     const permission = await Notification.requestPermission();
-    console.log('알림 권한:', permission);
+    console.log('📱 브라우저 알림 권한:', permission);
   }
 };
 
@@ -177,11 +240,15 @@ const closeNotification = () => {
   showNotification.value = false;
 };
 
-// 컴포넌트 마운트
+// 🔥 컴포넌트 마운트 (수정됨)
 onMounted(async () => {
+  console.log('🎬 App 컴포넌트 마운트 시작...');
+
   await check();
 
   if (isLoggedIn.value) {
+    console.log('✅ 로그인 상태 확인됨 - 초기화 시작...');
+
     // 초기 말풍선
     setTimeout(() => {
       showInitialTooltip.value = true;
@@ -190,9 +257,8 @@ onMounted(async () => {
       }, 5000);
     }, 1000);
 
-    // WebSocket 연결
-    connect();
-    setTimeout(subscribeToNotifications, 1000);
+    // 🔥 WebSocket 초기화 (수정됨)
+    await initializeWebSocket();
 
     // 브라우저 알림 권한
     requestNotificationPermission();
@@ -201,13 +267,19 @@ onMounted(async () => {
 
 // 컴포넌트 해제
 onBeforeUnmount(() => {
+  console.log('🏁 App 컴포넌트 해제 시작...');
+
   if (notificationSubscription.value) {
     notificationSubscription.value.unsubscribe();
+    console.log('🏁 알림 구독 해제');
   }
   if (countSubscription.value) {
     countSubscription.value.unsubscribe();
+    console.log('🏁 개수 구독 해제');
   }
+
   disconnect();
+  console.log('🏁 WebSocket 연결 해제 완료');
 });
 </script>
 
