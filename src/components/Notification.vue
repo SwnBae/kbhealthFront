@@ -27,7 +27,7 @@
           <div v-for="notification in filteredNotifications"
                :key="notification.notificationId"
                class="notification-item animate-on-scroll in-view"
-               :class="{'unread': !notification.isRead}"
+               :class="{'unread': !notification.read}"
                @click="handleNotificationClick(notification)">
             <div class="notification-cell">
               <!-- ProfileRing 컴포넌트 사용 -->
@@ -42,7 +42,7 @@
                   class="profile-avatar"
               />
               <div v-else class="default-avatar">
-                <img src="/assets/img/default-avatar.png" alt="기본 이미지" class="default-avatar-img">
+                <img src="/assets/img/default_profile.png" alt="기본 이미지" class="default-avatar-img">
               </div>
 
               <div class="notification-details">
@@ -98,7 +98,7 @@ const savedScrollY = ref(0);
 // 필터링된 알림 계산
 const filteredNotifications = computed(() => {
   if (unreadOnly.value) {
-    return notifications.value.filter(notification => !notification.isRead);
+    return notifications.value.filter(notification => !notification.read);
   }
   return notifications.value;
 });
@@ -168,15 +168,15 @@ const loadNotifications = async (page = 0) => {
 // 알림 클릭 이벤트 처리
 const handleNotificationClick = async (notification) => {
   // 읽음 처리
-  if (!notification.isRead) {
+  if (!notification.read) {
     await markAsRead(notification.notificationId);
   }
 
   // 알림 타입에 따른 네비게이션
   if (notification.type === 'FOLLOW') {
-    if (notification.actorId) {
+    if (notification.actorAccount) {  // actorId 대신 actorAccount 사용
       closeModal();
-      router.push(`/profile/${notification.actorId}`);
+      router.push(`/profile/${notification.actorAccount}`);  // ID 대신 account 사용
     }
   } else if (['LIKE', 'COMMENT', 'MENTION'].includes(notification.type)) {
     if (notification.relatedId) {
@@ -192,10 +192,16 @@ const handleNotificationClick = async (notification) => {
 const markAsRead = async (notificationId) => {
   try {
     await axios.put(`/api/notifications/${notificationId}/read`);
-    // 해당 알림의 상태 업데이트
+
     const index = notifications.value.findIndex(n => n.notificationId === notificationId);
     if (index !== -1) {
-      notifications.value[index].isRead = true;
+      console.log('알림 읽음 처리 완료:', notificationId);
+
+      // 반응형 업데이트를 위해 새 객체로 교체
+      notifications.value.splice(index, 1, {
+        ...notifications.value[index],
+        read: true
+      });
     }
   } catch (error) {
     console.error('알림 읽음 처리 중 오류 발생:', error);

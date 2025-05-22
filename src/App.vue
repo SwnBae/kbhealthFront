@@ -6,6 +6,26 @@
       <RouterView />
     </div>
 
+    <!-- 우측 상단 알림 버튼 추가 -->
+    <div v-if="isLoggedIn" class="notification-button-container">
+      <button
+          @click="toggleNotification"
+          class="notification-button"
+          data-tooltip="알림 확인하기"
+      >
+        <img src="/assets/icon/notification.png" alt="알림" class="notification-icon">
+        <!-- 읽지 않은 알림 개수 뱃지 -->
+        <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+      </button>
+    </div>
+
+    <!-- 알림 모달 -->
+    <Notification
+        v-if="showNotification"
+        :isVisible="showNotification"
+        @close="closeNotification"
+    />
+
     <!-- 왼쪽 버튼과 캐릭터 영역 분리 -->
     <!-- 고정된 버튼 영역 -->
     <div v-if="isLoggedIn" class="fixed-button">
@@ -32,18 +52,22 @@
 
 <script setup>
 // 기존 import에 nextTick 추가
-import { onMounted, computed, ref, nextTick } from 'vue';
+import { onMounted, computed, ref, nextTick, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import Footer from "@/components/Footer.vue";
-import Character from "@/components/Character.vue"; 
-import { useUserStore } from "@/scripts/store"; 
+import Character from "@/components/Character.vue";
+import Notification from "@/components/Notification.vue"; // 알림 컴포넌트 추가
+import { useUserStore } from "@/scripts/store";
 import axios from "axios";
 
 // 필요한 객체 초기화
 const router = useRouter();
-const userStore = useUserStore(); 
-const showCharacter = ref(false); 
+const userStore = useUserStore();
+const showCharacter = ref(false);
 const showInitialTooltip = ref(false); // 초기 말풍선 표시 여부를 위한 상태 추가
+const showNotification = ref(false); // 알림 모달 표시 여부
+const unreadCount = ref(0); // 읽지 않은 알림 개수
+const notificationCheckInterval = ref(null); // 알림 확인 인터벌
 
 // 로그인 여부 확인
 const check = async () => {
@@ -53,9 +77,23 @@ const check = async () => {
       router.push("/login");
     } else {
       userStore.setCurrentMember(data);
+      // 로그인 성공 시 읽지 않은 알림 개수 확인
+      fetchUnreadCount();
     }
   } catch (error) {
     router.push("/login");
+  }
+};
+
+// 읽지 않은 알림 개수 가져오기
+const fetchUnreadCount = async () => {
+  if (!isLoggedIn.value) return;
+
+  try {
+    const response = await axios.get('/api/notifications/unread/count');
+    unreadCount.value = response.data;
+  } catch (error) {
+    console.error('알림 개수 조회 중 오류 발생:', error);
   }
 };
 
@@ -69,21 +107,45 @@ const toggleCharacter = () => {
   });
 };
 
+// 알림 모달 표시/숨김 토글 함수
+const toggleNotification = () => {
+  nextTick(() => {
+    showNotification.value = !showNotification.value;
+  });
+};
+
+// 알림 모달 닫기 함수
+const closeNotification = () => {
+  showNotification.value = false;
+  // 알림 창을 닫았을 때 다시 읽지 않은 알림 개수 확인
+  fetchUnreadCount();
+};
+
 // 컴포넌트 마운트 시 로그인 상태 확인 및 초기 말풍선 표시
 onMounted(async () => {
   await check();
-  
+
   // 로그인되어 있을 경우 초기 말풍선 표시
   if (isLoggedIn.value) {
     // 페이지 로드 후 1초 뒤에 말풍선 표시
     setTimeout(() => {
       showInitialTooltip.value = true;
-      
+
       // 5초 후에 말풍선 숨기기
       setTimeout(() => {
         showInitialTooltip.value = false;
       }, 5000);
     }, 1000);
+
+    // 알림 개수 확인 인터벌 설정 (1분마다)
+    notificationCheckInterval.value = setInterval(fetchUnreadCount, 60000);
+  }
+});
+
+// 컴포넌트 제거 시 인터벌 제거
+onBeforeUnmount(() => {
+  if (notificationCheckInterval.value) {
+    clearInterval(notificationCheckInterval.value);
   }
 });
 </script>
@@ -248,28 +310,122 @@ onMounted(async () => {
     transform: scale(1.05);
     opacity: 1;
   }
-  70% { 
-    transform: scale(0.95); 
+  70% {
+    transform: scale(0.95);
   }
-  100% { 
-    transform: scale(1); 
+  100% {
+    transform: scale(1);
   }
 }
 
 @keyframes bounce-out {
-  0% { 
-    transform: scale(1); 
+  0% {
+    transform: scale(1);
     opacity: 1;
   }
-  30% { 
-    transform: scale(1.05); 
+  30% {
+    transform: scale(1.05);
   }
   100% {
     transform: scale(0.3) translateY(40px);
     opacity: 0;
   }
 }
-/* 여기까지 수정된 스타일 */
+
+/* 알림 버튼 스타일 추가 */
+.notification-button-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 15;
+}
+
+.notification-button {
+  width: 48px;
+  height: 48px;
+  background-color: white;
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  padding: 0;
+  position: relative;
+}
+
+.notification-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.notification-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* 알림 배지 스타일 - Footer.vue에서 가져옴 */
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #e74c3c; /* 빨간색 배지 */
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 알림 버튼 말풍선 스타일 */
+.notification-button[data-tooltip]::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: -40px;
+  right: 0;
+  width: max-content;
+  padding: 8px 12px;
+  background-color: #333;
+  color: white;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.4;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: translateY(-10px);
+  z-index: 12;
+}
+
+.notification-button[data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 .bd-placeholder-img {
   font-size: 1.125rem;
@@ -320,5 +476,23 @@ onMounted(async () => {
   text-align: center;
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 480px) {
+  .notification-button-container {
+    top: 15px;
+    right: 15px;
+  }
+
+  .notification-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .notification-icon {
+    width: 20px;
+    height: 20px;
+  }
 }
 </style>
