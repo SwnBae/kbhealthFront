@@ -12,7 +12,7 @@
         <span>◀</span>
       </button>
       
-      <div class="following-ranking-container" ref="container">
+      <div class="following-ranking-container" ref="containerRef">
         <div v-for="ranking in rankings" :key="ranking.memberId"
              class="following-rank-item" 
              :class="{'top-rank': ranking.rank <= 3}"
@@ -65,142 +65,147 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, reactive, onMounted, onUpdated } from 'vue';
+import { useRouter } from 'vue-router';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 import axios from 'axios';
 
-export default {
-  components: {
-    ProfileRing
-  },
-  props: {
-    showTitle: {
-      type: Boolean,
-      default: true
-    }
-  },
-  data() {
-    return {
-      rankings: [],
-      isLoading: false,
-      currentPage: 0,
-      pageSize: 20 // 스크롤 형태이므로 한번에 더 많은 아이템을 가져옵니다
-    };
-  },
-  mounted() {
-    this.fetchFollowingRanking();
-  },
-  updated() {
-    // DOM 업데이트 후 스크롤 설정을 적용합니다
-    this.setupHorizontalScroll();
-  },
-  methods: {
-    // 가로 스크롤 설정 - 개선된 방법
-    setupHorizontalScroll() {
-      const container = this.$refs.container;
-      if (!container) return;
-      
-      // 이전에 추가된 이벤트 리스너 제거 (중복 방지)
-      container.removeEventListener('wheel', this.handleWheel);
-      
-      // 새 이벤트 리스너 추가
-      container.addEventListener('wheel', this.handleWheel, { passive: false });
-      
-      // 터치 이벤트 지원 (모바일)
-      this.setupTouchEvents(container);
-    },
+// Props 정의
+const props = defineProps({
+  showTitle: {
+    type: Boolean,
+    default: true
+  }
+});
+
+// Router 사용
+const router = useRouter();
+
+// Reactive data
+const rankings = ref([]);
+const isLoading = ref(false);
+const currentPage = ref(0);
+const pageSize = ref(20); // 스크롤 형태이므로 한번에 더 많은 아이템을 가져옵니다
+
+// DOM refs
+const containerRef = ref(null);
+
+// 가로 스크롤 설정 - 개선된 방법
+const setupHorizontalScroll = () => {
+  const container = containerRef.value;
+  if (!container) return;
+  
+  // 이전에 추가된 이벤트 리스너 제거 (중복 방지)
+  container.removeEventListener('wheel', handleWheel);
+  
+  // 새 이벤트 리스너 추가
+  container.addEventListener('wheel', handleWheel, { passive: false });
+  
+  // 터치 이벤트 지원 (모바일)
+  setupTouchEvents(container);
+};
+
+// 휠 이벤트 핸들러
+const handleWheel = (e) => {
+  if (!e.deltaY) return;
+  
+  e.preventDefault();
+  
+  // 스크롤 속도 조절 (더 부드러운 스크롤을 위해)
+  const scrollAmount = e.deltaY * 2;
+  containerRef.value.scrollLeft += scrollAmount;
+};
+
+// 터치 이벤트 설정 (모바일 지원)
+const setupTouchEvents = (container) => {
+  let startX;
+  let scrollLeft;
+  
+  container.ontouchstart = (e) => {
+    startX = e.touches[0].clientX;
+    scrollLeft = container.scrollLeft;
+  };
+  
+  container.ontouchmove = (e) => {
+    if (!startX) return;
     
-    // 휠 이벤트 핸들러
-    handleWheel(e) {
-      if (!e.deltaY) return;
-      
-      e.preventDefault();
-      
-      // 스크롤 속도 조절 (더 부드러운 스크롤을 위해)
-      const scrollAmount = e.deltaY * 2;
-      this.$refs.container.scrollLeft += scrollAmount;
-    },
+    const x = e.touches[0].clientX;
+    const distance = startX - x;
+    container.scrollLeft = scrollLeft + distance;
     
-    // 터치 이벤트 설정 (모바일 지원)
-    setupTouchEvents(container) {
-      let startX;
-      let scrollLeft;
-      
-      container.ontouchstart = (e) => {
-        startX = e.touches[0].clientX;
-        scrollLeft = container.scrollLeft;
-      };
-      
-      container.ontouchmove = (e) => {
-        if (!startX) return;
-        
-        const x = e.touches[0].clientX;
-        const distance = startX - x;
-        container.scrollLeft = scrollLeft + distance;
-        
-        // 페이지 스크롤 방지
-        e.preventDefault();
-      };
-      
-      container.ontouchend = () => {
-        startX = null;
-      };
-    },
+    // 페이지 스크롤 방지
+    e.preventDefault();
+  };
+  
+  container.ontouchend = () => {
+    startX = null;
+  };
+};
+
+// 좌측으로 스크롤
+const scrollLeft = () => {
+  if (!containerRef.value) return;
+  
+  const scrollAmount = containerRef.value.clientWidth * 0.75; // 75% 이동
+  containerRef.value.scrollBy({
+    left: -scrollAmount,
+    behavior: 'smooth'
+  });
+};
+
+// 우측으로 스크롤
+const scrollRight = () => {
+  if (!containerRef.value) return;
+  
+  const scrollAmount = containerRef.value.clientWidth * 0.75; // 75% 이동
+  containerRef.value.scrollBy({
+    left: scrollAmount,
+    behavior: 'smooth'
+  });
+};
+
+// 팔로우 랭킹 데이터 가져오기
+const fetchFollowingRanking = async () => {
+  isLoading.value = true;
+  try {
+    const response = await axios.get(
+      `/api/ranking/following?page=${currentPage.value}&size=${pageSize.value}`
+    );
     
-    // 좌측으로 스크롤
-    scrollLeft() {
-      if (!this.$refs.container) return;
-      
-      const scrollAmount = this.$refs.container.clientWidth * 0.75; // 75% 이동
-      this.$refs.container.scrollBy({
-        left: -scrollAmount,
-        behavior: 'smooth'
-      });
-    },
-    
-    // 우측으로 스크롤
-    scrollRight() {
-      if (!this.$refs.container) return;
-      
-      const scrollAmount = this.$refs.container.clientWidth * 0.75; // 75% 이동
-      this.$refs.container.scrollBy({
-        left: scrollAmount,
-        behavior: 'smooth'
-      });
-    },
-    
-    async fetchFollowingRanking() {
-      this.isLoading = true;
-      try {
-        const response = await axios.get(
-          `/api/ranking/following?page=${this.currentPage}&size=${this.pageSize}`
-        );
-        
-        const pageData = response.data;
-        this.rankings = pageData.content;
-      } catch (error) {
-        console.error('팔로우 랭킹을 불러오는 중 오류가 발생했습니다.', error);
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    
-    // 전체 랭킹 페이지로 이동
-    goToRankingPage() {
-      this.$router.push('/ranking');
-    },
-    
-    // 프로필 페이지로 이동
-    goToProfile(account) {
-      this.$router.push(`/profile/${account}`);
-    },
-    
-    // 친구 찾기 페이지로 이동
-    goToFindFriends() {
-      this.$router.push('/find-friends');
-    }
+    const pageData = response.data;
+    rankings.value = pageData.content;
+  } catch (error) {
+    console.error('팔로우 랭킹을 불러오는 중 오류가 발생했습니다.', error);
+  } finally {
+    isLoading.value = false;
   }
 };
+
+// 전체 랭킹 페이지로 이동
+const goToRankingPage = () => {
+  router.push('/ranking');
+};
+
+// 프로필 페이지로 이동
+const goToProfile = (account) => {
+  router.push(`/profile/${account}`);
+};
+
+// 친구 찾기 페이지로 이동
+const goToFindFriends = () => {
+  router.push('/find-friends');
+};
+
+// Lifecycle hooks
+onMounted(() => {
+  fetchFollowingRanking();
+});
+
+onUpdated(() => {
+  // DOM 업데이트 후 스크롤 설정을 적용합니다
+  setupHorizontalScroll();
+});
 </script>
 
 <style scoped>
