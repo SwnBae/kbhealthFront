@@ -179,22 +179,6 @@ const initObserver = () => {
   }
 };
 
-// 새 게시물 작성 완료 처리 - handleNewPost 함수 주석 처리
-/*
-const handleNewPost = (newPost) => {
-  posts.value.unshift({
-    ...newPost,
-    commentsVisible: false,
-    likeAnimating: false
-  });
-
-  showModal.value = false;
-
-  // 스크롤을 위로 이동
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-*/
-
 // 피드 새로고침 (PostCreateModal 컴포넌트에서 사용)
 const reloadFeed = async () => {
   page.value = 0;
