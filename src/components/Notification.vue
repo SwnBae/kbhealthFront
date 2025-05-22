@@ -1,5 +1,3 @@
-<!-- Notification.vue - 실시간 동기화 추가 -->
-<!-- Notification.vue 템플릿 부분 - 기존 코드에 data-notification-id 속성만 추가 -->
 <template>
   <div v-if="isVisible" class="notification-container"
        :class="{'bounceIn': isVisible && !isClosing, 'bounceOut': isClosing}">
@@ -18,7 +16,7 @@
         </div>
       </div>
 
-      <!-- 🆕 새 알림 배너 영역 -->
+      <!-- 새 알림 배너 영역 -->
       <div id="new-notification-banner-area"></div>
 
       <!-- 알림이 없을 때 -->
@@ -72,13 +70,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
-import { useWebSocket } from '@/composables/useWebSocket';
-import { useUserStore } from '@/scripts/store';
+import {useWebSocket} from '@/composables/useWebSocket';
+import {useUserStore} from '@/scripts/store';
 import axios from 'axios';
 import router from '@/scripts/router';
-
 
 const props = defineProps({
   isVisible: {
@@ -90,7 +87,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 // WebSocket 및 사용자 정보
-const { stompClient, isConnected, subscribe, checkConnection, waitForConnection } = useWebSocket();
+const {stompClient, isConnected, subscribe, checkConnection, waitForConnection} = useWebSocket();
 const userStore = useUserStore();
 
 // 상태 변수들
@@ -102,10 +99,10 @@ const pageSize = ref(20);
 const hasMorePages = ref(true);
 const isLoading = ref(false);
 
-// 🔥 WebSocket 구독 관련 변수들
+// WebSocket 구독 관련 변수들
 const notificationSubscription = ref(null);
 const countSubscription = ref(null);
-const listUpdateSubscription = ref(null); // 🆕 리스트 업데이트 구독
+const listUpdateSubscription = ref(null);
 
 // 필터링된 알림 계산
 const filteredNotifications = computed(() => {
@@ -115,241 +112,98 @@ const filteredNotifications = computed(() => {
   return notifications.value;
 });
 
-// 🔥 실시간 알림 구독 - 리스트 동기화 추가 (디버깅 로그 포함)
+// WebSocket을 통한 실시간 알림 구독
 const subscribeToNotifications = async () => {
-  console.log('🔄 구독 시작 시도...');
-  console.log('WebSocket 연결 상태:', isConnected.value);
-  console.log('사용자 ID:', userStore.currentMember?.id);
-  console.log('알림창 열림 상태:', props.isVisible);
+  if (!userStore.currentMember?.id) return;
 
-  if (!userStore.currentMember?.id) {
-    console.log('❌ 사용자 정보 없음');
-    return;
-  }
-
-  // 🆕 WebSocket 연결이 안 되어 있으면 연결 대기
+  // WebSocket 연결 대기
   if (!isConnected.value) {
-    console.log('⏰ WebSocket 연결 대기 중...');
-
     try {
-      // 최대 5초 대기
       await waitForConnection(5000);
-      console.log('✅ WebSocket 연결 대기 완료');
     } catch (error) {
-      console.error('❌ WebSocket 연결 대기 실패:', error);
-      console.log('🔍 연결 상태 디버깅:');
-      checkConnection();
-
-      // 1초 후 재시도
       setTimeout(subscribeToNotifications, 1000);
       return;
     }
   }
 
   try {
-    console.log('🚀 WebSocket 구독 시작...');
-
-    // 1. 새로운 알림 수신 (기존 코드)
+    // 새로운 알림 수신
     notificationSubscription.value = subscribe('/user/queue/notifications', (message) => {
       const newNotification = JSON.parse(message.body);
-      console.log('🔔 새 알림 수신:', newNotification);
-      console.log('🔔 알림창 열림 상태:', props.isVisible);
 
-      // 🔥 알림창이 열려있으면 리스트 맨 앞에 추가
       if (props.isVisible) {
-        console.log('📝 알림창 열린 상태 - 리스트에 새 알림 추가');
-        console.log('📊 추가 전 알림 개수:', notifications.value.length);
         notifications.value.unshift(newNotification);
-        console.log('📊 추가 후 알림 개수:', notifications.value.length);
-
         highlightNewNotification(newNotification.notificationId);
 
-        // 🔥 페이징 정보 업데이트
         if (currentPage.value > 0) {
-          console.log('📄 현재 페이지가 첫 페이지가 아님 - 배너 표시');
           showNewNotificationBanner();
         }
-      } else {
-        console.log('❌ 알림창 닫힌 상태 - 새 알림 리스트 추가 안함');
       }
     });
 
-    if (notificationSubscription.value) {
-      console.log('✅ 새 알림 구독 완료: /user/queue/notifications');
-    } else {
-      console.error('❌ 새 알림 구독 실패');
-    }
-
-    // 2. 알림 개수 업데이트 (기존 코드)
+    // 알림 개수 업데이트
     countSubscription.value = subscribe('/user/queue/notification-count', (message) => {
       const count = parseInt(message.body);
-      console.log('🔢 알림 개수 업데이트 수신:', count);
       emit('update-count', count);
     });
 
-    if (countSubscription.value) {
-      console.log('✅ 알림 개수 구독 완료: /user/queue/notification-count');
-    } else {
-      console.error('❌ 알림 개수 구독 실패');
-    }
-
-    // 🆕 3. 알림 리스트 직접 동기화 (새로 추가 - 디버깅 강화)
+    // 알림 리스트 실시간 동기화
     listUpdateSubscription.value = subscribe('/user/queue/notification-list-update', (message) => {
-      console.log('📝 원시 리스트 업데이트 메시지 수신:', message);
-
       try {
         const updateData = JSON.parse(message.body);
-        console.log('📝 파싱된 알림 리스트 업데이트:', updateData);
-        console.log('📝 업데이트 타입:', updateData.type);
-        console.log('📝 알림 ID:', updateData.notificationId);
-        console.log('📝 알림창 열림 상태:', props.isVisible);
-
-        // 알림창이 열려있을 때만 리스트 동기화
         if (props.isVisible) {
-          console.log('🎯 알림창 열린 상태 - 리스트 업데이트 처리 시작');
           handleListUpdate(updateData);
-        } else {
-          console.log('❌ 알림창 닫힌 상태 - 리스트 업데이트 무시');
         }
       } catch (parseError) {
-        console.error('❌ 리스트 업데이트 메시지 파싱 실패:', parseError);
+        console.error('리스트 업데이트 메시지 파싱 실패:', parseError);
       }
     });
 
-    if (listUpdateSubscription.value) {
-      console.log('✅ 리스트 업데이트 구독 완료: /user/queue/notification-list-update');
-    } else {
-      console.error('❌ 리스트 업데이트 구독 실패');
-    }
-
-    // 🔥 모든 구독 성공 확인
-    const allSubscribed = notificationSubscription.value &&
-        countSubscription.value &&
-        listUpdateSubscription.value;
-
-    if (allSubscribed) {
-      console.log('✅✅✅ 모든 알림 WebSocket 구독 완료 ✅✅✅');
-    } else {
-      console.error('❌ 일부 WebSocket 구독 실패');
-      console.error('  - 새 알림 구독:', !!notificationSubscription.value);
-      console.error('  - 개수 구독:', !!countSubscription.value);
-      console.error('  - 리스트 업데이트 구독:', !!listUpdateSubscription.value);
-    }
-
   } catch (error) {
-    console.error('❌ 알림 구독 실패:', error);
-
-    // 1초 후 재시도
     setTimeout(subscribeToNotifications, 1000);
   }
 };
 
-// 🆕 알림 리스트 업데이트 처리 (디버깅 로그 대폭 강화)
+// 실시간 알림 리스트 업데이트 처리
 const handleListUpdate = (updateData) => {
-  console.log('🎯🎯🎯 리스트 업데이트 핸들러 실행 🎯🎯🎯');
-  console.log('🎯 받은 데이터:', updateData);
-
-  const { type, notificationId, notification } = updateData;
-
-  console.log(`📋 업데이트 타입: ${type}`);
-  console.log(`📋 알림 ID: ${notificationId}`);
-  console.log(`📊 현재 알림 리스트 개수: ${notifications.value.length}`);
-  console.log(`📊 현재 필터링된 알림 개수: ${filteredNotifications.value.length}`);
+  const {type, notificationId, notification} = updateData;
 
   switch (type) {
     case 'DELETE':
-      console.log('🗑️🗑️ 삭제 처리 시작 🗑️🗑️');
-      console.log('🗑️ 삭제할 알림 ID:', notificationId);
-
-      const beforeDeleteCount = notifications.value.length;
-      const targetNotification = notifications.value.find(n => n.notificationId === notificationId);
-      console.log('🗑️ 삭제 대상 알림 찾음:', targetNotification ? '있음' : '없음');
-
       notifications.value = notifications.value.filter(n => n.notificationId !== notificationId);
-      const afterDeleteCount = notifications.value.length;
-
-      console.log(`🗑️ 삭제 완료: ${beforeDeleteCount} → ${afterDeleteCount}`);
-      console.log('🗑️ 실제로 삭제됨:', beforeDeleteCount > afterDeleteCount ? '예' : '아니오');
       break;
 
     case 'READ':
-      console.log('👁️👁️ 읽음 처리 시작 👁️👁️');
-      console.log('👁️ 읽음 처리할 알림 ID:', notificationId);
-
       const readIndex = notifications.value.findIndex(n => n.notificationId === notificationId);
-      console.log(`👁️ 읽음 처리할 알림 인덱스: ${readIndex}`);
-
       if (readIndex !== -1) {
-        const beforeRead = notifications.value[readIndex].read;
-        console.log('👁️ 읽음 처리 전 상태:', beforeRead ? '이미 읽음' : '읽지 않음');
-
         notifications.value.splice(readIndex, 1, {
           ...notifications.value[readIndex],
           read: true
         });
-
-        console.log('👁️ 읽음 처리 완료');
-        console.log('👁️ 읽음 처리 후 상태:', notifications.value[readIndex].read ? '읽음' : '읽지 않음');
-      } else {
-        console.warn('⚠️ 읽음 처리할 알림을 찾을 수 없음');
       }
       break;
 
     case 'CREATE':
-      console.log('➕➕ 새 알림 추가 처리 시작 ➕➕');
-      console.log('➕ 추가할 알림 데이터:', notification);
-
       if (notification && !notifications.value.find(n => n.notificationId === notification.notificationId)) {
-        const beforeCreateCount = notifications.value.length;
         notifications.value.unshift(notification);
-        const afterCreateCount = notifications.value.length;
-
-        console.log(`➕ 새 알림 추가 완료: ${beforeCreateCount} → ${afterCreateCount}`);
-      } else {
-        console.log('➕ 이미 존재하는 알림이거나 데이터 없음 - 추가 안함');
       }
       break;
 
     case 'READ_ALL':
-      console.log('👁️‍🗨️👁️‍🗨️ 전체 읽음 처리 시작 👁️‍🗨️👁️‍🗨️');
-
-      const unreadCount = notifications.value.filter(n => !n.read).length;
-      console.log(`👁️‍🗨️ 읽지 않은 알림 개수: ${unreadCount}`);
-
       notifications.value = notifications.value.map(n => ({
         ...n,
         read: true
       }));
-
-      const afterReadAllUnreadCount = notifications.value.filter(n => !n.read).length;
-      console.log(`👁️‍🗨️ 전체 읽음 처리 후 읽지 않은 개수: ${afterReadAllUnreadCount}`);
-      console.log('👁️‍🗨️ 전체 읽음 처리 완료');
       break;
 
     case 'DELETE_ALL':
-      console.log('🗑️🗑️🗑️ 전체 삭제 처리 시작 🗑️🗑️🗑️');
-
-      const beforeDeleteAllCount = notifications.value.length;
       notifications.value = [];
-      const afterDeleteAllCount = notifications.value.length;
-
-      console.log(`🗑️🗑️🗑️ 전체 삭제 완료: ${beforeDeleteAllCount} → ${afterDeleteAllCount}`);
       break;
-
-    default:
-      console.warn('❓❓ 알 수 없는 업데이트 타입:', type);
-      console.warn('❓ 전체 업데이트 데이터:', updateData);
   }
-
-  console.log(`📊 업데이트 처리 후 알림 개수: ${notifications.value.length}`);
-  console.log(`📊 업데이트 처리 후 필터링된 알림 개수: ${filteredNotifications.value.length}`);
-  console.log('🎯🎯🎯 리스트 업데이트 핸들러 완료 🎯🎯🎯');
 };
 
-// 🆕 새 알림 배너 표시 (선택사항)
+// 새 알림 배너 표시
 const showNewNotificationBanner = () => {
-  console.log('📢 새 알림 배너 표시 시작');
-
   const banner = document.createElement('div');
   banner.className = 'new-notification-banner';
   banner.innerHTML = `
@@ -360,7 +214,6 @@ const showNewNotificationBanner = () => {
     </div>
   `;
   banner.scrollToTop = () => {
-    console.log('📢 배너에서 맨 위로 이동 클릭');
     currentPage.value = 0;
     loadNotifications(0);
     banner.remove();
@@ -369,257 +222,181 @@ const showNewNotificationBanner = () => {
   const container = document.querySelector('.notifications-container');
   if (container) {
     container.insertBefore(banner, container.firstChild);
-    setTimeout(() => {
-      console.log('📢 배너 자동 제거 (10초 후)');
-      banner.remove();
-    }, 10000);
-    console.log('📢 새 알림 배너 표시 완료');
-  } else {
-    console.warn('⚠️ 알림 컨테이너를 찾을 수 없어 배너 표시 실패');
+    setTimeout(() => banner.remove(), 10000);
   }
 };
 
-// 🔥 새 알림 하이라이트 효과
+// 새 알림 하이라이트 효과
 const highlightNewNotification = (notificationId) => {
-  console.log('✨ 새 알림 하이라이트 효과 시작:', notificationId);
-
   nextTick(() => {
     const element = document.querySelector(`[data-notification-id="${notificationId}"]`);
     if (element) {
-      console.log('✨ 하이라이트 대상 요소 찾음');
       element.style.animation = 'newNotificationHighlight 2s ease-out';
       setTimeout(() => {
         element.style.animation = '';
-        console.log('✨ 하이라이트 효과 완료');
       }, 2000);
-    } else {
-      console.warn('⚠️ 하이라이트할 요소를 찾을 수 없음:', notificationId);
     }
   });
 };
 
-// 🔥 실시간 읽음 처리 - 서버에 알림 + 즉시 UI 업데이트 (디버깅 추가)
+// 개별 알림 읽음 처리 (낙관적 업데이트)
 const markAsRead = async (notificationId) => {
-  console.log('👁️ 읽음 처리 시작:', notificationId);
-
   try {
-    // 🔥 먼저 UI 즉시 업데이트 (낙관적 업데이트)
+    // UI 즉시 업데이트
     const index = notifications.value.findIndex(n => n.notificationId === notificationId);
-    console.log('👁️ 읽음 처리할 알림 인덱스:', index);
-
     if (index !== -1 && !notifications.value[index].read) {
-      console.log('👁️ UI 즉시 업데이트 (낙관적)');
       notifications.value.splice(index, 1, {
         ...notifications.value[index],
         read: true
       });
-      console.log('👁️ UI 업데이트 완료');
-    } else {
-      console.log('👁️ 이미 읽은 알림이거나 찾을 수 없음');
     }
 
     // API 호출
-    console.log('👁️ API 호출 시작');
     await axios.put(`/api/notifications/${notificationId}/read`);
-    console.log('👁️ API 호출 성공');
-
   } catch (error) {
-    console.error('❌ 알림 읽음 처리 중 오류 발생:', error);
-
-    // 🔥 실패 시 원상복구
-    console.log('🔄 읽음 처리 실패 - 원상복구 시작');
+    // 실패 시 원상복구
     const index = notifications.value.findIndex(n => n.notificationId === notificationId);
     if (index !== -1) {
       notifications.value.splice(index, 1, {
         ...notifications.value[index],
         read: false
       });
-      console.log('🔄 원상복구 완료');
     }
   }
 };
 
-// 🔥 실시간 모든 알림 읽음 처리 (디버깅 추가)
+// 모든 알림 읽음 처리 (낙관적 업데이트)
 const markAllAsRead = async () => {
-  console.log('👁️‍🗨️ 모든 알림 읽음 처리 시작');
-
   try {
-    // 🔥 먼저 UI 즉시 업데이트
     const originalNotifications = [...notifications.value];
-    const unreadCount = notifications.value.filter(n => !n.read).length;
-    console.log('👁️‍🗨️ 읽지 않은 알림 개수:', unreadCount);
 
+    // UI 즉시 업데이트
     notifications.value = notifications.value.map(n => ({
       ...n,
       read: true
     }));
-    console.log('👁️‍🗨️ UI 즉시 업데이트 완료');
 
     // API 호출
-    console.log('👁️‍🗨️ API 호출 시작');
     await axios.put('/api/notifications/read-all');
-    console.log('👁️‍🗨️ API 호출 성공');
-
   } catch (error) {
-    console.error('❌ 모든 알림 읽음 처리 중 오류 발생:', error);
-    console.log('🔄 모든 알림 읽음 실패 - 원상복구');
+    // 실패 시 원상복구
     notifications.value = originalNotifications;
   }
 };
 
-// 🔥 실시간 단일 알림 삭제 (디버깅 추가)
+// 개별 알림 삭제 (낙관적 업데이트)
 const deleteNotification = async (notificationId) => {
-  console.log('🗑️ 단일 알림 삭제 시작:', notificationId);
-
   try {
-    // 🔥 먼저 UI에서 즉시 제거 (애니메이션 효과 추가)
+    // 삭제 애니메이션
     const element = document.querySelector(`[data-notification-id="${notificationId}"]`);
     if (element) {
-      console.log('🗑️ 삭제 애니메이션 시작');
       element.classList.add('removing');
-    } else {
-      console.warn('⚠️ 삭제할 요소를 찾을 수 없음');
     }
 
-    // 애니메이션 후 배열에서 제거
+    // 애니메이션 후 UI에서 제거
     setTimeout(() => {
-      console.log('🗑️ 배열에서 알림 제거 시작');
       const originalNotifications = [...notifications.value];
-      const beforeCount = notifications.value.length;
-
       notifications.value = notifications.value.filter(n => n.notificationId !== notificationId);
-      const afterCount = notifications.value.length;
 
-      console.log(`🗑️ UI에서 제거 완료: ${beforeCount} → ${afterCount}`);
-
-      // API 호출 후 실패 시 복구를 위해 originalNotifications 저장
-      console.log('🗑️ API 호출 시작');
+      // API 호출
       axios.delete(`/api/notifications/${notificationId}`)
-          .then(() => {
-            console.log('🗑️ API 호출 성공');
-          })
           .catch(error => {
-            console.error('❌ 알림 삭제 중 오류 발생:', error);
-            console.log('🔄 삭제 실패 - 원상복구');
+            // 실패 시 원상복구
             notifications.value = originalNotifications;
           });
     }, 300);
-
   } catch (error) {
-    console.error('❌ 알림 삭제 중 오류 발생:', error);
+    console.error('알림 삭제 중 오류:', error);
   }
 };
 
-// 🔥 실시간 모든 알림 삭제 (디버깅 추가)
+// 모든 알림 삭제 (낙관적 업데이트)
 const deleteAllNotifications = async () => {
-  if (!confirm('모든 알림을 삭제하시겠습니까?')) {
-    console.log('🗑️ 모든 알림 삭제 취소됨');
-    return;
-  }
-
-  console.log('🗑️🗑️ 모든 알림 삭제 시작');
+  if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
 
   try {
-    // 🔥 먼저 UI에서 즉시 제거
     const originalNotifications = [...notifications.value];
-    const beforeCount = notifications.value.length;
 
+    // UI 즉시 업데이트
     notifications.value = [];
-    console.log(`🗑️🗑️ UI에서 모든 알림 제거: ${beforeCount} → 0`);
 
     // API 호출
-    console.log('🗑️🗑️ API 호출 시작');
     await axios.delete('/api/notifications/all');
-    console.log('🗑️🗑️ API 호출 성공');
-
   } catch (error) {
-    console.error('❌ 모든 알림 삭제 중 오류 발생:', error);
-    console.log('🔄 모든 알림 삭제 실패 - 원상복구');
+    // 실패 시 원상복구
     notifications.value = originalNotifications;
   }
 };
 
-// 페이지 로딩 함수 (기존 코드 유지)
+// 페이지 로딩
 const loadNotifications = async (page = 0) => {
   if (isLoading.value || (!hasMorePages.value && page > 0)) return;
 
-  console.log(`📄 알림 페이지 로딩 시작: 페이지 ${page}`);
   isLoading.value = true;
 
   try {
     const response = await axios.get(`/api/notifications/paged?page=${page}&size=${pageSize.value}`);
     const data = response.data;
 
-    console.log(`📄 API 응답 받음: ${data.content.length}개 알림`);
-
     if (page === 0) {
       notifications.value = data.content;
-      console.log('📄 첫 페이지 - 알림 리스트 초기화');
     } else {
       notifications.value = [...notifications.value, ...data.content];
-      console.log('📄 추가 페이지 - 알림 리스트에 추가');
     }
 
     hasMorePages.value = !data.last;
     currentPage.value = data.number;
-
-    console.log(`📄 페이지 로딩 완료: 총 ${notifications.value.length}개, 추가 페이지 있음: ${hasMorePages.value}`);
   } catch (error) {
-    console.error('❌ 알림 로딩 중 오류 발생:', error);
+    console.error('알림 로딩 중 오류:', error);
   } finally {
     isLoading.value = false;
   }
 };
 
-// 나머지 함수들 (기존 코드와 동일)
+// 알림 클릭 처리
 const handleNotificationClick = async (notification) => {
-  console.log('🖱️ 알림 클릭:', notification.notificationId);
-
   if (!notification.read) {
-    console.log('🖱️ 읽지 않은 알림 - 읽음 처리');
     await markAsRead(notification.notificationId);
   }
 
   if (notification.type === 'FOLLOW') {
     if (notification.actorAccount) {
-      console.log('🖱️ 팔로우 알림 - 프로필 페이지로 이동');
       closeModal();
       router.push(`/profile/${notification.actorAccount}`);
     }
   } else if (['LIKE', 'COMMENT', 'MENTION'].includes(notification.type)) {
     if (notification.relatedId) {
-      console.log('🖱️ 좋아요/댓글/멘션 알림 - 게시글 페이지로 이동');
       closeModal();
       alert('게시글 페이지로 이동합니다(미구현)');
     }
   }
 };
 
+// 필터 토글
 const toggleUnreadOnly = () => {
   unreadOnly.value = !unreadOnly.value;
-  console.log('🔍 필터 토글:', unreadOnly.value ? '읽지 않은 알림만' : '모든 알림');
 };
 
+// 모달 닫기
 const closeModal = () => {
-  console.log('❌ 알림창 닫기 시작');
   isClosing.value = true;
   setTimeout(() => {
     emit('close');
     isClosing.value = false;
-    console.log('❌ 알림창 닫기 완료');
   }, 250);
 };
 
+// 스크롤 처리 (무한 스크롤)
 const handleScroll = (e) => {
   const container = e.target;
   const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
   if (isAtBottom && hasMorePages.value && !isLoading.value) {
-    console.log('📜 스크롤 끝 - 다음 페이지 로딩');
     loadNotifications(currentPage.value + 1);
   }
 };
 
+// 알림 내용 포맷팅
 const formatContent = (notification) => {
   let content = notification.content;
   if (notification.actorName) {
@@ -631,6 +408,7 @@ const formatContent = (notification) => {
   return content;
 };
 
+// 시간 포맷팅
 const formatTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
   const now = new Date();
@@ -653,12 +431,9 @@ const formatTime = (dateTimeStr) => {
   }
 };
 
-// isVisible prop이 변경될 때마다 알림 목록 새로고침
+// 알림창 표시 상태 감시
 watch(() => props.isVisible, (newValue) => {
-  console.log('👁️ 알림창 표시 상태 변경:', newValue ? '열림' : '닫힘');
-
   if (newValue) {
-    console.log('🚀 알림창 열림 - 초기화 시작');
     loadNotifications(0);
     subscribeToNotifications();
 
@@ -666,55 +441,40 @@ watch(() => props.isVisible, (newValue) => {
       const container = document.querySelector('.notifications-container');
       if (container) {
         container.addEventListener('scroll', handleScroll);
-        console.log('📜 스크롤 이벤트 리스너 추가');
       }
     });
   } else {
-    console.log('❌ 알림창 닫힘 - 정리 시작');
     const container = document.querySelector('.notifications-container');
     if (container) {
       container.removeEventListener('scroll', handleScroll);
-      console.log('📜 스크롤 이벤트 리스너 제거');
     }
   }
 });
 
+// 컴포넌트 마운트
 onMounted(() => {
-  console.log('🎬 Notification 컴포넌트 마운트됨');
-  console.log('🎬 초기 알림창 표시 상태:', props.isVisible);
-
   if (props.isVisible) {
-    console.log('🎬 마운트 시 알림창 열린 상태 - 초기화');
     loadNotifications(0);
     subscribeToNotifications();
   }
 });
 
-// 🔥 컴포넌트 언마운트 시 모든 구독 해제 (디버깅 추가)
+// 컴포넌트 언마운트 시 구독 해제
 onUnmounted(() => {
-  console.log('🏁 Notification 컴포넌트 언마운트 시작');
-
   if (notificationSubscription.value) {
     notificationSubscription.value.unsubscribe();
-    console.log('🏁 새 알림 구독 해제');
   }
   if (countSubscription.value) {
     countSubscription.value.unsubscribe();
-    console.log('🏁 알림 개수 구독 해제');
   }
   if (listUpdateSubscription.value) {
     listUpdateSubscription.value.unsubscribe();
-    console.log('🏁 리스트 업데이트 구독 해제');
   }
-
-  console.log('🏁 Notification 컴포넌트 언마운트 완료');
 });
 </script>
 
 <style scoped>
-/* ===========================================
-   메인 컨테이너 및 애니메이션
-=========================================== */
+/* 메인 컨테이너 및 애니메이션 */
 .notification-container {
   position: fixed;
   top: 20px;
@@ -751,9 +511,7 @@ onUnmounted(() => {
   filter: drop-shadow(2px 0 4px rgba(0, 0, 0, 0.1));
 }
 
-/* ===========================================
-   애니메이션 키프레임
-=========================================== */
+/* 애니메이션 키프레임 */
 @keyframes gentleBounceIn {
   0% {
     transform: scale(0.8) translateY(-10px);
@@ -804,22 +562,6 @@ onUnmounted(() => {
   }
 }
 
-@keyframes readingTransition {
-  0% {
-    background-color: #f0f8ff;
-    border-left-color: #a5d6a7;
-  }
-  50% {
-    background-color: #f8f9fa;
-    transform: scale(0.98);
-  }
-  100% {
-    background-color: #fff;
-    border-left-color: transparent;
-    transform: scale(1);
-  }
-}
-
 @keyframes slideDown {
   from {
     transform: translateY(-20px);
@@ -833,14 +575,7 @@ onUnmounted(() => {
   }
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* ===========================================
-   모달 헤더
-=========================================== */
+/* 모달 헤더 */
 .notification-content {
   width: 400px;
   max-height: 500px;
@@ -910,9 +645,7 @@ onUnmounted(() => {
   color: #333;
 }
 
-/* ===========================================
-   새 알림 배너
-=========================================== */
+/* 새 알림 배너 */
 .new-notification-banner {
   background: linear-gradient(135deg, #e8f5e8, #d4edda);
   border: 1px solid #a5d6a7;
@@ -966,9 +699,7 @@ onUnmounted(() => {
   background: #757575;
 }
 
-/* ===========================================
-   알림 리스트 컨테이너
-=========================================== */
+/* 알림 리스트 컨테이너 */
 .notifications-container {
   flex: 1;
   overflow-y: auto;
@@ -997,9 +728,7 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-/* ===========================================
-   알림 아이템
-=========================================== */
+/* 알림 아이템 */
 .notification-item {
   background: #fff;
   border-radius: 8px;
@@ -1032,10 +761,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.notification-item.reading {
-  animation: readingTransition 0.5s ease-out;
-}
-
 /* 알림 타입별 시각적 구분 */
 .notification-item[data-type="FOLLOW"] {
   border-left-color: #3b82f6;
@@ -1053,9 +778,7 @@ onUnmounted(() => {
   border-left-color: #8b5cf6;
 }
 
-/* ===========================================
-   알림 아이템 내부 구조
-=========================================== */
+/* 알림 아이템 내부 구조 */
 .notification-cell {
   display: flex;
   align-items: center;
@@ -1127,9 +850,7 @@ onUnmounted(() => {
   color: #666;
 }
 
-/* ===========================================
-   하단 액션 버튼
-=========================================== */
+/* 하단 액션 버튼 */
 .notification-actions {
   margin-top: 12px;
   text-align: center;
@@ -1150,30 +871,7 @@ onUnmounted(() => {
   background-color: #ffe0e0;
 }
 
-/* ===========================================
-   로딩 상태
-=========================================== */
-.notifications-loading {
-  text-align: center;
-  padding: 20px;
-  color: #888;
-  font-size: 13px;
-}
-
-.loading-spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #f3f3f3;
-  border-top: 2px solid #a5d6a7;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-right: 8px;
-}
-
-/* ===========================================
-   반응형 디자인
-=========================================== */
+/* 반응형 디자인 */
 @media (max-width: 480px) {
   .notification-container {
     top: 60px;
