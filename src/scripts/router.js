@@ -1,6 +1,5 @@
 import Home from "@/pages/Home.vue";
 import Login from "@/pages/Login.vue";
-import Cart from "@/pages/Cart.vue";
 import Profile from "@/pages/Profile.vue";
 import Record from "@/pages/Record.vue";
 import Ranking from "@/pages/Ranking.vue";
@@ -11,7 +10,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 const routes = [
   { path: '/', component: Home },
   { path: '/login', component: Login, meta: { guestOnly: true } },
-  { path: '/cart', component: Cart, meta: { requiresAuth: true } },
   { path: '/profile/:account?', component: Profile, meta: { requiresAuth: true } },
   { path: '/records', component: Record, meta: { requiresAuth: true } },
   { path: '/ranking', component: Ranking, meta: { requiresAuth: true } },
