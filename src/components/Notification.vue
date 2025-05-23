@@ -67,11 +67,22 @@
       </div>
     </div>
   </div>
+
+  <!-- 게시글 상세 모달 -->
+<PostDetailModal
+  v-if="showPostModal && selectedPostId !== null"
+  :is-visible="showPostModal"
+  :post-id="selectedPostId"
+  @close="closePostModal"
+  @post-updated="handlePostUpdated"
+  @post-deleted="handlePostDeleted"
+/>
 </template>
 
 <script setup>
 import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
+import PostDetailModal from '@/components/feed/PostDetailModal.vue';
 import {useWebSocket} from '@/composables/useWebSocket';
 import {useUserStore} from '@/scripts/store';
 import axios from 'axios';
@@ -98,6 +109,10 @@ const currentPage = ref(0);
 const pageSize = ref(20);
 const hasMorePages = ref(true);
 const isLoading = ref(false);
+
+// 게시글 모달 상태
+const showPostModal = ref(false);
+const selectedPostId = ref(null);
 
 // WebSocket 구독 관련 변수들
 const notificationSubscription = ref(null);
@@ -353,12 +368,35 @@ const loadNotifications = async (page = 0) => {
   }
 };
 
-// 알림 클릭 처리
+// 게시글 모달 관련 함수들
+const openPostModal = (postId) => {
+  selectedPostId.value = postId;
+  showPostModal.value = true;
+};
+
+const closePostModal = () => {
+  showPostModal.value = false;
+  selectedPostId.value = null;
+};
+
+const handlePostUpdated = (updatedPost) => {
+  // 필요시 부모 컴포넌트로 이벤트 전달
+  console.log('게시글 업데이트됨:', updatedPost);
+};
+
+const handlePostDeleted = (postId) => {
+  // 필요시 부모 컴포넌트로 이벤트 전달
+  console.log('게시글 삭제됨:', postId);
+};
+
+// 알림 클릭 처리 - 수정된 부분
 const handleNotificationClick = async (notification) => {
+  // 읽음 처리
   if (!notification.read) {
     await markAsRead(notification.notificationId);
   }
 
+  // 알림 타입별 처리
   if (notification.type === 'FOLLOW') {
     if (notification.actorAccount) {
       closeModal();
@@ -366,8 +404,8 @@ const handleNotificationClick = async (notification) => {
     }
   } else if (['LIKE', 'COMMENT', 'MENTION'].includes(notification.type)) {
     if (notification.relatedId) {
-      closeModal();
-      alert('게시글 페이지로 이동합니다(미구현)');
+      // 게시글 상세 모달 열기
+      openPostModal(notification.relatedId);
     }
   }
 };

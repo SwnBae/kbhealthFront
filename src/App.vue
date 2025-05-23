@@ -50,7 +50,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, ref, nextTick, onBeforeUnmount } from 'vue';
+import { onMounted, computed, ref, nextTick, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Footer from "@/components/Footer.vue";
 import Character from "@/components/Character.vue";
@@ -83,16 +83,87 @@ const notificationSubscription = ref(null);
 const countSubscription = ref(null);
 
 // 로그인 여부 확인
+const isLoggedIn = computed(() => userStore.currentMember.id !== 0);
+
+// 🆕 사용자 상태 변화 감지 (로그인/로그아웃 자동 처리)
+watch(
+  () => userStore.currentMember.id,
+  (newId, oldId) => {
+    console.log('👤 App.vue - 사용자 상태 변화:', { oldId, newId });
+    console.log('👤 App.vue - 현재 사용자 정보:', userStore.currentMember);
+    
+    if (oldId !== 0 && newId === 0) {
+      // 로그아웃 감지
+      console.log('🚪 App.vue - 로그아웃 감지, WebSocket 정리');
+      cleanupWebSocket();
+      
+    } else if (oldId === 0 && newId !== 0) {
+      // 로그인 감지 (새로운 로그인)
+      console.log('🔑 App.vue - 로그인 감지, WebSocket 초기화');
+      console.log('🔑 App.vue - 로그인된 사용자:', userStore.currentMember);
+      
+      // 🆕 사용자 정보가 확실히 설정된 후 WebSocket 연결
+      setTimeout(() => {
+        console.log('🔌 WebSocket 연결 전 사용자 정보 재확인:', userStore.currentMember);
+        if (userStore.currentMember && userStore.currentMember.id !== 0) {
+          initializeWebSocket();
+          fetchUnreadCountOnce();
+        } else {
+          console.warn('⚠️ 사용자 정보가 없어서 WebSocket 연결 지연');
+          // 조금 더 기다려서 재시도
+          setTimeout(() => {
+            if (userStore.currentMember && userStore.currentMember.id !== 0) {
+              console.log('🔄 지연 후 WebSocket 연결 재시도');
+              initializeWebSocket();
+              fetchUnreadCountOnce();
+            }
+          }, 1000);
+        }
+      }, 500); // 500ms로 단축
+    }
+  },
+  { immediate: false }
+);
+
+// 로그인 여부 확인
 const check = async () => {
   try {
-    const { data } = await axios.get("/api/auth/check");
+    console.log('🔍 App.vue - 사용자 인증 체크 시작');
+    console.log('🔍 App.vue - 요청 URL: /api/auth/check');
+    
+    const response = await axios.get("/api/auth/check");
+    console.log('🔍 App.vue - HTTP 응답 상태:', response.status);
+    console.log('🔍 App.vue - HTTP 응답 전체:', response);
+    console.log('🔍 App.vue - 서버 응답 데이터:', response.data);
+    console.log('🔍 App.vue - 응답 데이터 타입:', typeof response.data);
+    
+    const data = response.data;
+    
     if (!data) {
+      console.log('❌ App.vue - 응답 데이터가 falsy:', data);
+      router.push("/login");
+    } else if (!data.id) {
+      console.log('❌ App.vue - 응답 데이터에 id가 없음:', data);
+      console.log('❌ App.vue - data.id:', data.id);
+      console.log('❌ App.vue - data의 모든 키:', Object.keys(data));
       router.push("/login");
     } else {
+      console.log('✅ App.vue - 인증 성공, 사용자 정보 저장');
+      console.log('👤 App.vue - 저장할 사용자 정보:', data);
+      console.log('👤 App.vue - 사용자 ID:', data.id);
+      
       userStore.setCurrentMember(data);
+      
+      // 저장 후 확인
+      console.log('✅ App.vue - 저장 후 사용자 정보 확인:', userStore.currentMember);
+      console.log('✅ App.vue - 저장 후 사용자 ID:', userStore.currentMember?.id);
+      
       fetchUnreadCountOnce();
     }
   } catch (error) {
+    console.error('❌ App.vue - 인증 체크 오류:', error);
+    console.error('❌ App.vue - 오류 상세:', error.response?.data);
+    console.error('❌ App.vue - HTTP 상태:', error.response?.status);
     router.push("/login");
   }
 };
@@ -140,6 +211,7 @@ const subscribeToNotifications = () => {
 const initializeWebSocket = async () => {
   if (!isLoggedIn.value) return;
 
+  console.log('🔌 App.vue - WebSocket 초기화 시작');
   connect();
 
   let attempts = 0;
@@ -149,16 +221,53 @@ const initializeWebSocket = async () => {
     attempts++;
 
     if (isConnected.value) {
+      console.log('✅ App.vue - WebSocket 연결 완료, 알림 구독 시작');
       setTimeout(subscribeToNotifications, 500);
     } else if (attempts < maxAttempts) {
       setTimeout(waitForConnection, 1000);
     } else {
+      console.warn('⚠️ App.vue - WebSocket 연결 실패, 재연결 시도');
       checkConnection();
       forceReconnect();
     }
   };
 
   waitForConnection();
+};
+
+// 🆕 WebSocket 정리 함수
+const cleanupWebSocket = () => {
+  console.log('🧹 App.vue - WebSocket 정리 시작');
+  
+  // 구독 해제
+  if (notificationSubscription.value) {
+    try {
+      notificationSubscription.value.unsubscribe();
+      notificationSubscription.value = null;
+      console.log('✅ 알림 구독 해제 완료');
+    } catch (error) {
+      console.warn('⚠️ 알림 구독 해제 실패:', error);
+    }
+  }
+  
+  if (countSubscription.value) {
+    try {
+      countSubscription.value.unsubscribe();
+      countSubscription.value = null;
+      console.log('✅ 카운트 구독 해제 완료');
+    } catch (error) {
+      console.warn('⚠️ 카운트 구독 해제 실패:', error);
+    }
+  }
+  
+  // WebSocket 연결 해제
+  disconnect();
+  
+  // 알림 관련 상태 초기화
+  unreadCount.value = 0;
+  showNotification.value = false;
+  
+  console.log('✅ App.vue - WebSocket 정리 완료');
 };
 
 // 브라우저 알림 표시
@@ -179,8 +288,6 @@ const requestNotificationPermission = async () => {
   }
 };
 
-const isLoggedIn = computed(() => userStore.currentMember.id !== 0);
-
 const toggleCharacter = () => {
   nextTick(() => {
     showCharacter.value = !showCharacter.value;
@@ -197,8 +304,16 @@ const closeNotification = () => {
   showNotification.value = false;
 };
 
+// 🆕 페이지 언로드 시 정리
+const handleBeforeUnload = () => {
+  console.log('🔄 페이지 언로드 - WebSocket 정리');
+  cleanupWebSocket();
+};
+
 // 컴포넌트 마운트
 onMounted(async () => {
+  console.log('📱 App.vue 마운트 시작');
+  
   await check();
 
   if (isLoggedIn.value) {
@@ -216,17 +331,24 @@ onMounted(async () => {
     // 브라우저 알림 권한 요청
     requestNotificationPermission();
   }
+  
+  // 🆕 페이지 언로드 이벤트 리스너 등록
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  
+  console.log('✅ App.vue 마운트 완료');
 });
 
 // 컴포넌트 해제
 onBeforeUnmount(() => {
-  if (notificationSubscription.value) {
-    notificationSubscription.value.unsubscribe();
-  }
-  if (countSubscription.value) {
-    countSubscription.value.unsubscribe();
-  }
-  disconnect();
+  console.log('🧹 App.vue 언마운트 - 정리 시작');
+  
+  // 이벤트 리스너 제거
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  
+  // WebSocket 정리
+  cleanupWebSocket();
+  
+  console.log('✅ App.vue 언마운트 완료');
 });
 </script>
 

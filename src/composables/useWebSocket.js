@@ -1,3 +1,5 @@
+// useWebSocket.js에서 사용자 정보 접근 방식 수정
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -10,15 +12,25 @@ let connectionAttempts = 0;
 const maxConnectionAttempts = 5;
 
 export function useWebSocket() {
-    const userStore = useUserStore();
+    // 🆕 각 함수에서 매번 새로 userStore 호출 (반응성 보장)
 
     const connect = () => {
         console.log('🔌 WebSocket 연결 시도 시작...');
-        console.log('🔌 현재 사용자 ID:', userStore.currentMember?.id);
+        
+        // 🆕 사용자 정보 접근 방식 통일 - 매번 새로 가져오기
+        const userStore = useUserStore(); // 매번 새로 호출
+        const currentUser = userStore.currentMember;
+        const userId = currentUser?.id;
+        
+        console.log('🔌 현재 사용자 정보:', currentUser);
+        console.log('🔌 현재 사용자 ID:', userId);
         console.log('🔌 현재 전역 연결 상태:', globalIsConnected.value);
 
-        if (!userStore.currentMember?.id || userStore.currentMember.id === 0) {
+        // 🆕 로그인 체크 조건 수정
+        if (!userId || userId === 0) {
             console.log('❌ 로그인되지 않은 상태에서는 WebSocket에 연결하지 않습니다.');
+            console.log('❌ 사용자 ID:', userId);
+            console.log('❌ 전체 사용자 정보:', currentUser);
             return;
         }
 
@@ -35,7 +47,7 @@ export function useWebSocket() {
         }
 
         connectionAttempts++;
-        console.log(`🚀 WebSocket 연결 시도 ${connectionAttempts}/${maxConnectionAttempts}`);
+        console.log(`🚀 WebSocket 연결 시도 ${connectionAttempts}/${maxConnectionAttempts} (사용자: ${userId})`);
 
         console.log('🚀 SockJS 소켓 생성 중...');
         const socket = new SockJS('/ws');
@@ -57,6 +69,7 @@ export function useWebSocket() {
         globalStompClient.value.onConnect = (frame) => {
             console.log('✅✅✅ 전역 WebSocket 연결 성공! ✅✅✅');
             console.log('🔗 연결 프레임:', frame);
+            console.log('🔗 연결된 사용자:', userId);
             globalIsConnected.value = true;
             connectionAttempts = 0; // 성공 시 카운터 리셋
         };
@@ -131,18 +144,24 @@ export function useWebSocket() {
 
     // 🆕 연결 상태 확인 헬퍼 함수
     const checkConnection = () => {
+        // 🆕 매번 새로 사용자 정보 가져오기
+        const userStore = useUserStore();
+        const currentUser = userStore.currentMember;
+        const userId = currentUser?.id;
+        
         console.log('🔍 전역 WebSocket 연결 상태 확인:');
         console.log('  - globalIsConnected:', globalIsConnected.value);
         console.log('  - globalStompClient 존재:', !!globalStompClient.value);
         console.log('  - globalStompClient 활성:', globalStompClient.value?.active);
-        console.log('  - 사용자 ID:', userStore.currentMember?.id);
+        console.log('  - 사용자 정보:', currentUser);
+        console.log('  - 사용자 ID:', userId);
         console.log('  - 연결 시도 횟수:', connectionAttempts);
 
         return {
             isConnected: globalIsConnected.value,
             hasClient: !!globalStompClient.value,
             isActive: globalStompClient.value?.active,
-            userId: userStore.currentMember?.id,
+            userId: userId,
             attempts: connectionAttempts
         };
     };
@@ -157,27 +176,6 @@ export function useWebSocket() {
         }, 1000);
     };
 
-    // 🆕 연결 대기 함수
-    const waitForConnection = (maxWaitTime = 10000) => {
-        return new Promise((resolve, reject) => {
-            if (globalIsConnected.value) {
-                resolve(true);
-                return;
-            }
-
-            const startTime = Date.now();
-            const checkInterval = setInterval(() => {
-                if (globalIsConnected.value) {
-                    clearInterval(checkInterval);
-                    resolve(true);
-                } else if (Date.now() - startTime > maxWaitTime) {
-                    clearInterval(checkInterval);
-                    reject(new Error('WebSocket 연결 대기 시간 초과'));
-                }
-            }, 100);
-        });
-    };
-
     return {
         // 🔥 전역 상태 반환
         stompClient: globalStompClient,
@@ -186,7 +184,6 @@ export function useWebSocket() {
         disconnect,
         subscribe,
         checkConnection,
-        forceReconnect,
-        waitForConnection // 🆕 추가
+        forceReconnect
     };
 }

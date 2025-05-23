@@ -121,24 +121,88 @@ const onPwFocus = () => { pwFocused.value = true }
 const onPwBlur = () => { pwFocused.value = false }
 
 // 로그인 제출
-const submitLogin = () => {
+const submitLogin = async () => {
+  console.log('🔑 Login - 로그인 시도 시작');
+  console.log('🔑 Login - 요청 데이터:', { account: state.form.loginId, password: '***' });
+  
   const args = { account: state.form.loginId, password: state.form.loginPw }
-  axios.post('/api/auth/login', args)
-    .then(({ data }) => { 
-      pendingMember.value = { id: data.id, account: data.account, name: data.name }
-      loginSuccess.value = true 
-    })
-    .catch(() => { 
-      alert('로그인에 실패했습니다. 계정 정보를 확인해주세요.') 
-    })
+  
+  try {
+    // 1단계: 로그인 요청
+    console.log('📡 Login - 로그인 API 호출');
+    const loginResponse = await axios.post('/api/auth/login', args);
+    
+    console.log('✅ Login - 로그인 응답:', loginResponse.data);
+    
+    // 로그인 성공 확인
+    if (loginResponse.data.message === "로그인 성공") {
+      console.log('✅ Login - 로그인 성공, 사용자 정보 조회 시작');
+      
+      // 2단계: 사용자 정보 조회
+      console.log('📡 Login - 사용자 정보 조회 API 호출');
+      const checkResponse = await axios.get('/api/auth/check');
+      
+      console.log('✅ Login - 사용자 정보 응답:', checkResponse.data);
+      
+      // 사용자 정보 추출
+      const userData = checkResponse.data;
+      console.log('👤 Login - 추출된 사용자 정보:', userData);
+      console.log('👤 Login - 사용자 ID:', userData.id);
+      console.log('👤 Login - 사용자 계정:', userData.account);
+      
+      if (userData.id) {
+        pendingMember.value = { 
+          id: userData.id, 
+          account: userData.account, 
+          name: userData.name || userData.account // name이 없으면 account 사용
+        };
+        
+        console.log('✅ Login - pendingMember 설정:', pendingMember.value);
+        loginSuccess.value = true;
+        console.log('🎬 Login - 애니메이션 시작');
+      } else {
+        console.error('❌ Login - 사용자 정보에 ID가 없음');
+        alert('사용자 정보를 가져오는데 실패했습니다.');
+      }
+    } else {
+      console.error('❌ Login - 로그인 실패:', loginResponse.data);
+      alert('로그인에 실패했습니다.');
+    }
+    
+  } catch (error) {
+    console.error('❌ Login - 오류 발생:', error);
+    
+    if (error.response?.status === 401) {
+      console.error('❌ Login - 인증 실패 (401)');
+      alert('계정 정보가 올바르지 않습니다.');
+    } else if (error.response?.data) {
+      console.error('❌ Login - 서버 오류:', error.response.data);
+      alert('로그인 처리 중 오류가 발생했습니다.');
+    } else {
+      console.error('❌ Login - 네트워크 오류:', error.message);
+      alert('네트워크 오류가 발생했습니다.');
+    }
+  }
 }
 
 // 애니메이션 완료 후 호출되는 메서드
 const onAnimationEnd = () => {
+  console.log('🎬 Login - 애니메이션 완료');
+  console.log('🎬 Login - pendingMember:', pendingMember.value);
+  
   if (pendingMember.value) {
+    console.log('👤 Login - 사용자 정보 Store에 저장');
+    console.log('👤 Login - 저장할 데이터:', pendingMember.value);
+    
     // Vuex mutation → Pinia action으로 변경
-    userStore.setCurrentMember(pendingMember.value)
-    router.push('/home')
+    userStore.setCurrentMember(pendingMember.value);
+    
+    console.log('👤 Login - Store 저장 후 확인:', userStore.currentMember);
+    console.log('🏠 Login - /home으로 이동');
+    
+    router.push('/home');
+  } else {
+    console.error('❌ Login - pendingMember가 없어서 이동 실패');
   }
 }
 

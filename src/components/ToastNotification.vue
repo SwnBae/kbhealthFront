@@ -1,33 +1,39 @@
 <!-- components/ToastNotification.vue -->
 <template>
-  <teleport to="body">
-    <transition name="toast-slide" appear>
-      <div v-if="visible" class="toast-notification" :class="typeClass">
-        <div class="toast-content">
-          <!-- 알림 아이콘 -->
-          <div class="toast-icon">
-            <component :is="iconComponent" />
-          </div>
-
-          <!-- 알림 내용 -->
-          <div class="toast-text">
-            <div class="toast-title">{{ title }}</div>
-            <div class="toast-message">{{ message }}</div>
-          </div>
-
-          <!-- 닫기 버튼 -->
-          <button @click="close" class="toast-close" aria-label="알림 닫기">
-            ✕
-          </button>
-        </div>
-
-        <!-- 진행 바 -->
-        <div class="toast-progress">
-          <div class="toast-progress-bar" :style="progressStyle"></div>
-        </div>
+  <div class="toast-notification" :class="typeClass">
+    <div class="toast-content">
+      <!-- 알림 아이콘 -->
+      <div class="toast-icon">
+        <component :is="iconComponent" />
       </div>
-    </transition>
-  </teleport>
+
+      <!-- 알림 내용 -->
+      <div class="toast-text">
+        <div class="toast-title">{{ title }}</div>
+        <div class="toast-message">{{ message }}</div>
+      </div>
+
+      <!-- 닫기 버튼 -->
+      <button 
+        @click="close" 
+        class="toast-close" 
+        aria-label="알림 닫기"
+        @mouseenter="pauseProgress"
+        @mouseleave="resumeProgress"
+      >
+        ✕
+      </button>
+    </div>
+
+    <!-- 진행 바 -->
+    <div v-if="showProgress && duration > 0" class="toast-progress">
+      <div 
+        class="toast-progress-bar" 
+        :class="{ paused: isPaused }"
+        :style="progressStyle"
+      ></div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -44,12 +50,12 @@ const props = defineProps({
   },
   type: {
     type: String,
-    default: 'info', // info, success, warning, error
+    default: 'info',
     validator: (value) => ['info', 'success', 'warning', 'error'].includes(value)
   },
   duration: {
     type: Number,
-    default: 5000 // 5초
+    default: 5000
   },
   showProgress: {
     type: Boolean,
@@ -59,10 +65,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-const visible = ref(false);
 const progress = ref(100);
+const isPaused = ref(false);
 let progressInterval = null;
 let autoCloseTimer = null;
+let startTime = null;
+let pausedTime = 0;
 
 // 타입별 클래스
 const typeClass = computed(() => `toast-${props.type}`);
@@ -81,16 +89,30 @@ const iconComponent = computed(() => {
 // 진행 바 스타일
 const progressStyle = computed(() => ({
   width: `${progress.value}%`,
-  transition: progress.value === 100 ? 'none' : `width ${props.duration}ms linear`
+  transition: progress.value === 100 ? 'none' : 
+    isPaused.value ? 'none' : `width ${props.duration}ms linear`
 }));
 
 // 토스트 닫기
 const close = () => {
-  visible.value = false;
   clearTimers();
-  setTimeout(() => {
-    emit('close');
-  }, 300); // 애니메이션 시간
+  emit('close');
+};
+
+// 진행 바 일시정지
+const pauseProgress = () => {
+  if (props.duration > 0 && !isPaused.value) {
+    isPaused.value = true;
+    clearTimers();
+  }
+};
+
+// 진행 바 재개
+const resumeProgress = () => {
+  if (props.duration > 0 && isPaused.value) {
+    isPaused.value = false;
+    startProgressAnimation();
+  }
 };
 
 // 타이머 정리
@@ -105,29 +127,40 @@ const clearTimers = () => {
   }
 };
 
-// 마운트 시 토스트 표시 및 자동 닫기 설정
-onMounted(() => {
-  visible.value = true;
-
-  if (props.duration > 0) {
-    // 진행 바 애니메이션
-    if (props.showProgress) {
-      const startTime = Date.now();
-      progressInterval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, props.duration - elapsed);
-        progress.value = (remaining / props.duration) * 100;
-
-        if (remaining <= 0) {
-          clearInterval(progressInterval);
-        }
-      }, 16); // 60fps
-    }
-
-    // 자동 닫기
-    autoCloseTimer = setTimeout(() => {
+// 진행 바 애니메이션 시작
+const startProgressAnimation = () => {
+  if (props.duration <= 0) return;
+  
+  const currentTime = Date.now();
+  const elapsedBeforePause = pausedTime;
+  startTime = currentTime - elapsedBeforePause;
+  
+  progressInterval = setInterval(() => {
+    if (isPaused.value) return;
+    
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, props.duration - elapsed);
+    progress.value = (remaining / props.duration) * 100;
+    
+    if (remaining <= 0) {
+      clearInterval(progressInterval);
       close();
-    }, props.duration);
+    }
+  }, 16); // 60fps
+  
+  // 자동 닫기 타이머 설정
+  const remainingDuration = props.duration - elapsedBeforePause;
+  autoCloseTimer = setTimeout(() => {
+    if (!isPaused.value) {
+      close();
+    }
+  }, remainingDuration);
+};
+
+// 마운트 시 진행 바 시작
+onMounted(() => {
+  if (props.duration > 0) {
+    startProgressAnimation();
   }
 });
 
@@ -139,17 +172,27 @@ onUnmounted(() => {
 
 <style scoped>
 .toast-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 9999;
+  width: 100%;
   min-width: 300px;
   max-width: 400px;
   background: white;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  
+  /* 호버 효과 */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-notification:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 16px 48px rgba(0, 0, 0, 0.08);
 }
 
 .toast-content {
@@ -168,6 +211,7 @@ onUnmounted(() => {
   justify-content: center;
   border-radius: 50%;
   margin-top: 2px;
+  transition: all 0.2s ease;
 }
 
 .toast-text {
@@ -206,6 +250,7 @@ onUnmounted(() => {
 .toast-close:hover {
   background-color: #f3f4f6;
   color: #374151;
+  transform: scale(1.1);
 }
 
 .toast-progress {
@@ -219,6 +264,11 @@ onUnmounted(() => {
   height: 100%;
   background: linear-gradient(90deg, #10b981, #059669);
   transition: width 16ms linear;
+  border-radius: 0 2px 2px 0;
+}
+
+.toast-progress-bar.paused {
+  animation: pulse 1s ease-in-out infinite;
 }
 
 /* 타입별 스타일 */
@@ -259,32 +309,17 @@ onUnmounted(() => {
 }
 
 /* 애니메이션 */
-.toast-slide-enter-active {
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.toast-slide-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.toast-slide-enter-from {
-  transform: translateX(100%);
-  opacity: 0;
-}
-
-.toast-slide-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 /* 모바일 최적화 */
 @media (max-width: 480px) {
   .toast-notification {
-    top: 10px;
-    right: 10px;
-    left: 10px;
     min-width: auto;
     max-width: none;
+    width: 100%;
   }
 
   .toast-content {
@@ -300,4 +335,16 @@ onUnmounted(() => {
     font-size: 12px;
   }
 }
-</style>
+
+/* 접근성: 애니메이션 줄이기 */
+@media (prefers-reduced-motion: reduce) {
+  .toast-notification,
+  .toast-icon,
+  .toast-close {
+    transition-duration: 0.1s;
+  }
+  
+  .toast-notification:hover {
+    transform: none;
+  }
+}</style>
