@@ -402,10 +402,15 @@ const handleNotificationClick = async (notification) => {
       closeModal();
       router.push(`/profile/${notification.actorAccount}`);
     }
-  } else if (['LIKE', 'COMMENT', 'MENTION'].includes(notification.type)) {
+  } else if (notification.type === 'LIKE' || notification.type === 'MENTION') {
+    // LIKE, MENTION은 relatedId 사용 (게시글 ID)
     if (notification.relatedId) {
-      // 게시글 상세 모달 열기
       openPostModal(notification.relatedId);
+    }
+  } else if (notification.type === 'COMMENT') {
+    // COMMENT는 relatedPostId 사용 (게시글 ID)
+    if (notification.relatedPostId) {
+      openPostModal(notification.relatedPostId);
     }
   }
 };
