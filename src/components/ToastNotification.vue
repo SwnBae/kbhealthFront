@@ -42,7 +42,7 @@ import { ref, onMounted, computed, onUnmounted } from 'vue';
 const props = defineProps({
   title: {
     type: String,
-    default: '알림'
+    default: '댓글 알림'
   },
   message: {
     type: String,
@@ -50,8 +50,8 @@ const props = defineProps({
   },
   type: {
     type: String,
-    default: 'info',
-    validator: (value) => ['info', 'success', 'warning', 'error'].includes(value)
+    default: 'comment',
+    validator: (value) => ['comment', 'like', 'follow'].includes(value)
   },
   duration: {
     type: Number,
@@ -68,9 +68,9 @@ const emit = defineEmits(['close']);
 const progress = ref(100);
 const isPaused = ref(false);
 let progressInterval = null;
-let autoCloseTimer = null;
 let startTime = null;
-let pausedTime = 0;
+let totalPausedTime = 0;
+let lastPauseTime = null;
 
 // 타입별 클래스
 const typeClass = computed(() => `toast-${props.type}`);
@@ -78,19 +78,16 @@ const typeClass = computed(() => `toast-${props.type}`);
 // 타입별 아이콘 컴포넌트
 const iconComponent = computed(() => {
   const icons = {
-    info: 'InfoIcon',
-    success: 'CheckIcon',
-    warning: 'WarningIcon',
-    error: 'ErrorIcon'
+    comment: 'CommentIcon',
+    like: 'HeartIcon',
+    follow: 'UserPlusIcon'
   };
-  return icons[props.type] || 'InfoIcon';
+  return icons[props.type] || 'CommentIcon';
 });
 
-// 진행 바 스타일
+// 진행 바 스타일 (CSS transition 제거)
 const progressStyle = computed(() => ({
-  width: `${progress.value}%`,
-  transition: progress.value === 100 ? 'none' : 
-    isPaused.value ? 'none' : `width ${props.duration}ms linear`
+  width: `${progress.value}%`
 }));
 
 // 토스트 닫기
@@ -103,7 +100,7 @@ const close = () => {
 const pauseProgress = () => {
   if (props.duration > 0 && !isPaused.value) {
     isPaused.value = true;
-    clearTimers();
+    lastPauseTime = Date.now();
   }
 };
 
@@ -111,7 +108,10 @@ const pauseProgress = () => {
 const resumeProgress = () => {
   if (props.duration > 0 && isPaused.value) {
     isPaused.value = false;
-    startProgressAnimation();
+    if (lastPauseTime) {
+      totalPausedTime += Date.now() - lastPauseTime;
+      lastPauseTime = null;
+    }
   }
 };
 
@@ -121,40 +121,31 @@ const clearTimers = () => {
     clearInterval(progressInterval);
     progressInterval = null;
   }
-  if (autoCloseTimer) {
-    clearTimeout(autoCloseTimer);
-    autoCloseTimer = null;
-  }
 };
 
-// 진행 바 애니메이션 시작
+// 진행 바 애니메이션 시작 (단일 타이머로 통합)
 const startProgressAnimation = () => {
   if (props.duration <= 0) return;
   
-  const currentTime = Date.now();
-  const elapsedBeforePause = pausedTime;
-  startTime = currentTime - elapsedBeforePause;
+  startTime = Date.now();
   
   progressInterval = setInterval(() => {
     if (isPaused.value) return;
     
-    const elapsed = Date.now() - startTime;
+    const currentTime = Date.now();
+    const elapsed = currentTime - startTime - totalPausedTime;
     const remaining = Math.max(0, props.duration - elapsed);
     progress.value = (remaining / props.duration) * 100;
     
+    // 진행 바가 완전히 끝났을 때만 토스트 닫기
     if (remaining <= 0) {
       clearInterval(progressInterval);
-      close();
+      // 약간의 지연을 두어 시각적으로 완료됨을 보여줌
+      setTimeout(() => {
+        close();
+      }, 50);
     }
   }, 16); // 60fps
-  
-  // 자동 닫기 타이머 설정
-  const remainingDuration = props.duration - elapsedBeforePause;
-  autoCloseTimer = setTimeout(() => {
-    if (!isPaused.value) {
-      close();
-    }
-  }, remainingDuration);
 };
 
 // 마운트 시 진행 바 시작
@@ -263,49 +254,41 @@ onUnmounted(() => {
 .toast-progress-bar {
   height: 100%;
   background: linear-gradient(90deg, #10b981, #059669);
-  transition: width 16ms linear;
+  /* CSS transition 제거 - JavaScript로만 제어 */
   border-radius: 0 2px 2px 0;
+  transition: none;
 }
 
 .toast-progress-bar.paused {
   animation: pulse 1s ease-in-out infinite;
 }
 
-/* 타입별 스타일 */
-.toast-info .toast-icon {
-  background-color: #dbeafe;
-  color: #3b82f6;
+/* 타입별 스타일 - 댓글, 좋아요, 팔로우 기준 초록색 계열 */
+.toast-comment .toast-icon {
+  background-color: #f0fdf4;
+  color: #16a34a;
 }
 
-.toast-info .toast-progress-bar {
-  background: linear-gradient(90deg, #3b82f6, #2563eb);
+.toast-comment .toast-progress-bar {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
 }
 
-.toast-success .toast-icon {
-  background-color: #d1fae5;
+.toast-like .toast-icon {
+  background-color: #ecfdf5;
   color: #10b981;
 }
 
-.toast-success .toast-progress-bar {
+.toast-like .toast-progress-bar {
   background: linear-gradient(90deg, #10b981, #059669);
 }
 
-.toast-warning .toast-icon {
-  background-color: #fef3c7;
-  color: #f59e0b;
+.toast-follow .toast-icon {
+  background-color: #f7fee7;
+  color: #65a30d;
 }
 
-.toast-warning .toast-progress-bar {
-  background: linear-gradient(90deg, #f59e0b, #d97706);
-}
-
-.toast-error .toast-icon {
-  background-color: #fee2e2;
-  color: #ef4444;
-}
-
-.toast-error .toast-progress-bar {
-  background: linear-gradient(90deg, #ef4444, #dc2626);
+.toast-follow .toast-progress-bar {
+  background: linear-gradient(90deg, #84cc16, #65a30d);
 }
 
 /* 애니메이션 */
