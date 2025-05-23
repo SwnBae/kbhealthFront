@@ -46,14 +46,72 @@
         <div v-else class="panel-content" key="register">
           <button class="btn-back" @click="toggleForm">← 로그인으로 돌아가기</button>
           <h1>회원가입</h1>
-          <label for="regAccount"><span>아이디</span><input type="text" id="regAccount" v-model="form.regAccount" placeholder="아이디를 입력하세요" /></label>
-          <label for="regPw"><span>비밀번호</span><input type="password" id="regPw" v-model="form.regPw" placeholder="비밀번호를 입력하세요" /></label>
-          <label for="regUserName"><span>닉네임</span><input type="text" id="regUserName" v-model="form.regUserName" placeholder="닉네임을 입력하세요" /></label>
-          <label for="regHeight"><span>키 (cm)</span><input type="number" id="regHeight" v-model="form.regHeight" placeholder="키를 입력하세요" /></label>
-          <label for="regWeight"><span>몸무게 (kg)</span><input type="number" id="regWeight" v-model="form.regWeight" placeholder="몸무게를 입력하세요" /></label>
-          <label for="regGender"><span>성별</span><select id="regGender" v-model="form.regGender"><option value="MALE">남성</option><option value="FEMALE">여성</option></select></label>
-          <label for="regAge"><span>나이</span><input type="number" id="regAge" v-model="form.regAge" placeholder="나이를 입력하세요" /></label>
-          <button class="btn-login" @click="registerUser">회원가입</button>
+          
+          <label for="regAccount">
+            <span>아이디</span>
+            <input 
+              type="text" 
+              id="regAccount" 
+              v-model="form.regAccount" 
+              placeholder="아이디를 입력하세요"
+              @input="onAccountInput"
+              @blur="checkAccount"
+            />
+            <div class="validation-msg" :class="accountValidation.status">
+              {{ accountValidation.message || '' }}
+            </div>
+          </label>
+          
+          <label for="regPw">
+            <span>비밀번호</span>
+            <input type="password" id="regPw" v-model="form.regPw" placeholder="비밀번호를 입력하세요" />
+          </label>
+          
+          <label for="regUserName">
+            <span>닉네임</span>
+            <input 
+              type="text" 
+              id="regUserName" 
+              v-model="form.regUserName" 
+              placeholder="닉네임을 입력하세요"
+              @input="onUsernameInput"
+              @blur="checkUsername"
+            />
+            <div class="validation-msg" :class="usernameValidation.status">
+              {{ usernameValidation.message || '' }}
+            </div>
+          </label>
+          
+          <label for="regHeight">
+            <span>키 (cm)</span>
+            <input type="number" id="regHeight" v-model="form.regHeight" placeholder="키를 입력하세요" />
+          </label>
+          
+          <label for="regWeight">
+            <span>몸무게 (kg)</span>
+            <input type="number" id="regWeight" v-model="form.regWeight" placeholder="몸무게를 입력하세요" />
+          </label>
+          
+          <label for="regGender">
+            <span>성별</span>
+            <select id="regGender" v-model="form.regGender">
+              <option value="MALE">남성</option>
+              <option value="FEMALE">여성</option>
+            </select>
+          </label>
+          
+          <label for="regAge">
+            <span>나이</span>
+            <input type="number" id="regAge" v-model="form.regAge" placeholder="나이를 입력하세요" />
+          </label>
+          
+          <button 
+            class="btn-login" 
+            @click="registerUser"
+            :disabled="!isFormValid"
+          >
+            회원가입
+          </button>
         </div>
       </transition>
 
@@ -73,7 +131,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import RabbitAnimation from '@/components/login/RabbitAnimation.vue'
@@ -106,12 +164,76 @@ const form = reactive({
   regAge: '' 
 })
 
+// 메시지 매핑 객체
+const validationMessages = {
+  // 아이디 관련
+  ACCOUNT_EMPTY: '아이디를 입력해주세요.',
+  ACCOUNT_LENGTH_INVALID: '아이디는 4-20자 사이로 입력해주세요.',
+  ACCOUNT_DUPLICATE: '이미 사용중인 아이디입니다.',
+  ACCOUNT_AVAILABLE: '사용 가능한 아이디입니다.',
+  
+  // 닉네임 관련
+  USERNAME_EMPTY: '닉네임을 입력해주세요.',
+  USERNAME_LENGTH_INVALID: '닉네임은 2-10자 사이로 입력해주세요.',
+  USERNAME_DUPLICATE: '이미 사용중인 닉네임입니다.',
+  USERNAME_AVAILABLE: '사용 가능한 닉네임입니다.',
+  
+  // 공통
+  SERVER_ERROR: '서버 오류가 발생했습니다.',
+  NETWORK_ERROR: '네트워크 오류가 발생했습니다.',
+  CHECKING: '확인 중...'
+}
+
+// 메시지 가져오기 함수
+const getMessage = (code) => {
+  return validationMessages[code] || '알 수 없는 오류가 발생했습니다.'
+}
+
+// 중복 검사 상태
+const accountValidation = reactive({
+  status: '', // 'success', 'error', 'checking'
+  message: ''
+})
+
+const usernameValidation = reactive({
+  status: '', // 'success', 'error', 'checking'
+  message: ''
+})
+
+// 타이머 관리
+let accountCheckTimer = null
+let usernameCheckTimer = null
+
+// 폼 유효성 검사
+const isFormValid = computed(() => {
+  return form.regAccount && 
+         form.regPw && 
+         form.regUserName && 
+         form.regHeight && 
+         form.regWeight && 
+         form.regAge &&
+         accountValidation.status === 'success' &&
+         usernameValidation.status === 'success'
+})
+
 // 폼 전환 메서드
 const toggleForm = () => { 
   // 폼 전환 시 부드러운 애니메이션을 위해 약간의 딜레이 추가
   setTimeout(() => {
-    isRegistering.value = !isRegistering.value 
+    isRegistering.value = !isRegistering.value
+    // 폼 전환 시 검증 상태 초기화
+    if (isRegistering.value) {
+      resetValidation()
+    }
   }, 50)
+}
+
+// 검증 상태 초기화
+const resetValidation = () => {
+  accountValidation.status = ''
+  accountValidation.message = ''
+  usernameValidation.status = ''
+  usernameValidation.message = ''
 }
 
 // 폼 포커스 이벤트 핸들러
@@ -119,6 +241,112 @@ const onIdFocus = () => { idFocused.value = true }
 const onIdBlur = () => { idFocused.value = false }
 const onPwFocus = () => { pwFocused.value = true }
 const onPwBlur = () => { pwFocused.value = false }
+
+// 아이디 입력 이벤트 (실시간 검사)
+const onAccountInput = () => {
+  // 이전 타이머 제거
+  if (accountCheckTimer) {
+    clearTimeout(accountCheckTimer)
+  }
+  
+  // 입력 중일 때 상태 초기화
+  accountValidation.status = ''
+  accountValidation.message = ''
+  
+  // 500ms 후에 중복 검사 실행
+  accountCheckTimer = setTimeout(() => {
+    if (form.regAccount && form.regAccount.length >= 4) {
+      checkAccount()
+    }
+  }, 500)
+}
+
+// 닉네임 입력 이벤트 (실시간 검사)
+const onUsernameInput = () => {
+  // 이전 타이머 제거
+  if (usernameCheckTimer) {
+    clearTimeout(usernameCheckTimer)
+  }
+  
+  // 입력 중일 때 상태 초기화
+  usernameValidation.status = ''
+  usernameValidation.message = ''
+  
+  // 500ms 후에 중복 검사 실행
+  usernameCheckTimer = setTimeout(() => {
+    if (form.regUserName && form.regUserName.length >= 2) {
+      checkUsername()
+    }
+  }, 500)
+}
+
+// 아이디 중복 검사
+const checkAccount = async () => {
+  if (!form.regAccount) return
+  
+  try {
+    accountValidation.status = 'checking'
+    accountValidation.message = getMessage('CHECKING')
+    
+    const response = await axios.get('/api/auth/check-account', {
+      params: { account: form.regAccount }
+    })
+    
+    const { available, code } = response.data
+    
+    if (available) {
+      accountValidation.status = 'success'
+      accountValidation.message = getMessage(code)
+    } else {
+      accountValidation.status = 'error'
+      accountValidation.message = getMessage(code)
+    }
+  } catch (error) {
+    console.error('아이디 중복 검사 오류:', error)
+    accountValidation.status = 'error'
+    
+    // 서버 응답에 코드가 있으면 사용, 없으면 네트워크 오류로 처리
+    if (error.response?.data?.code) {
+      accountValidation.message = getMessage(error.response.data.code)
+    } else {
+      accountValidation.message = getMessage('NETWORK_ERROR')
+    }
+  }
+}
+
+// 닉네임 중복 검사
+const checkUsername = async () => {
+  if (!form.regUserName) return
+  
+  try {
+    usernameValidation.status = 'checking'
+    usernameValidation.message = getMessage('CHECKING')
+    
+    const response = await axios.get('/api/auth/check-username', {
+      params: { username: form.regUserName }
+    })
+    
+    const { available, code } = response.data
+    
+    if (available) {
+      usernameValidation.status = 'success'
+      usernameValidation.message = getMessage(code)
+    } else {
+      usernameValidation.status = 'error'
+      usernameValidation.message = getMessage(code)
+    }
+  } catch (error) {
+    console.error('닉네임 중복 검사 오류:', error)
+    usernameValidation.status = 'error'
+    
+    // 서버 응답에 코드가 있으면 사용, 없으면 네트워크 오류로 처리
+    if (error.response?.data?.code) {
+      usernameValidation.message = getMessage(error.response.data.code)
+    } else {
+      usernameValidation.message = getMessage('NETWORK_ERROR')
+    }
+  }
+}
 
 // 로그인 제출
 const submitLogin = async () => {
@@ -207,7 +435,13 @@ const onAnimationEnd = () => {
 }
 
 // 회원가입 메서드
-const registerUser = () => {
+const registerUser = async () => {
+  // 최종 검증
+  if (!isFormValid.value) {
+    alert('모든 필드를 올바르게 입력해주세요.')
+    return
+  }
+  
   const args = { 
     account: form.regAccount, 
     password: form.regPw, 
@@ -218,14 +452,29 @@ const registerUser = () => {
     age: form.regAge 
   }
   
-  axios.post('/api/auth/regist', args)
-    .then(({ data }) => { 
-      alert(data.message || '회원가입에 성공했습니다.')
-      toggleForm() 
+  try {
+    const response = await axios.post('/api/auth/regist', args)
+    alert(response.data.message || '회원가입에 성공했습니다.')
+    
+    // 폼 초기화
+    Object.assign(form, {
+      regAccount: '', 
+      regPw: '', 
+      regUserName: '', 
+      regHeight: '', 
+      regWeight: '', 
+      regGender: 'MALE', 
+      regAge: ''
     })
-    .catch(() => { 
-      alert('회원가입에 실패했습니다. 입력 정보를 확인해주세요.') 
-    })
+    
+    // 검증 상태 초기화
+    resetValidation()
+    
+    toggleForm()
+  } catch (error) {
+    console.error('회원가입 오류:', error)
+    alert('회원가입에 실패했습니다. 입력 정보를 확인해주세요.')
+  }
 }
 </script>
 
@@ -406,5 +655,30 @@ const registerUser = () => {
 }
 .toggle-link a:hover {
   color: #fff;
+}
+
+.validation-msg {
+  font-size: 12px;
+  margin-top: 4px;
+  height: 16px; /* 고정 높이로 레이아웃 안정화 */
+  display: flex;
+  align-items: center;
+}
+
+.validation-msg.success {
+  color: #28a745;
+}
+
+.validation-msg.error {
+  color: #dc3545;
+}
+
+.validation-msg.checking {
+  color: #6c757d;
+}
+
+.btn-login:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
