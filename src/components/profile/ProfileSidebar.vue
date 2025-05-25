@@ -8,6 +8,7 @@
         @edit-body="$emit('edit-body')"
         @toggle-follow="$emit('toggle-follow')"
         @open-follow-modal="$emit('open-follow-modal', $event)"
+        @send-message="$emit('send-message')"
     />
 
     <!-- 그래프 영역 -->
@@ -30,7 +31,7 @@ defineProps({
   }
 });
 
-defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
+defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal', 'send-message']);
 </script>
 
 <style scoped>

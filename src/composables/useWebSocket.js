@@ -1,111 +1,69 @@
-// useWebSocket.js에서 사용자 정보 접근 방식 수정
-
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useUserStore } from '@/scripts/store';
 
-// 🔥 전역 WebSocket 상태 (모든 컴포넌트에서 공유)
+// 🔥 전역 WebSocket 상태
 const globalStompClient = ref(null);
 const globalIsConnected = ref(false);
+const globalSubscriptions = new Map(); // 🆕 구독 관리
 let connectionAttempts = 0;
 const maxConnectionAttempts = 5;
 
 export function useWebSocket() {
-    // 🆕 각 함수에서 매번 새로 userStore 호출 (반응성 보장)
-
     const connect = () => {
-        console.log('🔌 WebSocket 연결 시도 시작...');
-        
-        // 🆕 사용자 정보 접근 방식 통일 - 매번 새로 가져오기
-        const userStore = useUserStore(); // 매번 새로 호출
+        const userStore = useUserStore();
         const currentUser = userStore.currentMember;
         const userId = currentUser?.id;
-        
-        console.log('🔌 현재 사용자 정보:', currentUser);
-        console.log('🔌 현재 사용자 ID:', userId);
-        console.log('🔌 현재 전역 연결 상태:', globalIsConnected.value);
 
-        // 🆕 로그인 체크 조건 수정
         if (!userId || userId === 0) {
             console.log('❌ 로그인되지 않은 상태에서는 WebSocket에 연결하지 않습니다.');
-            console.log('❌ 사용자 ID:', userId);
-            console.log('❌ 전체 사용자 정보:', currentUser);
             return;
         }
 
-        // 🔥 이미 연결되어 있으면 연결 안함
         if (globalStompClient.value && globalIsConnected.value) {
             console.log('✅ 이미 WebSocket이 연결되어 있습니다.');
             return;
         }
 
-        // 🔥 연결 시도 횟수 제한
         if (connectionAttempts >= maxConnectionAttempts) {
             console.error('❌ WebSocket 연결 최대 시도 횟수 초과');
             return;
         }
 
         connectionAttempts++;
-        console.log(`🚀 WebSocket 연결 시도 ${connectionAttempts}/${maxConnectionAttempts} (사용자: ${userId})`);
+        console.log(`🚀 WebSocket 연결 시도 ${connectionAttempts}/${maxConnectionAttempts}`);
 
-        console.log('🚀 SockJS 소켓 생성 중...');
         const socket = new SockJS('/ws');
-
-        console.log('🚀 STOMP 클라이언트 생성 중...');
         globalStompClient.value = new Client({
             webSocketFactory: () => socket,
-            connectHeaders: {
-                // HttpOnly 쿠키가 자동으로 전송되므로 별도 토큰 불필요
-            },
-            debug: (str) => {
-                console.log('📡 STOMP Debug:', str);
-            },
-            reconnectDelay: 5000, // 5초마다 재연결 시도
+            debug: (str) => console.log('📡 STOMP Debug:', str),
+            reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
         });
 
         globalStompClient.value.onConnect = (frame) => {
-            console.log('✅✅✅ 전역 WebSocket 연결 성공! ✅✅✅');
-            console.log('🔗 연결 프레임:', frame);
-            console.log('🔗 연결된 사용자:', userId);
+            console.log('✅ WebSocket 연결 성공!');
             globalIsConnected.value = true;
-            connectionAttempts = 0; // 성공 시 카운터 리셋
+            connectionAttempts = 0;
+
+            // 🆕 재연결 시 기존 구독 복구
+            restoreSubscriptions();
         };
 
         globalStompClient.value.onStompError = (frame) => {
-            console.error('❌❌❌ 전역 WebSocket STOMP 오류 ❌❌❌');
-            console.error('🔴 에러 프레임:', frame);
-            console.error('🔴 에러 헤더:', frame.headers);
-            if (frame.binaryBody) {
-                console.error('🔴 에러 본문:', new TextDecoder().decode(frame.binaryBody));
-            }
-            globalIsConnected.value = false;
-        };
-
-        globalStompClient.value.onWebSocketError = (error) => {
-            console.error('❌❌❌ 전역 WebSocket 연결 오류 ❌❌❌');
-            console.error('🔴 WebSocket 오류:', error);
+            console.error('❌ WebSocket STOMP 오류', frame);
             globalIsConnected.value = false;
         };
 
         globalStompClient.value.onDisconnect = () => {
-            console.log('🔌 전역 WebSocket 연결 해제됨');
+            console.log('🔌 WebSocket 연결 해제됨');
             globalIsConnected.value = false;
         };
-
-        // 🔥 연결 상태 변화 모니터링
-        globalStompClient.value.onWebSocketClose = (event) => {
-            console.log('🔌 전역 WebSocket 연결 닫힘:', event);
-            globalIsConnected.value = false;
-        };
-
-        console.log('🚀 WebSocket 연결 활성화 중...');
 
         try {
             globalStompClient.value.activate();
-            console.log('🔄 WebSocket 활성화 명령 전송됨');
         } catch (error) {
             console.error('❌ WebSocket 활성화 실패:', error);
             globalIsConnected.value = false;
@@ -113,77 +71,175 @@ export function useWebSocket() {
     };
 
     const disconnect = () => {
-        console.log('🔌 전역 WebSocket 연결 해제 시작...');
+        console.log('🔌 WebSocket 연결 해제 시작...');
+
+        // 🆕 모든 구독 정리
+        clearAllSubscriptions();
 
         if (globalStompClient.value) {
             globalStompClient.value.deactivate();
             globalStompClient.value = null;
             globalIsConnected.value = false;
             connectionAttempts = 0;
-            console.log('✅ 전역 WebSocket 연결 해제 완료');
-        } else {
-            console.log('⚠️ 해제할 WebSocket 연결이 없습니다.');
+            console.log('✅ WebSocket 연결 해제 완료');
         }
     };
 
-    const subscribe = (destination, callback) => {
+    // 🆕 개선된 구독 함수 - 중복 방지
+    const subscribe = (destination, callback, subscriptionId = null) => {
         console.log('📡 구독 시도:', destination);
-        console.log('📡 전역 연결 상태:', globalIsConnected.value);
-        console.log('📡 전역 클라이언트 존재:', !!globalStompClient.value);
+
+        // 구독 ID 생성 (제공되지 않은 경우)
+        const subId = subscriptionId || `${destination}_${Date.now()}`;
+
+        // 🆕 중복 구독 방지
+        if (globalSubscriptions.has(subId)) {
+            console.warn('⚠️ 중복 구독 방지:', subId);
+            return globalSubscriptions.get(subId);
+        }
 
         if (globalStompClient.value && globalIsConnected.value) {
-            console.log('✅ 구독 성공:', destination);
-            return globalStompClient.value.subscribe(destination, callback);
+            try {
+                const subscription = globalStompClient.value.subscribe(destination, callback);
+
+                // 🆕 구독 정보 저장 (재연결 시 복구용)
+                globalSubscriptions.set(subId, {
+                    subscription,
+                    destination,
+                    callback,
+                    subscriptionId: subId
+                });
+
+                console.log('✅ 구독 성공:', destination, '(ID:', subId, ')');
+                return subscription;
+            } catch (error) {
+                console.error('❌ 구독 실패:', destination, error);
+                return null;
+            }
         } else {
-            console.warn('❌ 구독 실패 - WebSocket 연결되지 않음:', destination);
-            console.warn('❌ 전역 연결 상태:', globalIsConnected.value);
-            console.warn('❌ 전역 클라이언트:', globalStompClient.value);
+            console.warn('❌ WebSocket 연결되지 않음, 구독 대기:', destination);
+
+            // 🆕 연결 대기 후 재시도
+            const retrySubscribe = () => {
+                if (globalIsConnected.value) {
+                    return subscribe(destination, callback, subscriptionId);
+                } else {
+                    setTimeout(retrySubscribe, 1000);
+                }
+            };
+
+            setTimeout(retrySubscribe, 1000);
             return null;
         }
     };
 
-    // 🆕 연결 상태 확인 헬퍼 함수
-    const checkConnection = () => {
-        // 🆕 매번 새로 사용자 정보 가져오기
-        const userStore = useUserStore();
-        const currentUser = userStore.currentMember;
-        const userId = currentUser?.id;
-        
-        console.log('🔍 전역 WebSocket 연결 상태 확인:');
-        console.log('  - globalIsConnected:', globalIsConnected.value);
-        console.log('  - globalStompClient 존재:', !!globalStompClient.value);
-        console.log('  - globalStompClient 활성:', globalStompClient.value?.active);
-        console.log('  - 사용자 정보:', currentUser);
-        console.log('  - 사용자 ID:', userId);
-        console.log('  - 연결 시도 횟수:', connectionAttempts);
-
-        return {
-            isConnected: globalIsConnected.value,
-            hasClient: !!globalStompClient.value,
-            isActive: globalStompClient.value?.active,
-            userId: userId,
-            attempts: connectionAttempts
-        };
+    // 🆕 특정 구독 해제
+    const unsubscribe = (subscriptionId) => {
+        if (globalSubscriptions.has(subscriptionId)) {
+            const subInfo = globalSubscriptions.get(subscriptionId);
+            try {
+                if (subInfo.subscription) {
+                    subInfo.subscription.unsubscribe();
+                }
+                globalSubscriptions.delete(subscriptionId);
+                console.log('✅ 구독 해제 완료:', subscriptionId);
+            } catch (error) {
+                console.warn('⚠️ 구독 해제 실패:', subscriptionId, error);
+                globalSubscriptions.delete(subscriptionId); // 실패해도 맵에서 제거
+            }
+        }
     };
 
-    // 🆕 강제 재연결 함수
+    // 🆕 모든 구독 정리
+    const clearAllSubscriptions = () => {
+        console.log('🧹 모든 구독 정리 시작...');
+
+        globalSubscriptions.forEach((subInfo, subId) => {
+            try {
+                if (subInfo.subscription) {
+                    subInfo.subscription.unsubscribe();
+                }
+            } catch (error) {
+                console.warn('⚠️ 구독 해제 실패:', subId, error);
+            }
+        });
+
+        globalSubscriptions.clear();
+        console.log('✅ 모든 구독 정리 완료');
+    };
+
+    // 🆕 재연결 시 구독 복구
+    const restoreSubscriptions = () => {
+        console.log('🔄 구독 복구 시작...');
+
+        const subscriptionsToRestore = Array.from(globalSubscriptions.entries());
+        globalSubscriptions.clear(); // 기존 구독 정보 초기화
+
+        subscriptionsToRestore.forEach(([subId, subInfo]) => {
+            console.log('🔄 구독 복구:', subInfo.destination);
+            subscribe(subInfo.destination, subInfo.callback, subId);
+        });
+
+        console.log('✅ 구독 복구 완료');
+    };
+
+    // 🆕 연결 대기 (Promise 기반)
+    const waitForConnection = (timeout = 10000) => {
+        return new Promise((resolve, reject) => {
+            if (globalIsConnected.value) {
+                resolve();
+                return;
+            }
+
+            const startTime = Date.now();
+            const checkConnection = () => {
+                if (globalIsConnected.value) {
+                    resolve();
+                } else if (Date.now() - startTime > timeout) {
+                    reject(new Error('WebSocket 연결 대기 시간 초과'));
+                } else {
+                    setTimeout(checkConnection, 100);
+                }
+            };
+
+            checkConnection();
+        });
+    };
+
+    // 🆕 강제 재연결 개선
     const forceReconnect = () => {
         console.log('🔄 강제 재연결 시작...');
-        connectionAttempts = 0; // 카운터 리셋
+        connectionAttempts = 0;
         disconnect();
         setTimeout(() => {
             connect();
         }, 1000);
     };
 
+    // 🆕 구독 상태 확인
+    const getSubscriptionStatus = () => {
+        return {
+            isConnected: globalIsConnected.value,
+            subscriptionCount: globalSubscriptions.size,
+            subscriptions: Array.from(globalSubscriptions.keys())
+        };
+    };
+
     return {
-        // 🔥 전역 상태 반환
         stompClient: globalStompClient,
         isConnected: globalIsConnected,
         connect,
         disconnect,
         subscribe,
-        checkConnection,
-        forceReconnect
+        unsubscribe, // 🆕 추가
+        waitForConnection,
+        forceReconnect,
+        getSubscriptionStatus, // 🆕 추가
+
+        // 🆕 편의 함수들
+        subscribeNotifications: (callback) => subscribe('/user/queue/notifications', callback, 'notifications'),
+        subscribeNotificationCount: (callback) => subscribe('/user/queue/notification-count', callback, 'notification-count'),
+        subscribeChatMessages: (callback) => subscribe('/user/queue/chat-messages', callback, 'chat-messages'),
+        subscribeChatUnreadCount: (callback) => subscribe('/user/queue/chat-unread-count', callback, 'chat-unread-count'),
     };
 }

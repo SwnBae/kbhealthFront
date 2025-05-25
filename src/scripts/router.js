@@ -3,6 +3,7 @@ import Login from "@/pages/Login.vue";
 import Profile from "@/pages/Profile.vue";
 import Record from "@/pages/Record.vue";
 import Ranking from "@/pages/Ranking.vue";
+import Chat from "@/pages/Chat.vue"
 
 import axios from 'axios';
 import { createRouter, createWebHistory } from 'vue-router';
@@ -14,6 +15,8 @@ const routes = [
   { path: '/records', component: Record, meta: { requiresAuth: true } },
   { path: '/ranking', component: Ranking, meta: { requiresAuth: true } },
   { path: '/home', component: Home, meta: { requiresAuth: true } },
+  { path: '/chat', component: Chat, meta: { requiresAuth: true }
+  }
 ];
 
 const router = createRouter({

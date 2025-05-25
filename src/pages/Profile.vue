@@ -20,6 +20,7 @@
         @edit-body="openEditBodyModal"
         @toggle-follow="toggleFollow"
         @open-follow-modal="openFollowModal"
+        @send-message="sendMessage"
     />
 
     <!-- 우측 영역: 피드 표시 부분 - suppressLoading prop 추가 -->
@@ -353,6 +354,30 @@ const toggleFollow = async () => {
 
     showErrorNotification('팔로우/언팔로우 처리 중 오류가 발생했습니다.');
     console.error('팔로우/언팔로우 처리 중 오류가 발생했습니다.', error);
+  }
+};
+
+const sendMessage = async () => {
+  if (!profile.value) return;
+
+  try {
+    const partnerId = profile.value.memberId;
+    const chatRoomId = Math.min(userStore.currentMember.id, partnerId) + '_' + Math.max(userStore.currentMember.id, partnerId);
+
+    // 채팅 페이지로 바로 이동
+    router.push({
+      path: '/chat',
+      query: {
+        roomId: chatRoomId,
+        partnerName: profile.value.userName,
+        partnerImage: profile.value.profileImageUrl
+      }
+    });
+
+    showSuccessNotification(`${profile.value.userName}님과의 채팅을 시작합니다.`);
+
+  } catch (error) {
+    showErrorNotification('채팅 시작 중 오류가 발생했습니다.');
   }
 };
 

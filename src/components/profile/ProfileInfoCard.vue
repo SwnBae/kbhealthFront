@@ -46,7 +46,8 @@
       </div>
     </div>
 
-    <div v-if="!isCurrentUser" class="follow-button-container">
+    <!-- 다른 사용자의 프로필에서만 팔로우/메시지 버튼 표시 -->
+    <div v-if="!isCurrentUser" class="action-buttons">
       <button
           v-if="!profile.following"
           @click="$emit('toggle-follow')"
@@ -55,6 +56,11 @@
           v-else
           @click="$emit('toggle-follow')"
           class="unfollow-button">언팔로우</button>
+
+      <!-- 메시지 버튼 추가 -->
+      <button
+          @click="$emit('send-message')"
+          class="message-button">메시지</button>
     </div>
   </div>
 </template>
@@ -74,7 +80,7 @@ defineProps({
   }
 });
 
-defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal']);
+defineEmits(['edit-info', 'edit-body', 'toggle-follow', 'open-follow-modal', 'send-message']);
 
 onMounted(() => {
   observeFeedAnimation(); // 컴포넌트가 마운트될 때 애니메이션 설정
@@ -233,24 +239,32 @@ const observeFeedAnimation = () => {
   font-weight: 500;
 }
 
-.follow-button-container {
+/* 액션 버튼 컨테이너 (팔로우 + 메시지) */
+.action-buttons {
   margin-top: 1rem;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
 }
 
 .follow-button,
-.unfollow-button {
-  padding: 6px 18px;
+.unfollow-button,
+.message-button {
+  padding: 8px 16px;
   border-radius: 16px;
   font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: none;
+  flex: 1;
+  max-width: 100px;
 }
 
 .follow-button {
   background-color: #007bff;
   color: white;
-  border: none;
 }
 
 .follow-button:hover {
@@ -261,11 +275,35 @@ const observeFeedAnimation = () => {
 .unfollow-button {
   background-color: #ff6b6b;
   color: white;
-  border: none;
 }
 
 .unfollow-button:hover {
   background-color: #ff4d4d;
   transform: translateY(-2px);
+}
+
+.message-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.message-button:hover {
+  background-color: #1e7e34;
+  transform: translateY(-2px);
+}
+
+/* 모바일 반응형 */
+@media (max-width: 480px) {
+  .action-buttons {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .follow-button,
+  .unfollow-button,
+  .message-button {
+    max-width: none;
+    width: 100%;
+  }
 }
 </style>

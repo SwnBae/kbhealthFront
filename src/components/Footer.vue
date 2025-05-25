@@ -1,6 +1,7 @@
+<!-- components/Footer.vue - 커스텀 이벤트 방식으로 수정 -->
 <template>
   <aside class="sidebar" ref="sidebarRef" :class="{ 'expanded': isExpanded }" @mouseenter="expandSidebar"
-    @mouseleave="collapseSidebar">
+         @mouseleave="collapseSidebar">
     <div class="sidebar-container">
       <div class="sidebar-content">
         <button class="nav-btn btn" @click="goTo('/home')" :class="{ 'active': isActive('/home') }" title="홈">
@@ -17,6 +18,18 @@
           <span class="nav-text">검색</span>
         </button>
 
+        <button v-if="isLoggedIn" class="nav-btn btn" @click="goTo('/chat')" :class="{ 'active': isActive('/chat') }" title="채팅">
+          <div class="icon-container">
+            <img src="/assets/icon/chat.png" alt="채팅" class="nav-icon" />
+            <!-- 🎯 Chat.vue와 동기화되는 채팅 개수 표시 -->
+            <div v-if="chatUnreadCount > 0" class="chat-badge">
+              {{ chatUnreadCount > 99 ? '99+' : chatUnreadCount }}
+            </div>
+          </div>
+          <span class="nav-text">채팅</span>
+        </button>
+
+        <!-- 다른 버튼들... -->
         <button class="nav-btn btn" @click="goTo('/ranking')" :class="{ 'active': isActive('/ranking') }" title="랭킹">
           <div class="icon-container">
             <img src="/assets/icon/ranking.png" alt="랭킹" class="nav-icon" />
@@ -47,10 +60,10 @@
       </div>
     </div>
 
-    <!-- Teleport를 사용하여 모달을 body에 렌더링 -->
+    <!-- 검색 모달... (기존과 동일) -->
     <teleport to="body">
       <div ref="modalRef" class="modal" v-if="localShowSearch" @click.self="closeOverlay"
-        :class="{ 'fadeIn': localShowSearch }">
+           :class="{ 'fadeIn': localShowSearch }">
         <div class="modal-content animate-on-scroll in-view" :class="{ 'popIn': localShowSearch }" @click.stop>
           <div class="modal-header">
             <h3 class="modal-title">유저 검색</h3>
@@ -59,7 +72,7 @@
 
           <div class="search-container">
             <input type="text" v-model="keyword" placeholder="계정명 또는 사용자명으로 검색" class="search-input"
-              @keyup.enter="searchMembers" />
+                   @keyup.enter="searchMembers" />
             <button class="search-button" @click="clearSearch">
               <span v-if="keyword">✕</span>
             </button>
@@ -70,12 +83,11 @@
               검색 결과가 없습니다.
             </div>
             <div v-for="member in searchResults" :key="member.memberId"
-              class="search-result-item animate-on-scroll in-view" @click="goToProfile(member.account)">
+                 class="search-result-item animate-on-scroll in-view" @click="goToProfile(member.account)">
               <div class="profile-cell">
                 <router-link :to="`/profile/${member.account}`" class="profile-link" @click.stop>
-                  <!-- ProfileRing 컴포넌트 사용 -->
                   <ProfileRing :profile-image-url="member.profileImageUrl" :base-score="member.baseScore || 0"
-                    :size="48" :stroke-width="3" progress-color="#a5d6a7" alt-text="프로필 이미지" />
+                               :size="48" :stroke-width="3" progress-color="#a5d6a7" alt-text="프로필 이미지" />
                 </router-link>
                 <div class="user-details">
                   <span class="nickname">{{ member.userName }}</span>
@@ -93,16 +105,17 @@
 </template>
 
 <script setup>
-// Pinia 스토어 가져오기
 import { useUserStore } from "@/scripts/store";
 import router from "@/scripts/router";
 import axios from "axios";
-import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import ProfileRing from "@/components/profile/ProfileRing.vue";
+import { useWebSocket } from '@/composables/useWebSocket'; // 🆕 추가
 
-// Pinia 스토어 인스턴스 생성
 const userStore = useUserStore();
+const { subscribe,isConnected } = useWebSocket(); // 🆕 추가
 
+// 기본 변수들
 const keyword = ref('');
 const searchResults = ref([]);
 const showSearch = ref(false);
@@ -114,65 +127,143 @@ const scrollbarWidth = ref(0);
 const savedScrollY = ref(0);
 const isExpanded = ref(false);
 
-// 전역 스토어의 currentMember.id가 0이 아니면 로그인 상태로 봄
+// 🎯 채팅 개수 - 알림과 완전히 동일한 방식
+const chatUnreadCount = ref(0);
+const chatUnreadCountSubscription = ref(null); // 🆕 추가
+
 const isLoggedIn = computed(() => {
   return userStore.currentMember.id !== 0;
 });
 
-// 사이드바 마우스 이벤트 핸들러 설정
-onMounted(() => {
-  console.log('사이드바 컴포넌트 마운트됨');
-  // 이벤트 리스너는 template에서 직접 설정했으므로 여기서는 추가 설정 불필요
+// 🎯 초기 채팅 개수 조회 - App.vue의 fetchUnreadCountOnce와 동일
+const fetchChatUnreadCountOnce = async () => {
+  if (!isLoggedIn.value) return;
+
+  try {
+    console.log('📧 Footer - 초기 채팅 개수 조회');
+    const response = await axios.get('/api/chat/unread-count');
+    chatUnreadCount.value = response.data;
+    console.log('📧 Footer - 초기 채팅 개수:', chatUnreadCount.value);
+  } catch (error) {
+    console.error('❌ Footer - 채팅 개수 조회 실패:', error);
+  }
+};
+
+const subscribeToChatUnreadCount = () => {
+  if (!isLoggedIn.value) return;
+
+  // 🆕 WebSocket 연결 확인 후 구독 (App.vue와 동일한 패턴)
+  if (!isConnected.value) {
+    console.log('📧 Footer - WebSocket 미연결, 1초 후 재시도');
+    setTimeout(subscribeToChatUnreadCount, 1000);
+    return;
+  }
+
+  console.log('📧 Footer - 채팅 개수 구독 시작');
+
+  try {
+    chatUnreadCountSubscription.value = subscribe('/user/queue/chat-unread-count', (message) => {
+      const count = JSON.parse(message.body);
+      console.log('📧 Footer - 채팅 개수 실시간 업데이트:', chatUnreadCount.value, '->', count);
+      chatUnreadCount.value = count;
+    });
+
+    console.log('✅ Footer - 채팅 개수 구독 완료');
+  } catch (error) {
+    console.error('❌ Footer - 채팅 개수 구독 실패:', error);
+    setTimeout(subscribeToChatUnreadCount, 1000);
+  }
+};
+
+// 🎯 WebSocket 정리 함수 - App.vue와 완전히 동일한 패턴
+const cleanupChatUpdates = () => {
+  console.log('🧹 Footer - 채팅 관련 정리');
+
+  if (chatUnreadCountSubscription.value) {
+    try {
+      chatUnreadCountSubscription.value.unsubscribe();
+      chatUnreadCountSubscription.value = null;
+      console.log('✅ Footer - 채팅 개수 구독 해제 완료');
+    } catch (error) {
+      console.warn('⚠️ Footer - 채팅 개수 구독 해제 실패:', error);
+    }
+  }
+
+  // 채팅 개수 초기화
+  chatUnreadCount.value = 0;
+};
+
+// 🎯 사용자 상태 변화 감지 - App.vue와 완전히 동일한 패턴
+watch(
+    () => userStore.currentMember.id,
+    (newId, oldId) => {
+      console.log('👤 Footer - 사용자 상태 변화:', { oldId, newId });
+
+      if (oldId !== 0 && newId === 0) {
+        // 로그아웃 감지
+        console.log('🚪 Footer - 로그아웃 감지, 채팅 구독 정리');
+        cleanupChatUpdates();
+
+      } else if (oldId === 0 && newId !== 0) {
+        // 로그인 감지
+        console.log('🔑 Footer - 로그인 감지, 채팅 구독 시작');
+
+        setTimeout(() => {
+          if (userStore.currentMember && userStore.currentMember.id !== 0) {
+            fetchChatUnreadCountOnce();
+            subscribeToChatUnreadCount();
+          }
+        }, 500);
+      }
+    },
+    { immediate: false }
+);
+
+// 컴포넌트 마운트
+onMounted(async () => {
+  console.log('🚀 Footer 컴포넌트 마운트됨');
+
+  if (isLoggedIn.value) {
+    console.log('🔑 Footer - 로그인 상태, 채팅 초기화 시작');
+    await fetchChatUnreadCountOnce();
+    subscribeToChatUnreadCount();
+  }
 });
 
-// 컴포넌트 제거 시 이벤트 리스너 제거
+// 컴포넌트 언마운트
 onBeforeUnmount(() => {
+  console.log('🧹 Footer 컴포넌트 언마운트');
   unlockScroll();
+  cleanupChatUpdates();
 });
 
-// 사이드바 확장
+// 나머지 함수들 (기존과 동일)
 const expandSidebar = () => {
-  console.log('사이드바 확장');
   isExpanded.value = true;
 };
 
-// 사이드바 축소
 const collapseSidebar = () => {
-  console.log('사이드바 축소');
   isExpanded.value = false;
 };
 
-// 스크롤바 너비 계산
 const getScrollbarWidth = () => {
   return window.innerWidth - document.documentElement.clientWidth;
 };
 
-// 스크롤 잠금 함수
 const lockScroll = () => {
-  // 현재 스크롤 위치 저장
   savedScrollY.value = window.scrollY;
-
-  // 스크롤바 너비 계산
   scrollbarWidth.value = getScrollbarWidth();
-
-  // body에 overflow: hidden을 적용하여 스크롤 방지
   document.body.style.overflow = 'hidden';
   document.body.style.paddingRight = `${scrollbarWidth.value}px`;
 };
 
-// 스크롤 해제 함수
 const unlockScroll = () => {
-  // body에서 overflow: hidden 제거
   document.body.style.overflow = '';
   document.body.style.paddingRight = '';
 };
 
-// 모달 설정 - 개선된 스크롤 처리
 const setupModal = () => {
-  // 모달이 열리기 전 스크롤 잠금
   lockScroll();
-
-  // 애니메이션 요소에 in-view 클래스 추가
   const elements = document.querySelectorAll(".animate-on-scroll");
   elements.forEach(el => {
     if (!el.classList.contains('in-view')) {
@@ -180,7 +271,6 @@ const setupModal = () => {
     }
   });
 
-  // 모달 애니메이션 클래스 추가
   if (modalRef.value) {
     modalRef.value.classList.add('fadeIn');
     const contentEl = modalRef.value.querySelector('.modal-content');
@@ -191,7 +281,7 @@ const setupModal = () => {
 };
 
 const goTo = (path) => {
-  if (isActive(path)) return; // 이미 해당 페이지에 있으면 작업 중단
+  if (isActive(path)) return;
   router.push(path);
 };
 
@@ -200,11 +290,10 @@ const openSearchModal = () => {
   searchResults.value = [];
   searched.value = false;
   localShowSearch.value = true;
-  setupModal(); // 모달 열 때 스크롤 방지 및 애니메이션 설정
+  setupModal();
 };
 
 const closeModal = () => {
-  // 닫기 애니메이션 추가
   if (modalRef.value) {
     modalRef.value.classList.remove('fadeIn');
     modalRef.value.classList.add('fadeOut');
@@ -215,20 +304,17 @@ const closeModal = () => {
       contentEl.classList.add('popOut');
     }
 
-    // 애니메이션 완료 후 모달 닫기 및 스크롤 해제
     setTimeout(() => {
-      unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
+      unlockScroll();
       localShowSearch.value = false;
     }, 300);
   } else {
-    unlockScroll(); // 스크롤 해제만 하고 window.scrollTo() 호출 제거
+    unlockScroll();
     localShowSearch.value = false;
   }
 };
 
-// 오버레이 클릭 시 모달 닫기
 const closeOverlay = (event) => {
-  // 모달 내부가 아닌 오버레이 영역 클릭 시에만 닫기
   if (event.target.classList.contains('modal')) {
     closeModal();
   }
@@ -263,17 +349,15 @@ const reloadToProfile = () => {
 
 const logout = () => {
   axios.get("/api/auth/logout")
-    .then((res) => {
-      alert(res.data);
-      // Pinia 스토어의 action 직접 호출
-      userStore.setCurrentMember({ id: 0, account: '', name: '' });
-      router.push("/login");
-    })
-    .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
+      .then((res) => {
+        alert(res.data);
+        userStore.setCurrentMember({ id: 0, account: '', name: '' });
+        router.push("/login");
+      })
+      .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
 };
 
 const isActive = (path) => {
-  // 현재 경로가 전달된 경로로 시작하는지 확인
   return router.currentRoute.value.path.startsWith(path);
 };
 </script>
@@ -745,5 +829,31 @@ const isActive = (path) => {
     max-height: 70vh;
     margin: 0 10px;
   }
+}
+
+.chat-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #28a745;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: pulse 2s infinite;
+  z-index: 1;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
 }
 </style>
