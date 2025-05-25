@@ -89,13 +89,22 @@ export function useWebSocket() {
     const subscribe = (destination, callback, subscriptionId = null) => {
         console.log('📡 구독 시도:', destination);
 
-        // 구독 ID 생성 (제공되지 않은 경우)
-        const subId = subscriptionId || `${destination}_${Date.now()}`;
+        // 🔥 구독 ID 생성 로직 개선
+        const subId = subscriptionId || destination; // 🆕 destination을 기본 ID로 사용
 
-        // 🆕 중복 구독 방지
+        // 🆕 중복 구독 완전 방지 - destination 기준으로도 체크
         if (globalSubscriptions.has(subId)) {
-            console.warn('⚠️ 중복 구독 방지:', subId);
-            return globalSubscriptions.get(subId);
+            console.warn('⚠️ 중복 구독 방지 (ID):', subId);
+            return globalSubscriptions.get(subId).subscription;
+        }
+
+        // 🆕 destination 기준으로도 중복 체크 (다른 ID로 같은 destination 구독 방지)
+        const existingByDestination = Array.from(globalSubscriptions.values())
+            .find(subInfo => subInfo.destination === destination);
+
+        if (existingByDestination) {
+            console.warn('⚠️ 중복 구독 방지 (Destination):', destination, '기존 ID:', existingByDestination.subscriptionId);
+            return existingByDestination.subscription;
         }
 
         if (globalStompClient.value && globalIsConnected.value) {
@@ -135,6 +144,7 @@ export function useWebSocket() {
 
     // 🆕 특정 구독 해제
     const unsubscribe = (subscriptionId) => {
+        // ID로 직접 해제
         if (globalSubscriptions.has(subscriptionId)) {
             const subInfo = globalSubscriptions.get(subscriptionId);
             try {
@@ -143,11 +153,36 @@ export function useWebSocket() {
                 }
                 globalSubscriptions.delete(subscriptionId);
                 console.log('✅ 구독 해제 완료:', subscriptionId);
+                return true;
             } catch (error) {
                 console.warn('⚠️ 구독 해제 실패:', subscriptionId, error);
                 globalSubscriptions.delete(subscriptionId); // 실패해도 맵에서 제거
+                return false;
             }
         }
+
+        // 🆕 destination으로 찾아서 해제
+        const entryToRemove = Array.from(globalSubscriptions.entries())
+            .find(([id, subInfo]) => subInfo.destination === subscriptionId);
+
+        if (entryToRemove) {
+            const [id, subInfo] = entryToRemove;
+            try {
+                if (subInfo.subscription) {
+                    subInfo.subscription.unsubscribe();
+                }
+                globalSubscriptions.delete(id);
+                console.log('✅ 구독 해제 완료 (destination):', subscriptionId, 'ID:', id);
+                return true;
+            } catch (error) {
+                console.warn('⚠️ 구독 해제 실패 (destination):', subscriptionId, error);
+                globalSubscriptions.delete(id);
+                return false;
+            }
+        }
+
+        console.warn('⚠️ 해제할 구독을 찾을 수 없음:', subscriptionId);
+        return false;
     };
 
     // 🆕 모든 구독 정리

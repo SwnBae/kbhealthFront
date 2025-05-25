@@ -78,6 +78,7 @@ const {
   connect,
   disconnect,
   subscribe,
+  unsubscribe,
   checkConnection,
   forceReconnect
 } = useWebSocket();
@@ -198,7 +199,12 @@ const subscribeToNotifications = () => {
 
   console.log('📡 App.vue - 알림 구독 시작');
 
-  // 개인 알림 구독 (댓글, 좋아요, 팔로우)
+  // 🔥 기존 구독들 명시적 해제 (중복 방지)
+  unsubscribe('/user/queue/notifications');
+  unsubscribe('/user/queue/notification-count');
+  unsubscribe('/user/queue/chat-messages');
+
+  // 개인 알림 구독 (댓글, 좋아요, 팔로우) - 고정 ID 사용
   notificationSubscription.value = subscribe(
       '/user/queue/notifications',
       (message) => {
@@ -210,32 +216,38 @@ const subscribeToNotifications = () => {
 
         // 브라우저 알림 표시
         showRealtimeNotification(notification);
-      }
+      },
+      'app-notifications' // 🆕 고정 ID
   );
 
-  // 알림 개수 실시간 구독
+  // 알림 개수 실시간 구독 - 고정 ID 사용
   countSubscription.value = subscribe(
       '/user/queue/notification-count',
       (message) => {
         const count = JSON.parse(message.body);
         console.log('🔢 App.vue - 알림 개수 업데이트:', count);
         unreadCount.value = count;
-      }
+      },
+      'app-notification-count' // 🆕 고정 ID
   );
 
-  // 🆕 채팅 메시지 구독 - 조건부 토스트 표시
-  chatMessageSubscription.value = subscribe('/user/queue/chat-messages', (message) => {
-    const chatMessage = JSON.parse(message.body);
-    console.log('💬 App.vue - 새 채팅 메시지 수신:', chatMessage);
+  // 🆕 채팅 메시지 구독 - 조건부 토스트 표시, 고정 ID 사용
+  chatMessageSubscription.value = subscribe(
+      '/user/queue/chat-messages',
+      (message) => {
+        const chatMessage = JSON.parse(message.body);
+        console.log('💬 App.vue - 새 채팅 메시지 수신:', chatMessage);
 
-    // 🆕 현재 채팅 페이지가 아닌 경우에만 토스트 표시
-    if (!isCurrentPageChat() && toastChatRef.value) {
-      console.log('💬 App.vue - 채팅 토스트 표시');
-      toastChatRef.value.addChatToast(chatMessage);
-    } else {
-      console.log('💬 App.vue - 채팅 페이지이므로 토스트 표시 안함');
-    }
-  });
+        // 🆕 현재 채팅 페이지가 아닌 경우에만 토스트 표시
+        if (!isCurrentPageChat() && toastChatRef.value) {
+          console.log('💬 App.vue - 채팅 토스트 표시');
+          toastChatRef.value.addChatToast(chatMessage);
+        } else {
+          console.log('💬 App.vue - 채팅 페이지이므로 토스트 표시 안함');
+        }
+      },
+      'app-chat-messages' // 🆕 고정 ID
+  );
 
   console.log('✅ App.vue - 모든 알림 구독 완료');
 };
@@ -272,24 +284,15 @@ const initializeWebSocket = async () => {
 const cleanupWebSocket = () => {
   console.log('🧹 App.vue - WebSocket 정리 시작');
 
-  // 🆕 모든 구독 해제
-  const subscriptions = [
-    { name: '알림', ref: notificationSubscription },
-    { name: '카운트', ref: countSubscription },
-    { name: '채팅 메시지', ref: chatMessageSubscription }
-  ];
+  // 🆕 명시적 ID로 구독 해제
+  unsubscribe('app-notifications');
+  unsubscribe('app-notification-count');
+  unsubscribe('app-chat-messages');
 
-  subscriptions.forEach(({ name, ref }) => {
-    if (ref.value) {
-      try {
-        ref.value.unsubscribe();
-        ref.value = null;
-        console.log(`✅ ${name} 구독 해제 완료`);
-      } catch (error) {
-        console.warn(`⚠️ ${name} 구독 해제 실패:`, error);
-      }
-    }
-  });
+  // 로컬 참조 정리
+  notificationSubscription.value = null;
+  countSubscription.value = null;
+  chatMessageSubscription.value = null;
 
   // WebSocket 연결 해제
   disconnect();

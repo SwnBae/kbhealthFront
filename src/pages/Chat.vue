@@ -63,7 +63,7 @@
             </div>
 
             <div
-                v-for="message in messages"
+                v-for="(message, index) in messages"
                 :key="message.id"
                 class="message-item"
                 :class="{
@@ -72,10 +72,15 @@
               }"
             >
               <div class="message-content">
-                <div class="message-text">{{ message.content }}</div>
+                <div class="message-text" :class="{ 'temporary': message.isTemporary }">
+                  {{ message.content }}
+                </div>
                 <div class="message-info">
                   <span class="message-time">{{ formatMessageTime(message.createdDate) }}</span>
-                  <span v-if="message.senderId === currentUserId && message.isRead" class="read-status">읽음</span>
+                  <!-- 🆕 체크 표시 - 마지막 메시지에만 -->
+                  <span v-if="shouldShowReadCheck(message, index)" class="read-check">
+                    ✓
+                  </span>
                 </div>
               </div>
             </div>
@@ -115,7 +120,7 @@ import { useRoute } from 'vue-router';
 
 const route = useRoute();
 const userStore = useUserStore();
-const { stompClient, isConnected, subscribe, waitForConnection } = useWebSocket();
+const { stompClient, isConnected, subscribe, unsubscribe, waitForConnection } = useWebSocket();
 const { notification } = useToast();
 
 // 상태 관리
@@ -143,7 +148,29 @@ const currentUserId = computed(() => userStore.currentMember?.id);
 // 임시 메시지 ID 생성기
 let tempMessageId = -1;
 
-// 채팅방 목록 로드 - 🔥 이 함수가 누락되어 있었음
+// 🆕 체크 표시 로직 - 마지막 메시지에만
+const shouldShowReadCheck = (message, index) => {
+  // 임시 메시지는 체크 표시 안함
+  if (message.isTemporary) return false;
+
+  // 내 마지막 메시지인 경우 - 상대방이 읽었으면 체크
+  if (message.senderId === currentUserId.value) {
+    const myMessages = messages.value.filter(m => m.senderId === currentUserId.value && !m.isTemporary);
+    const lastMyMessage = myMessages[myMessages.length - 1];
+    return message.id === lastMyMessage?.id && message.isRead;
+  }
+
+  // 상대방 마지막 메시지인 경우 - 항상 체크 (내가 읽었다는 의미)
+  if (message.senderId !== currentUserId.value) {
+    const partnerMessages = messages.value.filter(m => m.senderId !== currentUserId.value);
+    const lastPartnerMessage = partnerMessages[partnerMessages.length - 1];
+    return message.id === lastPartnerMessage?.id;
+  }
+
+  return false;
+};
+
+// 채팅방 목록 로드
 const loadChatRooms = async () => {
   try {
     const response = await axios.get('/api/chat/rooms');
@@ -210,7 +237,7 @@ const loadMessages = async (chatRoomId, page = 0) => {
   }
 };
 
-// 메시지 전송 - 낙관적 업데이트 적용
+// 🆕 메시지 전송 - 체크 표시 고려
 const sendMessage = async () => {
   if (!newMessage.value.trim() || !selectedRoomId.value || !isConnected.value || isSending.value) return;
 
@@ -224,7 +251,7 @@ const sendMessage = async () => {
     receiverId: partnerId,
     content: messageContent,
     createdDate: new Date().toISOString(),
-    isRead: false,
+    isRead: false, // 처음엔 읽지 않음
     chatRoomId: selectedRoomId.value,
     isTemporary: true
   };
@@ -290,10 +317,17 @@ const getPartnerId = (chatRoomId) => {
   return id1 === currentUserId.value ? id2 : id1;
 };
 
-// 메시지 읽음 처리
+// 🆕 메시지 읽음 처리 - 체크 표시 업데이트 포함
 const markMessagesAsRead = async (chatRoomId) => {
   try {
     await axios.post(`/api/chat/rooms/${chatRoomId}/read`);
+
+    // 🆕 현재 채팅방의 상대방 메시지들을 읽음 처리 (체크 표시용)
+    messages.value.forEach(msg => {
+      if (msg.chatRoomId === chatRoomId && msg.senderId !== currentUserId.value) {
+        msg.isRead = true;
+      }
+    });
 
     // 로컬 상태에서도 읽음 처리
     const roomIndex = chatRooms.value.findIndex(room => room.chatRoomId === chatRoomId);
@@ -335,7 +369,7 @@ const scrollToBottom = () => {
   });
 };
 
-// 🔥 개선된 채팅 구독 - 안정성 향상
+// 🆕 개선된 채팅 구독 - 읽음 상태 업데이트 포함
 const subscribeToChat = async () => {
   console.log('📡 채팅 WebSocket 구독 시작...');
   console.log('📡 현재 연결 상태:', isConnected.value);
@@ -344,11 +378,10 @@ const subscribeToChat = async () => {
   if (!isConnected.value) {
     console.log('📡 WebSocket 연결 대기 중...');
     try {
-      await waitForConnection(10000); // 10초 대기
+      await waitForConnection(10000);
       console.log('✅ WebSocket 연결 대기 완료');
     } catch (error) {
       console.error('❌ WebSocket 연결 대기 실패:', error);
-      // 연결 실패시 3초 후 재시도
       setTimeout(() => {
         console.log('🔄 채팅 구독 재시도...');
         subscribeToChat();
@@ -377,24 +410,30 @@ const subscribeToChat = async () => {
       }
     }
 
-    // 새 메시지 수신 - 중복 처리 방지
+    // 📨 새 메시지 수신 구독
     chatMessageSubscription.value = subscribe('/user/queue/chat-messages', (message) => {
       const newMsg = JSON.parse(message.body);
       console.log('📨 새 채팅 메시지 수신:', newMsg);
 
       // 임시 메시지 제거 (내가 보낸 메시지가 서버에서 돌아온 경우)
       if (newMsg.senderId === currentUserId.value) {
-        messages.value = messages.value.filter(m => !m.isTemporary || m.content !== newMsg.content);
+        const tempMsgIndex = messages.value.findIndex(m =>
+            m.isTemporary &&
+            m.content === newMsg.content &&
+            m.senderId === newMsg.senderId
+        );
+
+        if (tempMsgIndex > -1) {
+          messages.value.splice(tempMsgIndex, 1);
+        }
       }
 
       // 현재 선택된 채팅방의 메시지인 경우
       if (selectedRoomId.value === newMsg.chatRoomId) {
-        // 중복 메시지 체크 - 더 엄격하게
+        // 중복 메시지 체크
         const existingMessage = messages.value.find(m => {
-          // ID가 같은 경우
           if (m.id === newMsg.id && m.id > 0) return true;
 
-          // 내용, 발송자, 시간이 매우 유사한 경우 (1초 이내)
           if (m.senderId === newMsg.senderId && m.content === newMsg.content) {
             const timeDiff = Math.abs(new Date(m.createdDate) - new Date(newMsg.createdDate));
             return timeDiff < 1000;
@@ -408,7 +447,7 @@ const subscribeToChat = async () => {
           scrollToBottom();
         }
 
-        // 상대방 메시지인 경우 읽음 처리
+        // 상대방 메시지인 경우 즉시 읽음 처리 (체크 표시용)
         if (newMsg.senderId !== currentUserId.value) {
           markMessagesAsRead(newMsg.chatRoomId);
         }
@@ -420,19 +459,36 @@ const subscribeToChat = async () => {
 
     console.log('📡 채팅방 업데이트 구독 시작...');
 
-    // 채팅방 목록 업데이트 구독
+    // 📋 채팅방 목록 업데이트 구독
     chatRoomUpdateSubscription.value = subscribe('/user/queue/chat-room-update', () => {
       console.log('📨 채팅방 목록 업데이트 알림 수신');
       loadChatRooms();
     });
 
-    // 구독 성공 여부 확인
+    console.log('📡 읽음 상태 업데이트 구독 시작...');
+
+    // 📖 읽음 상태 업데이트 구독 - 내 메시지 체크용
+    subscribe('/user/queue/message-read-status', (message) => {
+      const readStatus = JSON.parse(message.body);
+      console.log('📖 메시지 읽음 상태 업데이트:', readStatus);
+
+      // 현재 채팅방의 내 메시지들 읽음 상태 업데이트
+      if (selectedRoomId.value === readStatus.chatRoomId) {
+        // 내 메시지들을 읽음 처리 (체크 표시용)
+        messages.value.forEach(msg => {
+          if (msg.senderId === currentUserId.value) {
+            msg.isRead = true; // 상대방이 읽었으므로 체크 표시
+          }
+        });
+        console.log('✅ 내 메시지들 읽음 상태 업데이트 완료');
+      }
+    });
+
+    // 🔍 구독 성공 여부 확인
     if (chatMessageSubscription.value && chatRoomUpdateSubscription.value) {
       console.log('✅ 채팅 WebSocket 구독 완료');
     } else {
-      console.error('❌ 채팅 WebSocket 구독 실패 - 구독 객체가 null');
-
-      // 구독 실패시 재시도
+      console.error('❌ 채팅 WebSocket 구독 실패');
       setTimeout(() => {
         console.log('🔄 구독 실패로 인한 재시도...');
         subscribeToChat();
@@ -441,7 +497,6 @@ const subscribeToChat = async () => {
 
   } catch (error) {
     console.error('❌ 채팅 WebSocket 구독 중 오류:', error);
-    // 오류 발생시 재시도
     setTimeout(() => {
       console.log('🔄 오류로 인한 채팅 구독 재시도...');
       subscribeToChat();
@@ -497,7 +552,7 @@ const formatMessageTime = (dateString) => {
   });
 };
 
-// 🔥 구독 정리 개선
+// 구독 정리
 const cleanupSubscriptions = () => {
   console.log('🧹 Chat 구독 정리 시작...');
 
