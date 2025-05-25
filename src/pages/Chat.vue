@@ -1006,4 +1006,10 @@ watch(() => route.query.roomId, async (newRoomId) => {
     padding: 16px;
   }
 }
+
+.read-check {
+  color: #28a745;
+  font-weight: bold;
+  font-size: 12px;
+}
 </style>
