@@ -191,6 +191,7 @@ const isCurrentPageChat = () => {
 };
 
 // 🆕 실시간 알림 구독 - 개선된 버전
+// 🔧 App.vue의 subscribeToNotifications 함수 수정
 const subscribeToNotifications = () => {
   if (!isConnected.value) {
     setTimeout(subscribeToNotifications, 1000);
@@ -199,10 +200,10 @@ const subscribeToNotifications = () => {
 
   console.log('📡 App.vue - 알림 구독 시작');
 
-  // 🔥 기존 구독들 명시적 해제 (중복 방지)
-  unsubscribe('/user/queue/notifications');
-  unsubscribe('/user/queue/notification-count');
-  unsubscribe('/user/queue/chat-messages');
+  // 🔥 기존 App.vue 전용 구독들만 해제 (Chat.vue 구독은 건드리지 않음)
+  unsubscribe('app-notifications');
+  unsubscribe('app-notification-count');
+  unsubscribe('app-chat-messages');
 
   // 개인 알림 구독 (댓글, 좋아요, 팔로우) - 고정 ID 사용
   notificationSubscription.value = subscribe(
@@ -246,7 +247,7 @@ const subscribeToNotifications = () => {
           console.log('💬 App.vue - 채팅 페이지이므로 토스트 표시 안함');
         }
       },
-      'app-chat-messages' // 🆕 고정 ID
+      'app-chat-messages' // 🆕 고정 ID - Chat.vue와 다른 ID
   );
 
   console.log('✅ App.vue - 모든 알림 구독 완료');
