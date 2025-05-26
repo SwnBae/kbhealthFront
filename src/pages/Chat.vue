@@ -25,7 +25,14 @@
             @click="selectChatRoom(room)"
         >
           <div class="room-avatar">
-            <img :src="room.partnerProfileImage || '/assets/img/default_profile.png'" :alt="room.partnerName" />
+            <ProfileRing
+                :profile-image-url="room.partnerProfileImage || '/assets/img/default_profile.png'"
+                :base-score="room.partnerBaseScore || 0"
+                :size="42"
+                :stroke-width="2.5"
+                progress-color="#a5d6a7"
+                :alt-text="room.partnerName"
+            />
           </div>
           <div class="room-info">
             <div class="room-name">{{ room.partnerName }}</div>
@@ -49,8 +56,16 @@
       <div v-else class="chat-conversation">
         <!-- 채팅 헤더 -->
         <div class="chat-header">
-          <div class="chat-partner-info">
-            <img :src="selectedRoom?.partnerProfileImage || '/assets/img/default_profile.png'" :alt="selectedRoom?.partnerName" class="partner-avatar" />
+          <div class="chat-partner-info" @click="goToPartnerProfile">
+            <ProfileRing
+                :profile-image-url="selectedRoom?.partnerProfileImage || '/assets/img/default_profile.png'"
+                :base-score="selectedRoom?.partnerBaseScore || 0"
+                :size="48"
+                :stroke-width="3"
+                progress-color="#a5d6a7"
+                :alt-text="selectedRoom?.partnerName || '상대방'"
+                class="partner-avatar"
+            />
             <div class="partner-name">{{ selectedRoom?.partnerName }}</div>
           </div>
         </div>
@@ -115,10 +130,12 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket.js';
 import { useUserStore } from '@/scripts/store.js';
 import { useToast } from '@/composables/useToast.js';
+import ProfileRing from '@/components/profile/ProfileRing.vue';
 import axios from 'axios';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
+const router = useRouter();
 const userStore = useUserStore();
 const { stompClient, isConnected, subscribe, unsubscribe, waitForConnection, checkConnection } = useWebSocket();
 const { notification } = useToast();
@@ -175,6 +192,40 @@ const shouldShowReadCheck = (message, index) => {
   return false;
 };
 
+// ===== 프로필 이동 =====
+const goToPartnerProfile = () => {
+  // 디버깅을 위한 상세 로그
+  console.log('🔍 프로필 이동 시도:', {
+    selectedRoom: selectedRoom.value,
+    partnerAccount: selectedRoom.value?.partnerAccount,
+    partnerId: selectedRoom.value?.partnerId,
+    partnerName: selectedRoom.value?.partnerName,
+    chatRoomId: selectedRoom.value?.chatRoomId
+  });
+
+  // 1순위: partnerAccount 사용
+  if (selectedRoom.value?.partnerAccount) {
+    console.log('🔄 상대방 프로필로 이동 (account):', selectedRoom.value.partnerAccount);
+    router.push(`/profile/${selectedRoom.value.partnerAccount}`);
+    return;
+  }
+
+  // 2순위: partnerId 사용 (만약 ID로 라우팅이 가능하다면)
+  if (selectedRoom.value?.partnerId) {
+    console.log('🔄 상대방 프로필로 이동 (id):', selectedRoom.value.partnerId);
+    router.push(`/profile/id/${selectedRoom.value.partnerId}`);
+    return;
+  }
+
+  // 둘 다 없으면 에러
+  console.log('❌ 상대방 계정 정보 없음');
+  notification({
+    type: 'info',
+    title: '프로필 이동 실패',
+    content: '상대방의 프로필 정보를 찾을 수 없습니다.'
+  });
+};
+
 // ===== 채팅방 관리 =====
 const loadChatRooms = async () => {
   try {
@@ -188,7 +239,7 @@ const loadChatRooms = async () => {
   } catch (error) {
     console.error('❌ 채팅방 목록 로드 실패:', error);
     chatRooms.value = [];
-    
+
     notification({
       type: 'error',
       title: '채팅방 로드 실패',
@@ -199,13 +250,13 @@ const loadChatRooms = async () => {
 
 const selectChatRoom = async (room) => {
   console.log('🎯 채팅방 선택:', room.chatRoomId, room.partnerName);
-  
+
   // 이미 선택된 채팅방이면 스킵
   if (selectedRoomId.value === room.chatRoomId) {
     console.log('⏭️ 이미 선택된 채팅방 - 스킵');
     return;
   }
-  
+
   selectedRoomId.value = room.chatRoomId;
   selectedRoom.value = room;
   messages.value = [];
@@ -223,7 +274,7 @@ const selectChatRoom = async (room) => {
 
     // 스크롤을 맨 아래로
     scrollToBottom();
-    
+
     console.log('✅ 채팅방 선택 완료');
   } catch (error) {
     console.error('❌ 채팅방 선택 중 오류:', error);
@@ -241,7 +292,7 @@ const loadMessages = async (chatRoomId, page = 0) => {
 
   try {
     console.log(`📨 메시지 로드: 채팅방=${chatRoomId}, 페이지=${page}`);
-    
+
     const response = await axios.get(`/api/chat/rooms/${chatRoomId}/messages`, {
       params: { page, size: 20 }
     });
@@ -261,11 +312,11 @@ const loadMessages = async (chatRoomId, page = 0) => {
 
   } catch (error) {
     console.error('❌ 메시지 로드 실패:', error);
-    
+
     if (page === 0) {
       messages.value = [];
     }
-    
+
     notification({
       type: 'error',
       title: '메시지 로드 실패',
@@ -292,7 +343,7 @@ const sendMessage = async () => {
   if (!isConnected.value) {
     console.warn('⚠️ WebSocket 연결 끊어짐 - 재연결 시도');
     await checkConnection();
-    
+
     if (!isConnected.value) {
       notification({
         type: 'error',
@@ -416,7 +467,7 @@ const markMessagesAsRead = async (chatRoomId) => {
       chatRooms.value[roomIndex].unreadCount = 0;
       totalUnreadCount.value -= previousUnreadCount;
     }
-    
+
     console.log('✅ 메시지 읽음 처리 완료:', chatRoomId);
   } catch (error) {
     console.error('❌ 읽음 처리 실패:', error);
@@ -468,13 +519,13 @@ const subscribeToChat = async () => {
       console.log('✅ WebSocket 연결 대기 완료');
     } catch (error) {
       console.error('❌ WebSocket 연결 대기 실패:', error);
-      
+
       // 재시도 로직
       if (reconnectAttempts.value < maxReconnectAttempts.value) {
         reconnectAttempts.value++;
         const delay = Math.min(2000 * reconnectAttempts.value, 10000);
         console.log(`🔄 ${delay}ms 후 재시도 (${reconnectAttempts.value}/${maxReconnectAttempts.value})`);
-        
+
         setTimeout(() => {
           subscribeToChat();
         }, delay);
@@ -500,70 +551,70 @@ const subscribeToChat = async () => {
     // 🔧 1. 채팅 메시지 구독 - 고유 ID 사용
     console.log('📡 채팅 메시지 구독 시작...');
     const chatMessageSubId = `chat-messages-${userId}-${timestamp}-1`;
-    
-    subscriptions.value.chatMessages = subscribe(
-      '/user/queue/chat-messages',
-      (message) => {
-        try {
-          const newMsg = JSON.parse(message.body);
-          console.log('📨 Chat.vue - 새 채팅 메시지:', {
-            id: newMsg.id,
-            senderId: newMsg.senderId,
-            chatRoomId: newMsg.chatRoomId,
-            content: newMsg.content?.substring(0, 30) + '...',
-            currentRoom: selectedRoomId.value
-          });
 
-          handleNewChatMessage(newMsg);
-        } catch (parseError) {
-          console.error('❌ 채팅 메시지 파싱 실패:', parseError);
-        }
-      },
-      chatMessageSubId
+    subscriptions.value.chatMessages = subscribe(
+        '/user/queue/chat-messages',
+        (message) => {
+          try {
+            const newMsg = JSON.parse(message.body);
+            console.log('📨 Chat.vue - 새 채팅 메시지:', {
+              id: newMsg.id,
+              senderId: newMsg.senderId,
+              chatRoomId: newMsg.chatRoomId,
+              content: newMsg.content?.substring(0, 30) + '...',
+              currentRoom: selectedRoomId.value
+            });
+
+            handleNewChatMessage(newMsg);
+          } catch (parseError) {
+            console.error('❌ 채팅 메시지 파싱 실패:', parseError);
+          }
+        },
+        chatMessageSubId
     );
 
     // 🔧 2. 채팅방 업데이트 구독
     console.log('📡 채팅방 업데이트 구독 시작...');
     const roomUpdateSubId = `chat-room-update-${userId}-${timestamp}-2`;
-    
+
     subscriptions.value.chatRoomUpdate = subscribe(
-      '/user/queue/chat-room-update',
-      () => {
-        console.log('📨 채팅방 목록 업데이트 알림 수신');
-        loadChatRooms();
-      },
-      roomUpdateSubId
+        '/user/queue/chat-room-update',
+        () => {
+          console.log('📨 채팅방 목록 업데이트 알림 수신');
+          loadChatRooms();
+        },
+        roomUpdateSubId
     );
 
     // 🔧 3. 읽음 상태 업데이트 구독
     console.log('📡 읽음 상태 구독 시작...');
     const readStatusSubId = `message-read-status-${userId}-${timestamp}-3`;
-    
-    subscriptions.value.messageReadStatus = subscribe(
-      '/user/queue/message-read-status',
-      (message) => {
-        try {
-          const readStatus = JSON.parse(message.body);
-          console.log('📖 메시지 읽음 상태 업데이트:', readStatus);
 
-          if (selectedRoomId.value === readStatus.chatRoomId) {
-            let updatedCount = 0;
-            messages.value.forEach(msg => {
-              if (msg.senderId === currentUserId.value && !msg.isTemporary && !msg.isRead) {
-                msg.isRead = true;
-                updatedCount++;
+    subscriptions.value.messageReadStatus = subscribe(
+        '/user/queue/message-read-status',
+        (message) => {
+          try {
+            const readStatus = JSON.parse(message.body);
+            console.log('📖 메시지 읽음 상태 업데이트:', readStatus);
+
+            if (selectedRoomId.value === readStatus.chatRoomId) {
+              let updatedCount = 0;
+              messages.value.forEach(msg => {
+                if (msg.senderId === currentUserId.value && !msg.isTemporary && !msg.isRead) {
+                  msg.isRead = true;
+                  updatedCount++;
+                }
+              });
+
+              if (updatedCount > 0) {
+                console.log('✅ 내 메시지 읽음 상태 업데이트:', updatedCount, '개');
               }
-            });
-            
-            if (updatedCount > 0) {
-              console.log('✅ 내 메시지 읽음 상태 업데이트:', updatedCount, '개');
             }
+          } catch (parseError) {
+            console.error('❌ 읽음 상태 파싱 실패:', parseError);
           }
-        } catch (parseError) {
-          console.error('❌ 읽음 상태 파싱 실패:', parseError);
-        }
-      },
-      readStatusSubId
+        },
+        readStatusSubId
     );
 
     console.log('✅ Chat.vue WebSocket 구독 완료');
@@ -581,7 +632,7 @@ const subscribeToChat = async () => {
 
   } catch (error) {
     console.error('❌ 채팅 WebSocket 구독 중 오류:', error);
-    
+
     setTimeout(() => {
       console.log('🔄 오류로 인한 채팅 구독 재시도...');
       subscribeToChat();
@@ -611,7 +662,7 @@ const handleNewChatMessage = (newMsg) => {
       console.log('🔄 임시 메시지 교체:', messages.value[tempMsgIndex].id, '->', newMsg.id);
       // 임시 메시지를 실제 메시지로 교체
       messages.value[tempMsgIndex] = { ...newMsg, isTemporary: false };
-      
+
       // 채팅방 목록 업데이트
       updateChatRoomFromMessage(newMsg);
       return;
@@ -622,10 +673,10 @@ const handleNewChatMessage = (newMsg) => {
   const existingMessage = messages.value.find(m => {
     // 1. 같은 ID인 경우 (확실한 중복)
     if (m.id === newMsg.id && m.id > 0) return true;
-    
+
     // 2. 매우 유사한 메시지 체크 (500ms 이내 + 같은 내용 + 같은 발신자)
-    if (m.senderId === newMsg.senderId && 
-        m.content === newMsg.content && 
+    if (m.senderId === newMsg.senderId &&
+        m.content === newMsg.content &&
         !m.isTemporary &&
         m.chatRoomId === newMsg.chatRoomId) {
       const timeDiff = Math.abs(new Date(m.createdDate) - new Date(newMsg.createdDate));
@@ -670,7 +721,7 @@ const updateChatRoomFromMessage = (newMsg) => {
     // 채팅방을 맨 위로 이동
     const updatedRoom = chatRooms.value.splice(roomIndex, 1)[0];
     chatRooms.value.unshift(updatedRoom);
-    
+
     console.log('✅ 채팅방 목록 업데이트 완료');
   } else {
     console.log('🔄 새로운 채팅방 - 전체 목록 다시 로드');
@@ -708,7 +759,7 @@ const startConnectionMonitoring = () => {
   connectionMonitor.value = setInterval(() => {
     if (!isConnected.value) {
       console.warn('⚠️ WebSocket 연결 끊어짐 감지');
-      
+
       // 연결 상태 체크 후 재구독
       checkConnection().then(() => {
         if (isConnected.value) {
@@ -760,16 +811,22 @@ const formatMessageTime = (dateString) => {
   });
 };
 
-
 // 🔧 새로운 채팅방 처리 함수
 const handleQueryParams = async () => {
   const roomId = route.query.roomId;
   const partnerName = route.query.partnerName;
   const partnerImage = route.query.partnerImage;
+  const partnerAccount = route.query.partnerAccount; // 추가
+  const partnerBaseScore = route.query.partnerBaseScore || 0; // 추가
 
   if (!roomId || !partnerName) return;
 
-  console.log('🎯 쿼리 파라미터 처리:', { roomId, partnerName });
+  console.log('🎯 쿼리 파라미터 처리:', {
+    roomId,
+    partnerName,
+    partnerAccount,
+    partnerBaseScore
+  });
 
   // 기존 채팅방 목록에서 해당 roomId 찾기
   let targetRoom = chatRooms.value.find(room => room.chatRoomId === roomId);
@@ -777,11 +834,13 @@ const handleQueryParams = async () => {
   // 없으면 새로운 fake room 생성
   if (!targetRoom) {
     console.log('📝 새로운 채팅방 생성:', roomId);
-    
+
     const fakeRoom = {
       chatRoomId: roomId,
       partnerName: partnerName,
       partnerProfileImage: partnerImage || '/assets/img/default_profile.png',
+      partnerAccount: partnerAccount || '', // 🔧 추가됨
+      partnerBaseScore: Number(partnerBaseScore) || 0, // 🔧 추가됨
       lastMessage: '',
       lastMessageTime: null,
       unreadCount: 0
@@ -821,7 +880,7 @@ onMounted(async () => {
     console.log('✅ Chat.vue 마운트 완료');
   } catch (error) {
     console.error('❌ Chat.vue 마운트 중 오류:', error);
-    
+
     notification({
       type: 'error',
       title: '초기화 실패',
@@ -833,16 +892,16 @@ onMounted(async () => {
 // 🔧 컴포넌트 언마운트
 onUnmounted(() => {
   console.log('🧹 Chat.vue 언마운트 시작');
-  
+
   // 연결 모니터링 중지
   stopConnectionMonitoring();
-  
+
   // 구독 정리
   cleanupSubscriptions();
-  
+
   // 상태 초기화
   reconnectAttempts.value = 0;
-  
+
   console.log('✅ Chat.vue 언마운트 완료');
 });
 
@@ -851,10 +910,10 @@ onUnmounted(() => {
 // 🔧 로그인 상태 변화 감지
 watch(() => userStore.currentMember?.id, (newId, oldId) => {
   console.log('👤 사용자 상태 변화:', { oldId, newId });
-  
+
   if (newId && newId !== 0 && newId !== oldId) {
     console.log('🔑 로그인 감지 - 채팅 초기화');
-    
+
     // 기존 구독 정리 후 재구독
     setTimeout(() => {
       loadChatRooms();
@@ -875,20 +934,23 @@ watch(() => route.query.roomId, async (newRoomId, oldRoomId) => {
   }
 }, { immediate: false }); // immediate: false로 설정하여 onMounted와 중복 실행 방지
 
-// 🔧 전체 쿼리 변화도 감지 (새로 추가)
-watch(() => [route.query.roomId, route.query.partnerName, route.query.partnerImage], 
-  async ([newRoomId, newPartnerName, newPartnerImage], [oldRoomId, oldPartnerName, oldPartnerImage]) => {
-    // roomId가 변경되었거나, 같은 roomId지만 파트너 정보가 변경된 경우
-    if (newRoomId && (
-      newRoomId !== oldRoomId || 
-      newPartnerName !== oldPartnerName || 
-      newPartnerImage !== oldPartnerImage
-    )) {
-      console.log('🔄 채팅 파라미터 전체 변화 감지');
-      await handleQueryParams();
-    }
-  }, 
-  { immediate: false }
+// 🔧 전체 쿼리 변화도 감지
+watch(() => [route.query.roomId, route.query.partnerName, route.query.partnerImage, route.query.partnerAccount, route.query.partnerBaseScore],
+    async ([newRoomId, newPartnerName, newPartnerImage, newPartnerAccount, newPartnerBaseScore],
+           [oldRoomId, oldPartnerName, oldPartnerImage, oldPartnerAccount, oldPartnerBaseScore]) => {
+      // roomId가 변경되었거나, 같은 roomId지만 파트너 정보가 변경된 경우
+      if (newRoomId && (
+          newRoomId !== oldRoomId ||
+          newPartnerName !== oldPartnerName ||
+          newPartnerImage !== oldPartnerImage ||
+          newPartnerAccount !== oldPartnerAccount ||
+          newPartnerBaseScore !== oldPartnerBaseScore
+      )) {
+        console.log('🔄 채팅 파라미터 전체 변화 감지');
+        await handleQueryParams();
+      }
+    },
+    { immediate: false }
 );
 
 // ===== 디버깅 함수 (개발용) =====
@@ -902,19 +964,19 @@ if (process.env.NODE_ENV === 'development') {
       isConnected: isConnected.value,
       reconnectAttempts: reconnectAttempts.value
     }),
-    
+
     forceReconnect: () => {
       console.log('🔧 강제 재연결 시도...');
       cleanupSubscriptions();
       setTimeout(subscribeToChat, 1000);
     },
-    
+
     clearTempMessages: () => {
       const tempCount = messages.value.filter(m => m.isTemporary).length;
       messages.value = messages.value.filter(m => !m.isTemporary);
       console.log('🧹 임시 메시지 정리:', tempCount, '개 제거');
     },
-    
+
     testMessage: (content = '테스트 메시지') => {
       if (selectedRoomId.value) {
         newMessage.value = content;
@@ -924,7 +986,7 @@ if (process.env.NODE_ENV === 'development') {
       }
     }
   };
-  
+
   console.log('🔧 Chat.vue 디버깅 도구 활성화: window.chatDebug');
 }
 </script>
@@ -1109,20 +1171,100 @@ if (process.env.NODE_ENV === 'development') {
 .chat-partner-info {
   display: flex;
   align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-partner-info::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.chat-partner-info:hover {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chat-partner-info:hover::before {
+  left: 100%;
+}
+
+.chat-partner-info:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .partner-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  margin-right: 12px;
-  object-fit: cover;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.chat-partner-info:hover .partner-avatar {
+  transform: scale(1.05);
 }
 
 .partner-name {
   font-weight: 600;
   font-size: 18px;
   color: #333;
+  transition: color 0.3s ease;
+  position: relative;
+}
+
+.chat-partner-info:hover .partner-name {
+  color: #2196f3;
+}
+
+.partner-name::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #2196f3;
+  transition: width 0.3s ease;
+}
+
+.chat-partner-info:hover .partner-name::after {
+  width: 100%;
+}
+
+/* 클릭 효과를 위한 리플 애니메이션 */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.chat-partner-info:active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  background: rgba(33, 150, 243, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: ripple 0.6s ease-out;
 }
 
 .messages-container {

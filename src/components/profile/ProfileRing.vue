@@ -1,4 +1,4 @@
-<!-- components/common/ProfileRing.vue -->
+<!-- components/profile/ProfileRing.vue -->
 <template>
   <div class="profile-ring-container" :style="containerStyle">
     <svg class="profile-ring" :style="svgStyle" viewBox="0 0 36 36">

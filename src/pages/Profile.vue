@@ -370,7 +370,9 @@ const sendMessage = async () => {
       query: {
         roomId: chatRoomId,
         partnerName: profile.value.userName,
-        partnerImage: profile.value.profileImageUrl
+        partnerImage: profile.value.profileImageUrl,
+        partnerAccount: profile.value.account,
+        partnerBaseScore: profile.value.baseScore
       }
     });
 
