@@ -200,6 +200,12 @@ const loadChatRooms = async () => {
 const selectChatRoom = async (room) => {
   console.log('🎯 채팅방 선택:', room.chatRoomId, room.partnerName);
   
+  // 이미 선택된 채팅방이면 스킵
+  if (selectedRoomId.value === room.chatRoomId) {
+    console.log('⏭️ 이미 선택된 채팅방 - 스킵');
+    return;
+  }
+  
   selectedRoomId.value = room.chatRoomId;
   selectedRoom.value = room;
   messages.value = [];
@@ -754,6 +760,45 @@ const formatMessageTime = (dateString) => {
   });
 };
 
+
+// 🔧 새로운 채팅방 처리 함수
+const handleQueryParams = async () => {
+  const roomId = route.query.roomId;
+  const partnerName = route.query.partnerName;
+  const partnerImage = route.query.partnerImage;
+
+  if (!roomId || !partnerName) return;
+
+  console.log('🎯 쿼리 파라미터 처리:', { roomId, partnerName });
+
+  // 기존 채팅방 목록에서 해당 roomId 찾기
+  let targetRoom = chatRooms.value.find(room => room.chatRoomId === roomId);
+
+  // 없으면 새로운 fake room 생성
+  if (!targetRoom) {
+    console.log('📝 새로운 채팅방 생성:', roomId);
+    
+    const fakeRoom = {
+      chatRoomId: roomId,
+      partnerName: partnerName,
+      partnerProfileImage: partnerImage || '/assets/img/default_profile.png',
+      lastMessage: '',
+      lastMessageTime: null,
+      unreadCount: 0
+    };
+
+    // 채팅방 목록 맨 앞에 추가
+    chatRooms.value.unshift(fakeRoom);
+    targetRoom = fakeRoom;
+  }
+
+  // 채팅방 선택
+  if (targetRoom) {
+    await selectChatRoom(targetRoom);
+    console.log('✅ 채팅방 선택 완료:', roomId);
+  }
+};
+
 // ===== 생명주기 관리 =====
 
 // 🔧 컴포넌트 마운트
@@ -770,24 +815,8 @@ onMounted(async () => {
     // 3. 연결 모니터링 시작
     startConnectionMonitoring();
 
-    // 4. 쿼리 파라미터 처리
-    const roomId = route.query.roomId;
-    const partnerName = route.query.partnerName;
-    const partnerImage = route.query.partnerImage;
-
-    if (roomId && partnerName && chatRooms.value.length === 0) {
-      const fakeRoom = {
-        chatRoomId: roomId,
-        partnerName: partnerName,
-        partnerProfileImage: partnerImage,
-        lastMessage: '',
-        lastMessageTime: null,
-        unreadCount: 0
-      };
-
-      chatRooms.value = [fakeRoom];
-      await selectChatRoom(fakeRoom);
-    }
+    // 4. 쿼리 파라미터 처리 (개선됨)
+    await handleQueryParams();
 
     console.log('✅ Chat.vue 마운트 완료');
   } catch (error) {
@@ -839,15 +868,28 @@ watch(() => userStore.currentMember?.id, (newId, oldId) => {
 });
 
 // 🔧 쿼리 파라미터 변화 감지
-watch(() => route.query.roomId, async (newRoomId) => {
-  if (newRoomId && chatRooms.value.length > 0) {
-    const targetRoom = chatRooms.value.find(room => room.chatRoomId === newRoomId);
-    if (targetRoom) {
-      console.log('🎯 쿼리 파라미터로 채팅방 선택:', newRoomId);
-      await selectChatRoom(targetRoom);
-    }
+watch(() => route.query.roomId, async (newRoomId, oldRoomId) => {
+  if (newRoomId && newRoomId !== oldRoomId) {
+    console.log('🔄 쿼리 파라미터 변화 감지:', { oldRoomId, newRoomId });
+    await handleQueryParams();
   }
-});
+}, { immediate: false }); // immediate: false로 설정하여 onMounted와 중복 실행 방지
+
+// 🔧 전체 쿼리 변화도 감지 (새로 추가)
+watch(() => [route.query.roomId, route.query.partnerName, route.query.partnerImage], 
+  async ([newRoomId, newPartnerName, newPartnerImage], [oldRoomId, oldPartnerName, oldPartnerImage]) => {
+    // roomId가 변경되었거나, 같은 roomId지만 파트너 정보가 변경된 경우
+    if (newRoomId && (
+      newRoomId !== oldRoomId || 
+      newPartnerName !== oldPartnerName || 
+      newPartnerImage !== oldPartnerImage
+    )) {
+      console.log('🔄 채팅 파라미터 전체 변화 감지');
+      await handleQueryParams();
+    }
+  }, 
+  { immediate: false }
+);
 
 // ===== 디버깅 함수 (개발용) =====
 if (process.env.NODE_ENV === 'development') {
