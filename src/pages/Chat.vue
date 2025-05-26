@@ -120,10 +120,10 @@ import { useRoute } from 'vue-router';
 
 const route = useRoute();
 const userStore = useUserStore();
-const { stompClient, isConnected, subscribe, unsubscribe, waitForConnection } = useWebSocket();
+const { stompClient, isConnected, subscribe, unsubscribe, waitForConnection, checkConnection } = useWebSocket();
 const { notification } = useToast();
 
-// 상태 관리
+// ===== 상태 관리 =====
 const chatRooms = ref([]);
 const selectedRoomId = ref(null);
 const selectedRoom = ref(null);
@@ -138,9 +138,12 @@ const messagesContainer = ref(null);
 const currentPage = ref(0);
 const hasMoreMessages = ref(true);
 
-// WebSocket 구독
-const chatMessageSubscription = ref(null);
-const chatRoomUpdateSubscription = ref(null);
+// 🔧 WebSocket 구독 관리 - 고유 ID로 관리
+const subscriptions = ref({
+  chatMessages: null,
+  chatRoomUpdate: null,
+  messageReadStatus: null
+});
 
 // 현재 사용자 ID
 const currentUserId = computed(() => userStore.currentMember?.id);
@@ -148,19 +151,21 @@ const currentUserId = computed(() => userStore.currentMember?.id);
 // 임시 메시지 ID 생성기
 let tempMessageId = -1;
 
+// 🔧 연결 상태 모니터링
+const connectionMonitor = ref(null);
+const reconnectAttempts = ref(0);
+const maxReconnectAttempts = ref(5);
+
 // 🆕 체크 표시 로직 - 마지막 메시지에만
 const shouldShowReadCheck = (message, index) => {
-  // 임시 메시지는 체크 표시 안함
   if (message.isTemporary) return false;
 
-  // 내 마지막 메시지인 경우 - 상대방이 읽었으면 체크
   if (message.senderId === currentUserId.value) {
     const myMessages = messages.value.filter(m => m.senderId === currentUserId.value && !m.isTemporary);
     const lastMyMessage = myMessages[myMessages.length - 1];
     return message.id === lastMyMessage?.id && message.isRead;
   }
 
-  // 상대방 마지막 메시지인 경우 - 항상 체크 (내가 읽었다는 의미)
   if (message.senderId !== currentUserId.value) {
     const partnerMessages = messages.value.filter(m => m.senderId !== currentUserId.value);
     const lastPartnerMessage = partnerMessages[partnerMessages.length - 1];
@@ -170,48 +175,67 @@ const shouldShowReadCheck = (message, index) => {
   return false;
 };
 
-// 채팅방 목록 로드
+// ===== 채팅방 관리 =====
 const loadChatRooms = async () => {
   try {
+    console.log('📋 채팅방 목록 로드 시작');
     const response = await axios.get('/api/chat/rooms');
     chatRooms.value = response.data;
 
-    // 총 읽지 않은 개수 계산
     totalUnreadCount.value = chatRooms.value.reduce((sum, room) => sum + room.unreadCount, 0);
+    console.log('✅ 채팅방 로드 완료:', chatRooms.value.length, '개');
 
   } catch (error) {
-    console.error('채팅방 목록 로드 실패:', error);
+    console.error('❌ 채팅방 목록 로드 실패:', error);
     chatRooms.value = [];
+    
+    notification({
+      type: 'error',
+      title: '채팅방 로드 실패',
+      content: '채팅방 목록을 불러올 수 없습니다.'
+    });
   }
 };
 
-// 채팅방 선택
 const selectChatRoom = async (room) => {
+  console.log('🎯 채팅방 선택:', room.chatRoomId, room.partnerName);
+  
   selectedRoomId.value = room.chatRoomId;
   selectedRoom.value = room;
   messages.value = [];
   currentPage.value = 0;
   hasMoreMessages.value = true;
 
-  // 메시지 로드
-  await loadMessages(room.chatRoomId, 0);
+  try {
+    // 메시지 로드
+    await loadMessages(room.chatRoomId, 0);
 
-  // 읽음 처리
-  if (room.unreadCount > 0) {
-    await markMessagesAsRead(room.chatRoomId);
+    // 읽음 처리
+    if (room.unreadCount > 0) {
+      await markMessagesAsRead(room.chatRoomId);
+    }
+
+    // 스크롤을 맨 아래로
+    scrollToBottom();
+    
+    console.log('✅ 채팅방 선택 완료');
+  } catch (error) {
+    console.error('❌ 채팅방 선택 중 오류:', error);
   }
-
-  // 스크롤을 맨 아래로
-  scrollToBottom();
 };
 
-// 메시지 로드
+// ===== 메시지 관리 =====
 const loadMessages = async (chatRoomId, page = 0) => {
-  if (isLoadingMessages.value) return;
+  if (isLoadingMessages.value) {
+    console.log('⏳ 이미 메시지 로딩 중 - 중복 요청 방지');
+    return;
+  }
 
   isLoadingMessages.value = true;
 
   try {
+    console.log(`📨 메시지 로드: 채팅방=${chatRoomId}, 페이지=${page}`);
+    
     const response = await axios.get(`/api/chat/rooms/${chatRoomId}/messages`, {
       params: { page, size: 20 }
     });
@@ -220,32 +244,71 @@ const loadMessages = async (chatRoomId, page = 0) => {
 
     if (page === 0) {
       messages.value = newMessages;
+      console.log('📨 초기 메시지 로드:', newMessages.length, '개');
     } else {
       messages.value = [...newMessages, ...messages.value];
+      console.log('📨 추가 메시지 로드:', newMessages.length, '개');
     }
 
     hasMoreMessages.value = !response.data.last;
     currentPage.value = response.data.number;
 
   } catch (error) {
-    console.error('메시지 로드 실패:', error);
+    console.error('❌ 메시지 로드 실패:', error);
+    
     if (page === 0) {
       messages.value = [];
     }
+    
+    notification({
+      type: 'error',
+      title: '메시지 로드 실패',
+      content: '메시지를 불러올 수 없습니다.'
+    });
   } finally {
     isLoadingMessages.value = false;
   }
 };
 
-// 🆕 메시지 전송 - 체크 표시 고려
+// 🔧 개선된 메시지 전송
 const sendMessage = async () => {
-  if (!newMessage.value.trim() || !selectedRoomId.value || !isConnected.value || isSending.value) return;
+  if (!newMessage.value.trim() || !selectedRoomId.value || isSending.value) {
+    console.log('📤 메시지 전송 조건 불충족:', {
+      hasMessage: !!newMessage.value.trim(),
+      hasRoom: !!selectedRoomId.value,
+      isConnected: isConnected.value,
+      isSending: isSending.value
+    });
+    return;
+  }
+
+  // 🔧 연결 상태 재확인
+  if (!isConnected.value) {
+    console.warn('⚠️ WebSocket 연결 끊어짐 - 재연결 시도');
+    await checkConnection();
+    
+    if (!isConnected.value) {
+      notification({
+        type: 'error',
+        title: '연결 오류',
+        content: '채팅 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.'
+      });
+      return;
+    }
+  }
 
   const messageContent = newMessage.value.trim();
   const partnerId = getPartnerId(selectedRoomId.value);
   const tempId = tempMessageId--;
 
-  // 낙관적 업데이트 - 즉시 UI에 메시지 추가
+  console.log('📤 메시지 전송 시작:', {
+    content: messageContent.substring(0, 20) + (messageContent.length > 20 ? '...' : ''),
+    partnerId,
+    tempId,
+    room: selectedRoomId.value
+  });
+
+  // 🔧 낙관적 업데이트 - 즉시 UI에 메시지 추가
   const tempMessage = {
     id: tempId,
     senderId: currentUserId.value,
@@ -254,7 +317,7 @@ const sendMessage = async () => {
     createdDate: new Date().toISOString(),
     isRead: false,
     chatRoomId: selectedRoomId.value,
-    isTemporary: true // 🔧 임시 메시지 플래그
+    isTemporary: true
   };
 
   messages.value.push(tempMessage);
@@ -268,7 +331,7 @@ const sendMessage = async () => {
   isSending.value = true;
 
   try {
-    // WebSocket으로 메시지 전송
+    // 🔧 WebSocket으로 메시지 전송
     if (stompClient.value && stompClient.value.connected) {
       stompClient.value.publish({
         destination: '/app/send-message',
@@ -278,7 +341,7 @@ const sendMessage = async () => {
         })
       });
 
-      console.log('✅ 메시지 전송 성공:', messageContent);
+      console.log('✅ 메시지 전송 성공');
     } else {
       throw new Error('WebSocket 연결이 끊어졌습니다.');
     }
@@ -297,8 +360,13 @@ const sendMessage = async () => {
     notification({
       type: 'error',
       title: '전송 실패',
-      content: '메시지 전송에 실패했습니다. 다시 시도해주세요.'
+      content: '메시지 전송에 실패했습니다. 연결을 확인해주세요.'
     });
+
+    // 🔧 연결 문제인 경우 재연결 시도
+    if (error.message.includes('연결')) {
+      setTimeout(subscribeToChat, 2000);
+    }
   } finally {
     isSending.value = false;
   }
@@ -312,7 +380,6 @@ const updateChatRoomLastMessage = (chatRoomId, content, timestamp) => {
     room.lastMessage = content;
     room.lastMessageTime = timestamp;
 
-    // 채팅방을 맨 위로 이동
     const updatedRoom = chatRooms.value.splice(roomIndex, 1)[0];
     chatRooms.value.unshift(updatedRoom);
   }
@@ -324,12 +391,12 @@ const getPartnerId = (chatRoomId) => {
   return id1 === currentUserId.value ? id2 : id1;
 };
 
-// 🆕 메시지 읽음 처리 - 체크 표시 업데이트 포함
+// 🔧 개선된 메시지 읽음 처리
 const markMessagesAsRead = async (chatRoomId) => {
   try {
     await axios.post(`/api/chat/rooms/${chatRoomId}/read`);
 
-    // 🆕 현재 채팅방의 상대방 메시지들을 읽음 처리 (체크 표시용)
+    // 🔧 현재 채팅방의 상대방 메시지들을 읽음 처리
     messages.value.forEach(msg => {
       if (msg.chatRoomId === chatRoomId && msg.senderId !== currentUserId.value) {
         msg.isRead = true;
@@ -341,16 +408,16 @@ const markMessagesAsRead = async (chatRoomId) => {
     if (roomIndex > -1) {
       const previousUnreadCount = chatRooms.value[roomIndex].unreadCount;
       chatRooms.value[roomIndex].unreadCount = 0;
-
-      // 총 읽지 않은 개수 업데이트
       totalUnreadCount.value -= previousUnreadCount;
     }
+    
+    console.log('✅ 메시지 읽음 처리 완료:', chatRoomId);
   } catch (error) {
-    console.error('읽음 처리 실패:', error);
+    console.error('❌ 읽음 처리 실패:', error);
   }
 };
 
-// 스크롤 처리 (무한 스크롤)
+// ===== 스크롤 관리 =====
 const handleScroll = async () => {
   if (!messagesContainer.value || !hasMoreMessages.value || isLoadingMessages.value) return;
 
@@ -367,7 +434,6 @@ const handleScroll = async () => {
   }
 };
 
-// 스크롤을 맨 아래로
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -376,119 +442,208 @@ const scrollToBottom = () => {
   });
 };
 
-// 🆕 개선된 채팅 구독 - 읽음 상태 업데이트 포함
-// 🔧 개선된 채팅 구독 - Chat.vue에서 사용
+// ===== WebSocket 구독 관리 =====
+
+// 🔧 완전히 개선된 채팅 구독
 const subscribeToChat = async () => {
-  console.log('📡 채팅 WebSocket 구독 시작...');
+  if (!currentUserId.value || currentUserId.value === 0) {
+    console.log('❌ 로그인되지 않은 상태 - 구독 중단');
+    return;
+  }
+
+  console.log('📡 Chat.vue WebSocket 구독 시작...');
   console.log('📡 현재 연결 상태:', isConnected.value);
 
-  // 연결이 안되어 있다면 연결 대기
+  // 🔧 연결 대기
   if (!isConnected.value) {
     console.log('📡 WebSocket 연결 대기 중...');
     try {
-      await waitForConnection(10000);
+      await waitForConnection(15000);
       console.log('✅ WebSocket 연결 대기 완료');
     } catch (error) {
       console.error('❌ WebSocket 연결 대기 실패:', error);
-      setTimeout(() => {
-        console.log('🔄 채팅 구독 재시도...');
-        subscribeToChat();
-      }, 3000);
+      
+      // 재시도 로직
+      if (reconnectAttempts.value < maxReconnectAttempts.value) {
+        reconnectAttempts.value++;
+        const delay = Math.min(2000 * reconnectAttempts.value, 10000);
+        console.log(`🔄 ${delay}ms 후 재시도 (${reconnectAttempts.value}/${maxReconnectAttempts.value})`);
+        
+        setTimeout(() => {
+          subscribeToChat();
+        }, delay);
+      } else {
+        console.error('🚨 최대 재시도 횟수 초과');
+        notification({
+          type: 'error',
+          title: '연결 실패',
+          content: '채팅 서버 연결에 실패했습니다. 페이지를 새로고침해주세요.'
+        });
+      }
       return;
     }
   }
 
   try {
-    console.log('📡 Chat.vue 전용 구독 시작...');
+    // 🔧 기존 구독 정리
+    cleanupSubscriptions();
 
-    // 🔧 Chat.vue 전용 채팅 메시지 구독 (App.vue와 분리)
-    chatMessageSubscription.value = subscribe('/user/queue/chat-messages', (message) => {
-      const newMsg = JSON.parse(message.body);
-      console.log('📨 Chat.vue - 새 채팅 메시지 수신:', newMsg);
+    const userId = currentUserId.value;
+    const timestamp = Date.now();
 
-      // 🔧 개선된 임시 메시지 처리
-      if (newMsg.senderId === currentUserId.value) {
-        // 내가 보낸 메시지의 경우 - 임시 메시지 찾아서 제거
-        const tempMsgIndex = messages.value.findIndex(m =>
-            m.isTemporary &&
-            m.content === newMsg.content &&
-            m.senderId === newMsg.senderId &&
-            Math.abs(new Date(m.createdDate) - new Date(newMsg.createdDate)) < 5000 // 5초 이내
-        );
+    // 🔧 1. 채팅 메시지 구독 - 고유 ID 사용
+    console.log('📡 채팅 메시지 구독 시작...');
+    const chatMessageSubId = `chat-messages-${userId}-${timestamp}-1`;
+    
+    subscriptions.value.chatMessages = subscribe(
+      '/user/queue/chat-messages',
+      (message) => {
+        try {
+          const newMsg = JSON.parse(message.body);
+          console.log('📨 Chat.vue - 새 채팅 메시지:', {
+            id: newMsg.id,
+            senderId: newMsg.senderId,
+            chatRoomId: newMsg.chatRoomId,
+            content: newMsg.content?.substring(0, 30) + '...',
+            currentRoom: selectedRoomId.value
+          });
 
-        if (tempMsgIndex > -1) {
-          console.log('🔄 임시 메시지 교체:', messages.value[tempMsgIndex].id, '->', newMsg.id);
-          messages.value.splice(tempMsgIndex, 1);
+          handleNewChatMessage(newMsg);
+        } catch (parseError) {
+          console.error('❌ 채팅 메시지 파싱 실패:', parseError);
         }
-      }
+      },
+      chatMessageSubId
+    );
 
-      // 현재 선택된 채팅방의 메시지인 경우만 처리
-      if (selectedRoomId.value === newMsg.chatRoomId) {
-        // 🔧 중복 메시지 체크 개선
-        const existingMessage = messages.value.find(m => {
-          // 1. 같은 ID인 경우 (서버에서 온 메시지)
-          if (m.id === newMsg.id && m.id > 0) return true;
+    // 🔧 2. 채팅방 업데이트 구독
+    console.log('📡 채팅방 업데이트 구독 시작...');
+    const roomUpdateSubId = `chat-room-update-${userId}-${timestamp}-2`;
+    
+    subscriptions.value.chatRoomUpdate = subscribe(
+      '/user/queue/chat-room-update',
+      () => {
+        console.log('📨 채팅방 목록 업데이트 알림 수신');
+        loadChatRooms();
+      },
+      roomUpdateSubId
+    );
 
-          // 2. 내용과 시간이 비슷한 경우 (중복 방지)
-          if (m.senderId === newMsg.senderId &&
-              m.content === newMsg.content &&
-              !m.isTemporary) {
-            const timeDiff = Math.abs(new Date(m.createdDate) - new Date(newMsg.createdDate));
-            if (timeDiff < 2000) return true; // 2초 이내면 중복으로 간주
+    // 🔧 3. 읽음 상태 업데이트 구독
+    console.log('📡 읽음 상태 구독 시작...');
+    const readStatusSubId = `message-read-status-${userId}-${timestamp}-3`;
+    
+    subscriptions.value.messageReadStatus = subscribe(
+      '/user/queue/message-read-status',
+      (message) => {
+        try {
+          const readStatus = JSON.parse(message.body);
+          console.log('📖 메시지 읽음 상태 업데이트:', readStatus);
+
+          if (selectedRoomId.value === readStatus.chatRoomId) {
+            let updatedCount = 0;
+            messages.value.forEach(msg => {
+              if (msg.senderId === currentUserId.value && !msg.isTemporary && !msg.isRead) {
+                msg.isRead = true;
+                updatedCount++;
+              }
+            });
+            
+            if (updatedCount > 0) {
+              console.log('✅ 내 메시지 읽음 상태 업데이트:', updatedCount, '개');
+            }
           }
-
-          return false;
-        });
-
-        if (!existingMessage) {
-          console.log('✅ 새 메시지 추가:', newMsg.id);
-          messages.value.push(newMsg);
-          scrollToBottom();
-
-          // 상대방 메시지인 경우 즉시 읽음 처리
-          if (newMsg.senderId !== currentUserId.value) {
-            markMessagesAsRead(newMsg.chatRoomId);
-          }
-        } else {
-          console.log('⚠️ 중복 메시지 무시:', newMsg.id);
+        } catch (parseError) {
+          console.error('❌ 읽음 상태 파싱 실패:', parseError);
         }
-      }
+      },
+      readStatusSubId
+    );
 
-      // 채팅방 목록 업데이트
-      updateChatRoomFromMessage(newMsg);
-    }, 'chat-vue-messages-unique'); // 🔧 고유한 ID 사용
+    console.log('✅ Chat.vue WebSocket 구독 완료');
+    reconnectAttempts.value = 0; // 성공시 리셋
 
-    // 채팅방 업데이트 구독
-    chatRoomUpdateSubscription.value = subscribe('/user/queue/chat-room-update', () => {
-      console.log('📨 채팅방 목록 업데이트 알림 수신');
-      loadChatRooms();
-    }, 'chat-vue-room-update-unique'); // 🔧 고유한 ID 사용
-
-    // 읽음 상태 업데이트 구독
-    subscribe('/user/queue/message-read-status', (message) => {
-      const readStatus = JSON.parse(message.body);
-      console.log('📖 메시지 읽음 상태 업데이트:', readStatus);
-
-      // 현재 채팅방의 내 메시지들 읽음 상태 업데이트
-      if (selectedRoomId.value === readStatus.chatRoomId) {
-        messages.value.forEach(msg => {
-          if (msg.senderId === currentUserId.value && !msg.isTemporary) {
-            msg.isRead = true;
-          }
-        });
-        console.log('✅ 내 메시지들 읽음 상태 업데이트 완료');
-      }
-    }, 'chat-vue-read-status-unique'); // 🔧 고유한 ID 사용
-
-    console.log('✅ Chat.vue 채팅 WebSocket 구독 완료');
+    // 🔧 구독 상태 확인
+    setTimeout(() => {
+      console.log('🔍 Chat.vue 구독 상태 확인:', {
+        chatMessages: !!subscriptions.value.chatMessages,
+        chatRoomUpdate: !!subscriptions.value.chatRoomUpdate,
+        messageReadStatus: !!subscriptions.value.messageReadStatus,
+        isConnected: isConnected.value
+      });
+    }, 1000);
 
   } catch (error) {
     console.error('❌ 채팅 WebSocket 구독 중 오류:', error);
+    
     setTimeout(() => {
       console.log('🔄 오류로 인한 채팅 구독 재시도...');
       subscribeToChat();
-    }, 3000);
+    }, 5000);
   }
+};
+
+// 🔧 새 채팅 메시지 처리 로직 분리
+const handleNewChatMessage = (newMsg) => {
+  // 🔧 현재 선택된 채팅방의 메시지만 처리
+  if (selectedRoomId.value !== newMsg.chatRoomId) {
+    console.log('🔄 다른 채팅방 메시지 - 채팅방 목록만 업데이트');
+    updateChatRoomFromMessage(newMsg);
+    return;
+  }
+
+  // 🔧 임시 메시지 처리 (내가 보낸 메시지)
+  if (newMsg.senderId === currentUserId.value) {
+    const tempMsgIndex = messages.value.findIndex(m =>
+        m.isTemporary &&
+        m.content === newMsg.content &&
+        m.senderId === newMsg.senderId &&
+        m.chatRoomId === newMsg.chatRoomId
+    );
+
+    if (tempMsgIndex > -1) {
+      console.log('🔄 임시 메시지 교체:', messages.value[tempMsgIndex].id, '->', newMsg.id);
+      // 임시 메시지를 실제 메시지로 교체
+      messages.value[tempMsgIndex] = { ...newMsg, isTemporary: false };
+      
+      // 채팅방 목록 업데이트
+      updateChatRoomFromMessage(newMsg);
+      return;
+    }
+  }
+
+  // 🔧 완화된 중복 메시지 체크
+  const existingMessage = messages.value.find(m => {
+    // 1. 같은 ID인 경우 (확실한 중복)
+    if (m.id === newMsg.id && m.id > 0) return true;
+    
+    // 2. 매우 유사한 메시지 체크 (500ms 이내 + 같은 내용 + 같은 발신자)
+    if (m.senderId === newMsg.senderId && 
+        m.content === newMsg.content && 
+        !m.isTemporary &&
+        m.chatRoomId === newMsg.chatRoomId) {
+      const timeDiff = Math.abs(new Date(m.createdDate) - new Date(newMsg.createdDate));
+      return timeDiff < 500; // 0.5초로 더 완화
+    }
+
+    return false;
+  });
+
+  if (!existingMessage) {
+    console.log('✅ 새 메시지 추가:', newMsg.id);
+    messages.value.push(newMsg);
+    scrollToBottom();
+
+    // 상대방 메시지인 경우 즉시 읽음 처리
+    if (newMsg.senderId !== currentUserId.value) {
+      markMessagesAsRead(newMsg.chatRoomId);
+    }
+  } else {
+    console.log('⚠️ 중복 메시지 무시:', newMsg.id, '(기존:', existingMessage.id, ')');
+  }
+
+  // 채팅방 목록 업데이트
+  updateChatRoomFromMessage(newMsg);
 };
 
 // 메시지로부터 채팅방 목록 업데이트
@@ -500,16 +655,76 @@ const updateChatRoomFromMessage = (newMsg) => {
     room.lastMessage = newMsg.content;
     room.lastMessageTime = newMsg.createdDate;
 
+    // 🔧 내가 보낸 메시지가 아닌 경우에만 unread 증가
+    if (newMsg.senderId !== currentUserId.value && selectedRoomId.value !== newMsg.chatRoomId) {
+      room.unreadCount = (room.unreadCount || 0) + 1;
+      totalUnreadCount.value++;
+    }
+
     // 채팅방을 맨 위로 이동
     const updatedRoom = chatRooms.value.splice(roomIndex, 1)[0];
     chatRooms.value.unshift(updatedRoom);
+    
+    console.log('✅ 채팅방 목록 업데이트 완료');
   } else {
-    // 새로운 채팅방인 경우 목록 다시 로드
+    console.log('🔄 새로운 채팅방 - 전체 목록 다시 로드');
     loadChatRooms();
   }
 };
 
-// 시간 포맷팅
+// 🔧 구독 정리
+const cleanupSubscriptions = () => {
+  console.log('🧹 Chat.vue 구독 정리 시작...');
+
+  Object.entries(subscriptions.value).forEach(([key, subscription]) => {
+    if (subscription) {
+      try {
+        if (typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+        console.log(`✅ ${key} 구독 해제 완료`);
+      } catch (error) {
+        console.warn(`⚠️ ${key} 구독 해제 실패:`, error);
+      }
+      subscriptions.value[key] = null;
+    }
+  });
+
+  console.log('✅ Chat.vue 구독 정리 완료');
+};
+
+// 🔧 연결 상태 모니터링
+const startConnectionMonitoring = () => {
+  if (connectionMonitor.value) {
+    clearInterval(connectionMonitor.value);
+  }
+
+  connectionMonitor.value = setInterval(() => {
+    if (!isConnected.value) {
+      console.warn('⚠️ WebSocket 연결 끊어짐 감지');
+      
+      // 연결 상태 체크 후 재구독
+      checkConnection().then(() => {
+        if (isConnected.value) {
+          console.log('🔄 연결 복구됨 - 재구독 시도');
+          subscribeToChat();
+        }
+      });
+    }
+  }, 10000); // 10초마다 체크
+
+  console.log('✅ 연결 상태 모니터링 시작');
+};
+
+const stopConnectionMonitoring = () => {
+  if (connectionMonitor.value) {
+    clearInterval(connectionMonitor.value);
+    connectionMonitor.value = null;
+    console.log('🛑 연결 상태 모니터링 중지');
+  }
+};
+
+// ===== 시간 포맷팅 =====
 const formatTime = (dateString) => {
   if (!dateString) return '';
 
@@ -539,30 +754,23 @@ const formatMessageTime = (dateString) => {
   });
 };
 
-// 구독 정리
-const cleanupSubscriptions = () => {
-  console.log('🧹 Chat 구독 정리 시작...');
+// ===== 생명주기 관리 =====
 
-  // 고유 ID로 해제
-  unsubscribe('chat-vue-messages-unique');
-  unsubscribe('chat-vue-room-update-unique');
-  unsubscribe('chat-vue-read-status-unique');
-
-  // 로컬 참조 정리
-  chatMessageSubscription.value = null;
-  chatRoomUpdateSubscription.value = null;
-
-  console.log('✅ Chat 구독 정리 완료');
-};
-
-// 컴포넌트 마운트
+// 🔧 컴포넌트 마운트
 onMounted(async () => {
-  console.log('Chat.vue 마운트됨');
+  console.log('🚀 Chat.vue 마운트 시작');
 
   try {
+    // 1. 채팅방 목록 로드
     await loadChatRooms();
+
+    // 2. WebSocket 구독
     await subscribeToChat();
 
+    // 3. 연결 모니터링 시작
+    startConnectionMonitoring();
+
+    // 4. 쿼리 파라미터 처리
     const roomId = route.query.roomId;
     const partnerName = route.query.partnerName;
     const partnerImage = route.query.partnerImage;
@@ -580,34 +788,103 @@ onMounted(async () => {
       chatRooms.value = [fakeRoom];
       await selectChatRoom(fakeRoom);
     }
+
+    console.log('✅ Chat.vue 마운트 완료');
   } catch (error) {
-    console.error('Chat.vue 마운트 중 오류:', error);
+    console.error('❌ Chat.vue 마운트 중 오류:', error);
+    
+    notification({
+      type: 'error',
+      title: '초기화 실패',
+      content: '채팅을 초기화하는 중 오류가 발생했습니다.'
+    });
   }
 });
 
-// 컴포넌트 언마운트
+// 🔧 컴포넌트 언마운트
 onUnmounted(() => {
-  console.log('Chat.vue 언마운트됨');
+  console.log('🧹 Chat.vue 언마운트 시작');
+  
+  // 연결 모니터링 중지
+  stopConnectionMonitoring();
+  
+  // 구독 정리
   cleanupSubscriptions();
+  
+  // 상태 초기화
+  reconnectAttempts.value = 0;
+  
+  console.log('✅ Chat.vue 언마운트 완료');
 });
 
-// 로그인 상태 변화 감지
-watch(() => userStore.currentMember?.id, (newId) => {
-  if (newId && newId !== 0) {
-    loadChatRooms();
-    subscribeToChat();
+// ===== 반응형 감시 =====
+
+// 🔧 로그인 상태 변화 감지
+watch(() => userStore.currentMember?.id, (newId, oldId) => {
+  console.log('👤 사용자 상태 변화:', { oldId, newId });
+  
+  if (newId && newId !== 0 && newId !== oldId) {
+    console.log('🔑 로그인 감지 - 채팅 초기화');
+    
+    // 기존 구독 정리 후 재구독
+    setTimeout(() => {
+      loadChatRooms();
+      subscribeToChat();
+    }, 1000);
+  } else if ((!newId || newId === 0) && oldId && oldId !== 0) {
+    console.log('🚪 로그아웃 감지 - 구독 정리');
+    cleanupSubscriptions();
+    stopConnectionMonitoring();
   }
 });
 
-// 쿼리 파라미터 변화 감지
+// 🔧 쿼리 파라미터 변화 감지
 watch(() => route.query.roomId, async (newRoomId) => {
   if (newRoomId && chatRooms.value.length > 0) {
     const targetRoom = chatRooms.value.find(room => room.chatRoomId === newRoomId);
     if (targetRoom) {
+      console.log('🎯 쿼리 파라미터로 채팅방 선택:', newRoomId);
       await selectChatRoom(targetRoom);
     }
   }
 });
+
+// ===== 디버깅 함수 (개발용) =====
+if (process.env.NODE_ENV === 'development') {
+  window.chatDebug = {
+    getState: () => ({
+      selectedRoomId: selectedRoomId.value,
+      messagesCount: messages.value.length,
+      tempMessages: messages.value.filter(m => m.isTemporary).length,
+      subscriptions: Object.keys(subscriptions.value).filter(key => subscriptions.value[key]),
+      isConnected: isConnected.value,
+      reconnectAttempts: reconnectAttempts.value
+    }),
+    
+    forceReconnect: () => {
+      console.log('🔧 강제 재연결 시도...');
+      cleanupSubscriptions();
+      setTimeout(subscribeToChat, 1000);
+    },
+    
+    clearTempMessages: () => {
+      const tempCount = messages.value.filter(m => m.isTemporary).length;
+      messages.value = messages.value.filter(m => !m.isTemporary);
+      console.log('🧹 임시 메시지 정리:', tempCount, '개 제거');
+    },
+    
+    testMessage: (content = '테스트 메시지') => {
+      if (selectedRoomId.value) {
+        newMessage.value = content;
+        sendMessage();
+      } else {
+        console.log('❌ 선택된 채팅방 없음');
+      }
+    }
+  };
+  
+  console.log('🔧 Chat.vue 디버깅 도구 활성화: window.chatDebug');
+}
 </script>
 
 <style scoped>

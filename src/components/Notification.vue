@@ -9,15 +9,12 @@
           <button class="filter-button" @click="toggleUnreadOnly">
             {{ unreadOnly ? '모든 알림 보기' : '안 읽은 알림만 보기' }}
           </button>
-          <button v-if="notifications.length > 0" class="read-all-button" @click="markAllAsRead">
-            모두 읽음
+          <button v-if="displayNotifications.length > 0" class="read-all-button" @click="markAllAsRead">
+            모든 읽음
           </button>
           <button class="close-icon" @click="closeModal">✕</button>
         </div>
       </div>
-
-      <!-- 새 알림 배너 영역 -->
-      <div id="new-notification-banner-area"></div>
 
       <!-- 알림이 없을 때 -->
       <div v-if="filteredNotifications.length === 0" class="no-notifications">
@@ -25,7 +22,7 @@
       </div>
 
       <!-- 알림 목록 -->
-      <div class="notifications-container">
+      <div class="notifications-container" @scroll="handleScroll">
         <div v-for="notification in filteredNotifications"
              :key="notification.notificationId"
              :data-notification-id="notification.notificationId"
@@ -61,7 +58,7 @@
 
       <!-- 추가 기능 버튼 -->
       <div class="notification-actions">
-        <button v-if="notifications.length > 0" class="delete-all-button" @click="deleteAllNotifications">
+        <button v-if="displayNotifications.length > 0" class="delete-all-button" @click="deleteAllNotifications">
           모든 알림 삭제
         </button>
       </div>
@@ -69,40 +66,52 @@
   </div>
 
   <!-- 게시글 상세 모달 -->
-<PostDetailModal
-  v-if="showPostModal && selectedPostId !== null"
-  :is-visible="showPostModal"
-  :post-id="selectedPostId"
-  @close="closePostModal"
-  @post-updated="handlePostUpdated"
-  @post-deleted="handlePostDeleted"
-/>
+  <PostDetailModal
+    v-if="showPostModal && selectedPostId !== null"
+    :is-visible="showPostModal"
+    :post-id="selectedPostId"
+    @close="closePostModal"
+    @post-updated="handlePostUpdated"
+    @post-deleted="handlePostDeleted"
+  />
 </template>
 
 <script setup>
 import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue';
 import ProfileRing from '@/components/profile/ProfileRing.vue';
 import PostDetailModal from '@/components/feed/PostDetailModal.vue';
-import {useWebSocket} from '@/composables/useWebSocket';
 import {useUserStore} from '@/scripts/store';
 import axios from 'axios';
 import router from '@/scripts/router';
 
+// ✅ Props로 알림 데이터 받기 (App.vue에서 전달)
 const props = defineProps({
   isVisible: {
     type: Boolean,
     default: false
+  },
+  notifications: {
+    type: Array,
+    default: () => []
+  },
+  unreadCount: {
+    type: Number,
+    default: 0
   }
 });
 
-const emit = defineEmits(['close']);
+// ✅ 이벤트 정의 - App.vue와 통신
+const emit = defineEmits([
+  'close',
+  'refresh-notifications',
+  'mark-as-read',
+  'delete-notification',
+  'load-more-notifications'
+]);
 
-// WebSocket 및 사용자 정보
-const {stompClient, isConnected, subscribe, checkConnection, waitForConnection} = useWebSocket();
 const userStore = useUserStore();
 
-// 상태 변수들
-const notifications = ref([]);
+// ✅ 로컬 상태 관리 (UI 전용)
 const isClosing = ref(false);
 const unreadOnly = ref(false);
 const currentPage = ref(0);
@@ -114,192 +123,58 @@ const isLoading = ref(false);
 const showPostModal = ref(false);
 const selectedPostId = ref(null);
 
-// WebSocket 구독 관련 변수들
-const notificationSubscription = ref(null);
-const countSubscription = ref(null);
-const listUpdateSubscription = ref(null);
+// ✅ 표시할 알림 목록 (props에서 받은 데이터 사용)
+const displayNotifications = computed(() => props.notifications || []);
 
-// 필터링된 알림 계산
+// ✅ 필터링된 알림 계산
 const filteredNotifications = computed(() => {
   if (unreadOnly.value) {
-    return notifications.value.filter(notification => !notification.read);
+    return displayNotifications.value.filter(notification => !notification.read);
   }
-  return notifications.value;
+  return displayNotifications.value;
 });
 
-// WebSocket을 통한 실시간 알림 구독
-const subscribeToNotifications = async () => {
-  if (!userStore.currentMember?.id) return;
+// ✅ 모든 WebSocket 관련 코드 제거!
+// - subscribeToNotifications 함수 삭제
+// - WebSocket 구독 관련 모든 코드 삭제
+// - 실시간 업데이트는 App.vue에서 props로 받아서 처리
 
-  // WebSocket 연결 대기
-  if (!isConnected.value) {
-    try {
-      await waitForConnection(5000);
-    } catch (error) {
-      setTimeout(subscribeToNotifications, 1000);
-      return;
-    }
-  }
+// ✅ 페이지 로딩 - App.vue에 요청
+const loadNotifications = async (page = 0) => {
+  if (isLoading.value || (!hasMorePages.value && page > 0)) return;
 
+  isLoading.value = true;
   try {
-    // 새로운 알림 수신
-    notificationSubscription.value = subscribe('/user/queue/notifications', (message) => {
-      const newNotification = JSON.parse(message.body);
-
-      if (props.isVisible) {
-        notifications.value.unshift(newNotification);
-        highlightNewNotification(newNotification.notificationId);
-
-        if (currentPage.value > 0) {
-          showNewNotificationBanner();
-        }
-      }
-    });
-
-    // 알림 개수 업데이트
-    countSubscription.value = subscribe('/user/queue/notification-count', (message) => {
-      const count = parseInt(message.body);
-      emit('update-count', count);
-    });
-
-    // 알림 리스트 실시간 동기화
-    listUpdateSubscription.value = subscribe('/user/queue/notification-list-update', (message) => {
-      try {
-        const updateData = JSON.parse(message.body);
-        if (props.isVisible) {
-          handleListUpdate(updateData);
-        }
-      } catch (parseError) {
-        console.error('리스트 업데이트 메시지 파싱 실패:', parseError);
-      }
-    });
-
+    console.log(`알림 로드 요청: page=${page}`);
+    emit('load-more-notifications', page, pageSize.value);
+    currentPage.value = page;
   } catch (error) {
-    setTimeout(subscribeToNotifications, 1000);
+    console.error('알림 로딩 중 오류:', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
-// 실시간 알림 리스트 업데이트 처리
-const handleListUpdate = (updateData) => {
-  const {type, notificationId, notification} = updateData;
-
-  switch (type) {
-    case 'DELETE':
-      notifications.value = notifications.value.filter(n => n.notificationId !== notificationId);
-      break;
-
-    case 'READ':
-      const readIndex = notifications.value.findIndex(n => n.notificationId === notificationId);
-      if (readIndex !== -1) {
-        notifications.value.splice(readIndex, 1, {
-          ...notifications.value[readIndex],
-          read: true
-        });
-      }
-      break;
-
-    case 'CREATE':
-      if (notification && !notifications.value.find(n => n.notificationId === notification.notificationId)) {
-        notifications.value.unshift(notification);
-      }
-      break;
-
-    case 'READ_ALL':
-      notifications.value = notifications.value.map(n => ({
-        ...n,
-        read: true
-      }));
-      break;
-
-    case 'DELETE_ALL':
-      notifications.value = [];
-      break;
-  }
-};
-
-// 새 알림 배너 표시
-const showNewNotificationBanner = () => {
-  const banner = document.createElement('div');
-  banner.className = 'new-notification-banner';
-  banner.innerHTML = `
-    <div class="banner-content">
-      📢 새 알림이 있습니다.
-      <button onclick="this.parentElement.parentElement.scrollToTop()">맨 위로 이동</button>
-      <button onclick="this.parentElement.parentElement.remove()">닫기</button>
-    </div>
-  `;
-  banner.scrollToTop = () => {
-    currentPage.value = 0;
-    loadNotifications(0);
-    banner.remove();
-  };
-
-  const container = document.querySelector('.notifications-container');
-  if (container) {
-    container.insertBefore(banner, container.firstChild);
-    setTimeout(() => banner.remove(), 10000);
-  }
-};
-
-// 새 알림 하이라이트 효과
-const highlightNewNotification = (notificationId) => {
-  nextTick(() => {
-    const element = document.querySelector(`[data-notification-id="${notificationId}"]`);
-    if (element) {
-      element.style.animation = 'newNotificationHighlight 2s ease-out';
-      setTimeout(() => {
-        element.style.animation = '';
-      }, 2000);
-    }
-  });
-};
-
-// 개별 알림 읽음 처리 (낙관적 업데이트)
+// ✅ 개별 알림 읽음 처리 - App.vue에 요청
 const markAsRead = async (notificationId) => {
-  try {
-    // UI 즉시 업데이트
-    const index = notifications.value.findIndex(n => n.notificationId === notificationId);
-    if (index !== -1 && !notifications.value[index].read) {
-      notifications.value.splice(index, 1, {
-        ...notifications.value[index],
-        read: true
-      });
-    }
-
-    // API 호출
-    await axios.put(`/api/notifications/${notificationId}/read`);
-  } catch (error) {
-    // 실패 시 원상복구
-    const index = notifications.value.findIndex(n => n.notificationId === notificationId);
-    if (index !== -1) {
-      notifications.value.splice(index, 1, {
-        ...notifications.value[index],
-        read: false
-      });
-    }
-  }
+  console.log(`알림 읽음 처리 요청: ${notificationId}`);
+  emit('mark-as-read', notificationId);
 };
 
-// 모든 알림 읽음 처리 (낙관적 업데이트)
+// ✅ 모든 알림 읽음 처리 - API 직접 호출 후 App.vue에 알림
 const markAllAsRead = async () => {
   try {
-    const originalNotifications = [...notifications.value];
-
-    // UI 즉시 업데이트
-    notifications.value = notifications.value.map(n => ({
-      ...n,
-      read: true
-    }));
-
-    // API 호출
     await axios.put('/api/notifications/read-all');
+    console.log('모든 알림 읽음 처리 완료');
+    
+    // App.vue에 새로고침 요청
+    emit('refresh-notifications');
   } catch (error) {
-    // 실패 시 원상복구
-    notifications.value = originalNotifications;
+    console.error('모든 알림 읽음 처리 실패:', error);
   }
 };
 
-// 개별 알림 삭제 (낙관적 업데이트)
+// ✅ 개별 알림 삭제 - App.vue에 요청
 const deleteNotification = async (notificationId) => {
   try {
     // 삭제 애니메이션
@@ -308,67 +183,32 @@ const deleteNotification = async (notificationId) => {
       element.classList.add('removing');
     }
 
-    // 애니메이션 후 UI에서 제거
+    // 애니메이션 후 App.vue에 삭제 요청
     setTimeout(() => {
-      const originalNotifications = [...notifications.value];
-      notifications.value = notifications.value.filter(n => n.notificationId !== notificationId);
-
-      // API 호출
-      axios.delete(`/api/notifications/${notificationId}`)
-          .catch(error => {
-            // 실패 시 원상복구
-            notifications.value = originalNotifications;
-          });
+      console.log(`알림 삭제 요청: ${notificationId}`);
+      emit('delete-notification', notificationId);
     }, 300);
   } catch (error) {
     console.error('알림 삭제 중 오류:', error);
   }
 };
 
-// 모든 알림 삭제 (낙관적 업데이트)
+// ✅ 모든 알림 삭제 - API 직접 호출 후 App.vue에 알림
 const deleteAllNotifications = async () => {
   if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
 
   try {
-    const originalNotifications = [...notifications.value];
-
-    // UI 즉시 업데이트
-    notifications.value = [];
-
-    // API 호출
     await axios.delete('/api/notifications/all');
+    console.log('모든 알림 삭제 완료');
+    
+    // App.vue에 새로고침 요청
+    emit('refresh-notifications');
   } catch (error) {
-    // 실패 시 원상복구
-    notifications.value = originalNotifications;
+    console.error('모든 알림 삭제 실패:', error);
   }
 };
 
-// 페이지 로딩
-const loadNotifications = async (page = 0) => {
-  if (isLoading.value || (!hasMorePages.value && page > 0)) return;
-
-  isLoading.value = true;
-
-  try {
-    const response = await axios.get(`/api/notifications/paged?page=${page}&size=${pageSize.value}`);
-    const data = response.data;
-
-    if (page === 0) {
-      notifications.value = data.content;
-    } else {
-      notifications.value = [...notifications.value, ...data.content];
-    }
-
-    hasMorePages.value = !data.last;
-    currentPage.value = data.number;
-  } catch (error) {
-    console.error('알림 로딩 중 오류:', error);
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-// 게시글 모달 관련 함수들
+// 게시글 모달 관련 함수들 (기존과 동일)
 const openPostModal = (postId) => {
   selectedPostId.value = postId;
   showPostModal.value = true;
@@ -380,35 +220,31 @@ const closePostModal = () => {
 };
 
 const handlePostUpdated = (updatedPost) => {
-  // 필요시 부모 컴포넌트로 이벤트 전달
   console.log('게시글 업데이트됨:', updatedPost);
 };
 
 const handlePostDeleted = (postId) => {
-  // 필요시 부모 컴포넌트로 이벤트 전달
   console.log('게시글 삭제됨:', postId);
 };
 
-// 알림 클릭 처리 - 수정된 부분
+// ✅ 알림 클릭 처리 - 읽음 처리만 App.vue에 요청
 const handleNotificationClick = async (notification) => {
   // 읽음 처리
   if (!notification.read) {
     await markAsRead(notification.notificationId);
   }
 
-  // 알림 타입별 처리
+  // 알림 타입별 처리 (기존과 동일)
   if (notification.type === 'FOLLOW') {
     if (notification.actorAccount) {
       closeModal();
       router.push(`/profile/${notification.actorAccount}`);
     }
   } else if (notification.type === 'LIKE' || notification.type === 'MENTION') {
-    // LIKE, MENTION은 relatedId 사용 (게시글 ID)
     if (notification.relatedId) {
       openPostModal(notification.relatedId);
     }
   } else if (notification.type === 'COMMENT') {
-    // COMMENT는 relatedPostId 사용 (게시글 ID)
     if (notification.relatedPostId) {
       openPostModal(notification.relatedPostId);
     }
@@ -429,7 +265,7 @@ const closeModal = () => {
   }, 250);
 };
 
-// 스크롤 처리 (무한 스크롤)
+// ✅ 스크롤 처리 (무한 스크롤) - 간소화
 const handleScroll = (e) => {
   const container = e.target;
   const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
@@ -439,7 +275,7 @@ const handleScroll = (e) => {
   }
 };
 
-// 알림 내용 포맷팅
+// 알림 내용 포맷팅 (기존과 동일)
 const formatContent = (notification) => {
   let content = notification.content;
   if (notification.actorName) {
@@ -451,7 +287,7 @@ const formatContent = (notification) => {
   return content;
 };
 
-// 시간 포맷팅
+// 시간 포맷팅 (기존과 동일)
 const formatTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
   const now = new Date();
@@ -474,12 +310,11 @@ const formatTime = (dateTimeStr) => {
   }
 };
 
-// 알림창 표시 상태 감시
+// ✅ 알림창 표시 상태 감시 - WebSocket 구독 제거
 watch(() => props.isVisible, (newValue) => {
   if (newValue) {
-    loadNotifications(0);
-    subscribeToNotifications();
-
+    console.log('알림창 열림 - 스크롤 이벤트 리스너 추가');
+    
     nextTick(() => {
       const container = document.querySelector('.notifications-container');
       if (container) {
@@ -487,6 +322,8 @@ watch(() => props.isVisible, (newValue) => {
       }
     });
   } else {
+    console.log('알림창 닫힘 - 스크롤 이벤트 리스너 제거');
+    
     const container = document.querySelector('.notifications-container');
     if (container) {
       container.removeEventListener('scroll', handleScroll);
@@ -494,24 +331,18 @@ watch(() => props.isVisible, (newValue) => {
   }
 });
 
-// 컴포넌트 마운트
+// ✅ 컴포넌트 마운트 - WebSocket 관련 코드 제거
 onMounted(() => {
-  if (props.isVisible) {
-    loadNotifications(0);
-    subscribeToNotifications();
-  }
+  console.log('NotificationDropdown 마운트 - WebSocket 구독 없음 (App.vue에서 관리)');
 });
 
-// 컴포넌트 언마운트 시 구독 해제
+// ✅ 컴포넌트 언마운트 - WebSocket 구독 해제 코드 제거
 onUnmounted(() => {
-  if (notificationSubscription.value) {
-    notificationSubscription.value.unsubscribe();
-  }
-  if (countSubscription.value) {
-    countSubscription.value.unsubscribe();
-  }
-  if (listUpdateSubscription.value) {
-    listUpdateSubscription.value.unsubscribe();
+  console.log('NotificationDropdown 언마운트 - 스크롤 이벤트만 정리');
+  
+  const container = document.querySelector('.notifications-container');
+  if (container) {
+    container.removeEventListener('scroll', handleScroll);
   }
 });
 </script>

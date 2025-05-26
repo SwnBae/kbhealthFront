@@ -118,7 +118,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, computed, onUnmounted } from 'vue';
+import { defineProps, defineEmits, ref, computed, onUnmounted, nextTick } from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import CommentSystem from '@/components/feed/CommentSystem.vue';
@@ -126,12 +126,11 @@ import ProfileRing from '@/components/profile/ProfileRing.vue';
 import PostEditModal from '@/components/feed/PostEditModal.vue';
 import DeleteConfirmModal from '@/components/feed/DeleteConfirmModal.vue';
 import axios from 'axios';
-// Vuex 스토어 -> Pinia 스토어로 변경
 import { useUserStore } from "@/scripts/store";
 import defaultPostImage from '/assets/img/default_post_image.png';
 import defaultProfileImage from '/assets/img/default_profile.png';
-const userStore = useUserStore();
 
+const userStore = useUserStore();
 dayjs.extend(relativeTime);
 
 const props = defineProps({
@@ -143,31 +142,35 @@ const props = defineProps({
 
 const emit = defineEmits(['update:post', 'delete:post', 'edit:post']);
 
-// 상태 관리
+// ✅ 기본 상태 관리
 const showPostMenu = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const menuContainer = ref(null);
 
+// ✅ 로딩 상태 추가
+const isLikeLoading = ref(false);
+const isMenuLoading = ref(false);
+
+// ✅ 디바운스를 위한 타이머
+const likeDebounceTimer = ref(null);
+const menuCloseTimer = ref(null);
+
 // 현재 사용자가 게시글 작성자인지 확인
 const isCurrentUserPost = computed(() => {
-  // Pinia에서는 state 없이 직접 접근
   const currentUserId = userStore.currentMember?.id;
   return currentUserId && props.post.writerId === currentUserId;
 });
 
 // 이미지 URL 처리 - 프로필과 게시물 이미지 구분
 const getImageUrl = (url, isProfile = false) => {
-  // 이미지 유형에 따라 다른 기본 이미지 반환
   const defaultImage = isProfile ? defaultProfileImage : defaultPostImage;
   return url && url.trim() !== '' ? url : defaultImage;
 };
 
 // 이미지 로드 에러 처리 함수
 const handleImageError = (event, isProfile = false) => {
-  // 이미지 로드 실패시 기본 이미지로 대체
   event.target.src = isProfile ? defaultProfileImage : defaultPostImage;
-  // 오류 이벤트 재발생 방지
   event.target.onerror = null;
 };
 
@@ -185,14 +188,22 @@ const formatCount = (count) => {
   }
 };
 
-// 게시글 메뉴 토글
+// ✅ 게시글 메뉴 토글 최적화 (중복 클릭 방지)
 const togglePostMenu = (event) => {
-  // 이벤트 버블링 방지
   event.stopPropagation();
+  
+  // 로딩 중이면 무시
+  if (isMenuLoading.value) return;
+  
+  // 메뉴 닫기 타이머가 있으면 취소
+  if (menuCloseTimer.value) {
+    clearTimeout(menuCloseTimer.value);
+    menuCloseTimer.value = null;
+  }
   
   showPostMenu.value = !showPostMenu.value;
   
-  // 메뉴가 열렸을 때 외부 클릭 이벤트 추가
+  // 메뉴가 열렸을 때만 외부 클릭 이벤트 추가
   if (showPostMenu.value) {
     setTimeout(() => {
       document.addEventListener('click', closeMenuOnOutsideClick);
@@ -202,19 +213,16 @@ const togglePostMenu = (event) => {
   }
 };
 
-// 외부 클릭 시 메뉴 닫기
+// ✅ 외부 클릭 시 메뉴 닫기 최적화 (디바운스 적용)
 const closeMenuOnOutsideClick = (event) => {
-  // 현재 컴포넌트의 메뉴 컨테이너가 이벤트 타겟을 포함하지 않는 경우에만 닫기
   if (menuContainer.value && !menuContainer.value.contains(event.target)) {
-    showPostMenu.value = false;
-    document.removeEventListener('click', closeMenuOnOutsideClick);
+    // 즉시 닫지 않고 100ms 지연 (빠른 클릭 시 깜빡임 방지)
+    menuCloseTimer.value = setTimeout(() => {
+      showPostMenu.value = false;
+      document.removeEventListener('click', closeMenuOnOutsideClick);
+    }, 100);
   }
 };
-
-// 컴포넌트 언마운트 시 이벤트 리스너 제거
-onUnmounted(() => {
-  document.removeEventListener('click', closeMenuOnOutsideClick);
-});
 
 // 모달 열기
 const openEditModal = () => {
@@ -227,44 +235,113 @@ const openDeleteModal = () => {
   showDeleteModal.value = true;
 };
 
-// 좋아요 토글
+// ✅ 좋아요 토글 최적화 (중복 클릭 방지 + 낙관적 업데이트)
 const toggleLike = async () => {
-  try {
-    const res = await axios.put(
-      `/api/feed/${props.post.postId}/like`,
-      null,
-      { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
-    );
-    
-    // 포스트 데이터 업데이트를 위한 복사본 생성
-    const updatedPost = { ...props.post };
-    updatedPost.liked = res.data;
-    updatedPost.likeCount += updatedPost.liked ? 1 : -1;
-    
-    // 좋아요 애니메이션 효과 추가
-    if (updatedPost.liked) {
-      updatedPost.likeAnimating = true;
-      setTimeout(() => {
-        updatedPost.likeAnimating = false;
-        // 타이머 후에도 업데이트된 상태 전달
-        emit('update:post', { ...updatedPost, likeAnimating: false });
-      }, 700);
-    }
-    
-    // 부모 컴포넌트에 업데이트된 포스트 전달
-    emit('update:post', updatedPost);
-  } catch (error) {
-    console.error('좋아요 실패', error);
+  // 이미 처리 중이면 무시
+  if (isLikeLoading.value) {
+    console.log('좋아요 처리 중 - 중복 클릭 무시');
+    return;
   }
+
+  // 디바운스 처리 (300ms 내 연속 클릭 방지)
+  if (likeDebounceTimer.value) {
+    clearTimeout(likeDebounceTimer.value);
+  }
+
+  likeDebounceTimer.value = setTimeout(async () => {
+    const originalPost = { ...props.post };
+
+    try {
+      isLikeLoading.value = true;
+      
+      console.log(`좋아요 처리 시작: postId=${props.post.postId}, 현재상태=${props.post.liked}`);
+      
+      // ✅ 낙관적 업데이트 (UI 먼저 변경)
+      const updatedPost = { 
+        ...props.post,
+        liked: !props.post.liked,
+        likeCount: props.post.liked ? props.post.likeCount - 1 : props.post.likeCount + 1
+      };
+      
+      // UI 즉시 업데이트
+      emit('update:post', updatedPost);
+      
+      // 좋아요 애니메이션 효과
+      if (updatedPost.liked) {
+        updatedPost.likeAnimating = true;
+        emit('update:post', updatedPost);
+        
+        setTimeout(() => {
+          updatedPost.likeAnimating = false;
+          emit('update:post', updatedPost);
+        }, 700);
+      }
+
+      // API 호출
+      const res = await axios.put(
+        `/api/feed/${props.post.postId}/like`,
+        null,
+        { 
+          headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` },
+          timeout: 5000 // 5초 타임아웃
+        }
+      );
+      
+      // ✅ API 응답과 UI 상태 동기화 (불일치 시 수정)
+      if (res.data !== updatedPost.liked) {
+        console.warn('API 응답과 UI 상태 불일치 - 동기화');
+        const correctedPost = {
+          ...updatedPost,
+          liked: res.data,
+          likeCount: res.data ? originalPost.likeCount + 1 : originalPost.likeCount
+        };
+        emit('update:post', correctedPost);
+      }
+      
+      console.log('좋아요 처리 완료:', res.data);
+      
+    } catch (error) {
+      console.error('좋아요 처리 실패:', error);
+      
+      // ✅ 실패시 원상복구 (낙관적 업데이트 롤백)
+      emit('update:post', originalPost);
+      
+      // 사용자에게 에러 알림
+      if (error.code === 'ECONNABORTED') {
+        showNotification('네트워크 연결이 불안정합니다. 다시 시도해주세요.', 'error');
+      } else if (error.response?.status === 401) {
+        showNotification('로그인이 필요합니다.', 'error');
+      } else {
+        showNotification('좋아요 처리 중 오류가 발생했습니다.', 'error');
+      }
+    } finally {
+      isLikeLoading.value = false;
+    }
+  }, 300); // 300ms 디바운스
 };
 
-// 댓글 토글
+// ✅ 댓글 토글 최적화 (애니메이션 추가)
 const toggleComments = () => {
+  console.log(`댓글 토글: postId=${props.post.postId}, 현재상태=${props.post.commentsVisible}`);
+  
   const updatedPost = { 
     ...props.post, 
     commentsVisible: !props.post.commentsVisible 
   };
+  
   emit('update:post', updatedPost);
+  
+  // 댓글 영역 부드러운 애니메이션을 위한 nextTick
+  nextTick(() => {
+    const commentSection = document.querySelector(`[data-post-id="${props.post.postId}"] .comment-system`);
+    if (commentSection) {
+      if (updatedPost.commentsVisible) {
+        commentSection.style.maxHeight = commentSection.scrollHeight + 'px';
+      } else {
+        commentSection.style.maxHeight = '0px';
+      }
+    }
+  });
 };
 
 // 댓글 수 업데이트
@@ -273,73 +350,150 @@ const updateCommentCount = (count) => {
   emit('update:post', updatedPost);
 };
 
-// 게시글 수정 제출 처리
+// ✅ 게시글 수정 제출 처리 최적화
 const handleEditSubmit = async (editedData) => {
+  if (isMenuLoading.value) return;
+  
   try {
+    isMenuLoading.value = true;
+    
+    console.log(`게시글 수정 시작: postId=${props.post.postId}`);
+    
     await axios.put(
       `/api/feed/${props.post.postId}`,
       {
         title: editedData.title,
         content: editedData.content
       },
-      { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
+      { 
+        headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` },
+        timeout: 10000 // 10초 타임아웃
+      }
     );
     
     // 수정된 데이터로 포스트 업데이트
     const updatedPost = { 
       ...props.post,
       title: editedData.title,
-      content: editedData.content
+      content: editedData.content,
+      updatedAt: new Date().toISOString()
     };
     
     emit('edit:post', updatedPost);
     showEditModal.value = false;
     
-    // 성공 메시지 표시
+    console.log('게시글 수정 완료');
     showNotification('게시글이 수정되었습니다.', 'success');
+    
   } catch (error) {
-    console.error('게시글 수정 실패', error);
-    showNotification('게시글 수정에 실패했습니다.', 'error');
+    console.error('게시글 수정 실패:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      showNotification('네트워크 연결이 불안정합니다. 다시 시도해주세요.', 'error');
+    } else if (error.response?.status === 401) {
+      showNotification('권한이 없습니다.', 'error');
+    } else if (error.response?.status === 403) {
+      showNotification('본인이 작성한 게시글만 수정할 수 있습니다.', 'error');
+    } else {
+      showNotification('게시글 수정에 실패했습니다.', 'error');
+    }
+  } finally {
+    isMenuLoading.value = false;
   }
 };
 
-// 게시글 삭제 확인 처리
+// ✅ 게시글 삭제 확인 처리 최적화
 const handleDeleteConfirm = async (postId) => {
+  if (isMenuLoading.value) return;
+  
   try {
+    isMenuLoading.value = true;
+    
+    console.log(`게시글 삭제 시작: postId=${postId}`);
+    
     await axios.delete(
       `/api/feed/${postId}`,
-      { headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` } }
+      { 
+        headers: { Authorization: `Bearer ${localStorage.getItem('jwt')}` },
+        timeout: 10000 // 10초 타임아웃
+      }
     );
     
     // 부모 컴포넌트에 삭제 이벤트 발생
     emit('delete:post', postId);
     showDeleteModal.value = false;
     
-    // 성공 메시지 표시
+    console.log('게시글 삭제 완료');
     showNotification('게시글이 삭제되었습니다.', 'success');
+    
   } catch (error) {
-    console.error('게시글 삭제 실패', error);
-    showNotification('게시글 삭제에 실패했습니다.', 'error');
+    console.error('게시글 삭제 실패:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      showNotification('네트워크 연결이 불안정합니다. 다시 시도해주세요.', 'error');
+    } else if (error.response?.status === 401) {
+      showNotification('권한이 없습니다.', 'error');
+    } else if (error.response?.status === 403) {
+      showNotification('본인이 작성한 게시글만 삭제할 수 있습니다.', 'error');
+    } else {
+      showNotification('게시글 삭제에 실패했습니다.', 'error');
+    }
+  } finally {
+    isMenuLoading.value = false;
   }
 };
 
-// 알림 표시 함수
+// ✅ 알림 표시 함수
 const showNotification = (message, type = 'success') => {
   const notification = document.createElement('div');
   notification.className = `notification ${type}-notification`;
   notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 9999;
+    transform: translateY(-20px);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background-color: ${type === 'success' ? '#4caf50' : '#f44336'};
+  `;
+  
   document.body.appendChild(notification);
 
   setTimeout(() => {
-    notification.classList.add('show');
+    notification.style.transform = 'translateY(0)';
+    notification.style.opacity = '1';
+    
     setTimeout(() => {
-      notification.classList.remove('show');
+      notification.style.transform = 'translateY(-20px)';
+      notification.style.opacity = '0';
       setTimeout(() => {
-        document.body.removeChild(notification);
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
       }, 300);
     }, 2000);
   }, 10);
 };
+
+// ✅ 컴포넌트 언마운트 시 타이머 및 이벤트 리스너 정리
+onUnmounted(() => {
+  if (likeDebounceTimer.value) {
+    clearTimeout(likeDebounceTimer.value);
+  }
+  if (menuCloseTimer.value) {
+    clearTimeout(menuCloseTimer.value);
+  }
+  
+  document.removeEventListener('click', closeMenuOnOutsideClick);
+  console.log('Post 컴포넌트 언마운트 - 타이머 및 이벤트 리스너 정리 완료');
+});
 </script>
 
 <style scoped>

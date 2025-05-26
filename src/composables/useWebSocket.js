@@ -85,29 +85,17 @@ export function useWebSocket() {
         }
     };
 
-    // 🆕 개선된 구독 함수 - 중복 방지
+    // 🔧 개선된 구독 함수 - 중복 구독 허용으로 변경
     const subscribe = (destination, callback, subscriptionId = null) => {
-        console.log('📡 구독 시도:', destination);
+        console.log('📡 구독 시도:', destination, 'ID:', subscriptionId);
 
-        // 🔧 구독 ID 생성 - 더 안전한 방식
+        // 🔧 구독 ID 생성
         const subId = subscriptionId || `${destination}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // 🔧 기존 구독 확인 - subscriptionId가 명시적으로 제공된 경우만 중복 체크
-        if (subscriptionId && globalSubscriptions.has(subId)) {
-            console.warn('⚠️ 중복 구독 방지 (ID):', subId);
+        // 🔧 동일 ID가 이미 존재하는 경우만 방지 (destination 중복은 허용)
+        if (globalSubscriptions.has(subId)) {
+            console.warn('⚠️ 동일 ID 구독이 이미 존재:', subId);
             return globalSubscriptions.get(subId).subscription;
-        }
-
-        // 🔧 destination 기준 중복 체크는 명시적 ID가 있을 때만
-        if (subscriptionId) {
-            const existingByDestination = Array.from(globalSubscriptions.values())
-                .find(subInfo => subInfo.destination === destination && subInfo.subscriptionId.startsWith(destination));
-
-            if (existingByDestination) {
-                console.warn('⚠️ 동일 destination 구독이 이미 존재:', destination, '기존 ID:', existingByDestination.subscriptionId);
-                // 🔧 기존 구독을 유지하되, 새로운 콜백으로 업데이트하지 않음
-                return existingByDestination.subscription;
-            }
         }
 
         if (globalStompClient.value && globalIsConnected.value) {
@@ -150,7 +138,6 @@ export function useWebSocket() {
     const unsubscribe = (subscriptionId) => {
         console.log('🔄 구독 해제 시도:', subscriptionId);
 
-        // 🔥 ID로만 해제 (destination으로 찾아서 해제하지 않음)
         if (globalSubscriptions.has(subscriptionId)) {
             const subInfo = globalSubscriptions.get(subscriptionId);
             try {
@@ -158,7 +145,7 @@ export function useWebSocket() {
                     subInfo.subscription.unsubscribe();
                 }
                 globalSubscriptions.delete(subscriptionId);
-                console.log('✅ 구독 해제 완료 (destination):', subInfo.destination, 'ID:', subscriptionId);
+                console.log('✅ 구독 해제 완료:', subInfo.destination, 'ID:', subscriptionId);
                 return true;
             } catch (error) {
                 console.warn('⚠️ 구독 해제 실패:', subscriptionId, error);
@@ -166,9 +153,6 @@ export function useWebSocket() {
                 return false;
             }
         }
-
-        // 🔥 destination으로 찾아서 해제하는 로직 제거
-        // 이 부분이 Chat.vue 구독을 잘못 해제하는 원인이었음
 
         console.warn('⚠️ 해제할 구독을 찾을 수 없음:', subscriptionId);
         return false;
@@ -243,7 +227,7 @@ export function useWebSocket() {
         });
     };
 
-    // 🆕 강제 재연결 개선
+    // 🔧 강제 재연결 개선
     const forceReconnect = () => {
         console.log('🔄 강제 재연결 시작...');
         connectionAttempts = 0;
@@ -251,6 +235,15 @@ export function useWebSocket() {
         setTimeout(() => {
             connect();
         }, 1000);
+    };
+
+    // 🔧 연결 상태 확인
+    const checkConnection = () => {
+        if (!globalIsConnected.value && globalStompClient.value) {
+            console.log('🔄 연결 상태 불일치 감지 - 재연결 시도');
+            forceReconnect();
+        }
+        return globalIsConnected.value;
     };
 
     // 🆕 구독 상태 확인
@@ -268,10 +261,12 @@ export function useWebSocket() {
         connect,
         disconnect,
         subscribe,
-        unsubscribe, // 🆕 추가
+        unsubscribe,
         waitForConnection,
         forceReconnect,
-        getSubscriptionStatus, // 🆕 추가
+        checkConnection, // 🆕 추가
+        getSubscriptionStatus,
+        debugSubscriptions, // 🆕 디버깅용
 
         // 🆕 편의 함수들
         subscribeNotifications: (callback) => subscribe('/user/queue/notifications', callback, 'notifications'),

@@ -107,6 +107,7 @@
 <script setup>
 import { useUserStore } from "@/scripts/store";
 import router from "@/scripts/router";
+import { invalidateAuthCache } from '@/scripts/router'; // 🆕 추가
 import axios from "axios";
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import ProfileRing from "@/components/profile/ProfileRing.vue";
@@ -347,14 +348,49 @@ const reloadToProfile = () => {
   router.push("/profile");
 };
 
-const logout = () => {
-  axios.get("/api/auth/logout")
-      .then((res) => {
-        alert(res.data);
-        userStore.setCurrentMember({ id: 0, account: '', name: '' });
-        router.push("/login");
-      })
-      .catch(() => alert("로그아웃 중 오류가 발생했습니다."));
+const logout = async () => {
+  try {
+    console.log('🚪 Footer - 로그아웃 시작');
+    
+    // 1. 서버 로그아웃 요청
+    const response = await axios.get("/api/auth/logout");
+    console.log('✅ Footer - 서버 로그아웃 완료:', response.data);
+    
+    // 2. 클라이언트 상태 정리
+    console.log('🧹 Footer - 클라이언트 상태 정리');
+    
+    // JWT 토큰 제거 (있다면)
+    localStorage.removeItem('jwt');
+    
+    // 사용자 스토어 초기화
+    userStore.setCurrentMember({ id: 0, account: '', name: '' });
+    console.log('👤 Footer - 사용자 스토어 초기화 완료');
+    
+    // ✅ 인증 캐시 강제 무효화
+    invalidateAuthCache();
+    console.log('🗑️ Footer - 인증 캐시 무효화 완료');
+    
+    // 3. 로그인 페이지로 리다이렉트
+    console.log('🏠 Footer - /login으로 이동');
+    await router.push("/login");
+    console.log('✅ Footer - /login 이동 완료');
+    
+    // 성공 메시지
+    alert(response.data || '로그아웃되었습니다.');
+    
+  } catch (error) {
+    console.error('❌ Footer - 로그아웃 오류:', error);
+    
+    // ✅ 에러가 발생해도 클라이언트 상태는 정리
+    localStorage.removeItem('jwt');
+    userStore.setCurrentMember({ id: 0, account: '', name: '' });
+    invalidateAuthCache();
+    
+    // 강제 페이지 이동
+    window.location.href = '/login';
+    
+    alert("로그아웃 중 오류가 발생했습니다.");
+  }
 };
 
 const isActive = (path) => {

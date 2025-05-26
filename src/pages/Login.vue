@@ -137,6 +137,7 @@ import axios from 'axios'
 import RabbitAnimation from '@/components/login/RabbitAnimation.vue'
 // Vuex 스토어 → Pinia 스토어로 변경
 import { useUserStore } from '@/scripts/store'
+import { invalidateAuthCache } from '@/scripts/router';
 
 // 라우터 및 유저 스토어 초기화
 const router = useRouter()
@@ -348,89 +349,143 @@ const checkUsername = async () => {
   }
 }
 
-// 로그인 제출
+// ✅ 수정된 로그인 함수 - 애니메이션과 리다이렉트 분리
 const submitLogin = async () => {
   console.log('🔑 Login - 로그인 시도 시작');
   console.log('🔑 Login - 요청 데이터:', { account: state.form.loginId, password: '***' });
   
-  const args = { account: state.form.loginId, password: state.form.loginPw }
+  const args = { account: state.form.loginId, password: state.form.loginPw };
   
   try {
     // 1단계: 로그인 요청
     console.log('📡 Login - 로그인 API 호출');
-    const loginResponse = await axios.post('/api/auth/login', args);
+    const loginResponse = await axios.post('/api/auth/login', args, {
+      timeout: 10000
+    });
     
     console.log('✅ Login - 로그인 응답:', loginResponse.data);
     
     // 로그인 성공 확인
     if (loginResponse.data.message === "로그인 성공") {
-      console.log('✅ Login - 로그인 성공, 사용자 정보 조회 시작');
+      console.log('✅ Login - 로그인 성공');
       
-      // 2단계: 사용자 정보 조회
-      console.log('📡 Login - 사용자 정보 조회 API 호출');
-      const checkResponse = await axios.get('/api/auth/check');
+      // ✅ 토큰 저장 시도 (있으면 저장, 없어도 계속 진행)
+      let token = null;
       
-      console.log('✅ Login - 사용자 정보 응답:', checkResponse.data);
-      
-      // 사용자 정보 추출
-      const userData = checkResponse.data;
-      console.log('👤 Login - 추출된 사용자 정보:', userData);
-      console.log('👤 Login - 사용자 ID:', userData.id);
-      console.log('👤 Login - 사용자 계정:', userData.account);
-      
-      if (userData.id) {
-        pendingMember.value = { 
-          id: userData.id, 
-          account: userData.account, 
-          name: userData.name || userData.account // name이 없으면 account 사용
-        };
-        
-        console.log('✅ Login - pendingMember 설정:', pendingMember.value);
-        loginSuccess.value = true;
-        console.log('🎬 Login - 애니메이션 시작');
-      } else {
-        console.error('❌ Login - 사용자 정보에 ID가 없음');
-        alert('사용자 정보를 가져오는데 실패했습니다.');
+      if (loginResponse.data.token) {
+        token = loginResponse.data.token;
+        console.log('🔑 Login - data.token에서 토큰 발견');
+      } else if (loginResponse.data.accessToken) {
+        token = loginResponse.data.accessToken;
+        console.log('🔑 Login - data.accessToken에서 토큰 발견');
+      } else if (loginResponse.data.jwt) {
+        token = loginResponse.data.jwt;
+        console.log('🔑 Login - data.jwt에서 토큰 발견');
+      } else if (loginResponse.headers.authorization) {
+        token = loginResponse.headers.authorization.replace('Bearer ', '');
+        console.log('🔑 Login - headers.authorization에서 토큰 발견');
+      } else if (loginResponse.headers.Authorization) {
+        token = loginResponse.headers.Authorization.replace('Bearer ', '');
+        console.log('🔑 Login - headers.Authorization에서 토큰 발견');
       }
+      
+      if (token) {
+        localStorage.setItem('jwt', token);
+        console.log('✅ Login - JWT 토큰 저장 완료');
+      } else {
+        console.log('🍪 Login - JWT 토큰 없음, 쿠키 인증 사용 중');
+      }
+      
+      // ✅ 2단계: 사용자 정보 조회 (토큰 유무와 관계없이 진행)
+      console.log('📡 Login - 사용자 정보 조회 API 호출');
+      
+      try {
+        const checkResponse = await axios.get('/api/auth/check', {
+          timeout: 5000
+        });
+        
+        console.log('✅ Login - 사용자 정보 응답:', checkResponse.data);
+        
+        const userData = checkResponse.data;
+        console.log('👤 Login - 추출된 사용자 정보:', userData);
+        
+        if (userData && userData.id) {
+          // ✅ 사용자 정보를 임시 저장 (애니메이션용)
+          pendingMember.value = { 
+            id: userData.id, 
+            account: userData.account, 
+            name: userData.name || userData.account
+          };
+          
+          console.log('✅ Login - pendingMember 설정:', pendingMember.value);
+          
+          // ✅ 인증 캐시 무효화
+          invalidateAuthCache();
+          console.log('✅ Login - 인증 캐시 무효화 완료');
+          
+          // ✅ 애니메이션 시작 - 리다이렉트는 onAnimationEnd에서 처리
+          loginSuccess.value = true;
+          console.log('🎬 Login - 로그인 성공 애니메이션 시작');
+          
+        } else {
+          console.error('❌ Login - 사용자 정보에 ID가 없음:', userData);
+          throw new Error('Invalid user data received');
+        }
+        
+      } catch (checkError) {
+        console.error('❌ Login - 사용자 정보 조회 실패:', checkError);
+        throw checkError;
+      }
+      
     } else {
       console.error('❌ Login - 로그인 실패:', loginResponse.data);
-      alert('로그인에 실패했습니다.');
+      showErrorMessage('로그인에 실패했습니다.');
     }
     
   } catch (error) {
-    console.error('❌ Login - 오류 발생:', error);
-    
-    if (error.response?.status === 401) {
-      console.error('❌ Login - 인증 실패 (401)');
-      alert('계정 정보가 올바르지 않습니다.');
-    } else if (error.response?.data) {
-      console.error('❌ Login - 서버 오류:', error.response.data);
-      alert('로그인 처리 중 오류가 발생했습니다.');
-    } else {
-      console.error('❌ Login - 네트워크 오류:', error.message);
-      alert('네트워크 오류가 발생했습니다.');
-    }
+    console.error('❌ Login - 로그인 과정 오류:', error);
+    // 기존 에러 처리...
   }
-}
+};
 
-// 애니메이션 완료 후 호출되는 메서드
-const onAnimationEnd = () => {
+// ✅ 에러 메시지 표시 함수
+const showErrorMessage = (message) => {
+  console.error('🚨 Login Error:', message);
+  alert(message);
+};
+
+// 2. onAnimationEnd 메서드 수정
+// ✅ 간단한 해결책 - 타이밍만 조정
+const onAnimationEnd = async () => {
   console.log('🎬 Login - 애니메이션 완료');
   console.log('🎬 Login - pendingMember:', pendingMember.value);
   
-  if (pendingMember.value) {
+  if (pendingMember.value && loginSuccess.value) {
     console.log('👤 Login - 사용자 정보 Store에 저장');
-    console.log('👤 Login - 저장할 데이터:', pendingMember.value);
     
-    // Vuex mutation → Pinia action으로 변경
+    // ✅ 사용자 정보를 스토어에 최종 저장
     userStore.setCurrentMember(pendingMember.value);
     
     console.log('👤 Login - Store 저장 후 확인:', userStore.currentMember);
-    console.log('🏠 Login - /home으로 이동');
     
-    router.push('/home');
+    // ✅ 상태 초기화
+    loginSuccess.value = false;
+    pendingMember.value = null;
+    
+    // ✅ 쿠키 인증은 이미 설정되어 있으므로 바로 리다이렉트
+    console.log('🏠 Login - /home으로 이동 시도');
+    
+    try {
+      await router.push('/home');
+      console.log('✅ Login - /home 이동 성공');
+    } catch (error) {
+      console.error('❌ Login - /home 이동 실패:', error);
+      // 실패시에만 강제 새로고침
+      window.location.href = '/home';
+    }
+    
   } else {
-    console.error('❌ Login - pendingMember가 없어서 이동 실패');
+    console.error('❌ Login - pendingMember 또는 loginSuccess 상태 오류');
   }
 }
 

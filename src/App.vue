@@ -17,11 +17,16 @@
       </button>
     </div>
 
-    <!-- 알림 모달 -->
+    <!-- ✅ 최적화된 알림 모달 - props로 데이터 전달 -->
     <Notification
         v-if="showNotification"
         :isVisible="showNotification"
+        :notifications="notifications"
+        :unreadCount="unreadCount"
         @close="closeNotification"
+        @refresh-notifications="handleRefreshNotifications"
+        @mark-as-read="handleMarkAsRead"
+        @delete-notification="handleDeleteNotification"
     />
 
     <!-- 캐릭터 버튼 -->
@@ -63,15 +68,26 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import axios from "axios";
 
+// ===== 기본 설정 =====
 const router = useRouter();
 const userStore = useUserStore();
 const { notification: showToastNotification } = useToast();
+
+// ===== 상태 관리 =====
 const showCharacter = ref(false);
 const showInitialTooltip = ref(false);
 const showNotification = ref(false);
-const unreadCount = ref(0);
 const toastChatRef = ref(null);
 
+// ✅ 알림 관련 모든 상태를 App.vue에서 중앙 관리
+const unreadCount = ref(0);
+const notifications = ref([]); // 알림 목록
+const isLoadingNotifications = ref(false);
+const notificationPage = ref(0);
+const notificationPageSize = ref(20);
+const hasMoreNotifications = ref(true);
+
+// ✅ WebSocket 관리
 const {
   stompClient,
   isConnected,
@@ -80,311 +96,775 @@ const {
   subscribe,
   unsubscribe,
   checkConnection,
-  forceReconnect
+  forceReconnect,
+  waitForConnection
 } = useWebSocket();
 
-const notificationSubscription = ref(null);
-const countSubscription = ref(null);
-const chatMessageSubscription = ref(null); // 🆕 채팅 메시지 구독 관리
+// ✅ WebSocket 구독 관리 - 고유 ID로 구독 관리
+const subscriptions = ref({
+  notifications: null,
+  notificationCount: null,
+  chatToast: null
+});
 
-// 로그인 여부 확인
+// ✅ 재시도 관리
+const connectionRetryCount = ref(0);
+const maxConnectionRetries = ref(5);
+const subscriptionRetryCount = ref(0);
+const maxSubscriptionRetries = ref(3);
+
+// ✅ 연결 모니터링
+const connectionMonitor = ref(null);
+const initializationComplete = ref(false);
+
+// ===== 계산된 속성 =====
 const isLoggedIn = computed(() => userStore.currentMember.id !== 0);
 
-// 🆕 사용자 상태 변화 감지 (로그인/로그아웃 자동 처리)
-watch(
-    () => userStore.currentMember.id,
-    (newId, oldId) => {
-      console.log('👤 App.vue - 사용자 상태 변화:', { oldId, newId });
-      console.log('👤 App.vue - 현재 사용자 정보:', userStore.currentMember);
+// ===== WebSocket 연결 관리 =====
 
-      if (oldId !== 0 && newId === 0) {
-        // 로그아웃 감지
-        console.log('🚪 App.vue - 로그아웃 감지, WebSocket 정리');
-        cleanupWebSocket();
-
-      } else if (oldId === 0 && newId !== 0) {
-        // 로그인 감지 (새로운 로그인)
-        console.log('🔑 App.vue - 로그인 감지, WebSocket 초기화');
-        console.log('🔑 App.vue - 로그인된 사용자:', userStore.currentMember);
-
-        // 🆕 사용자 정보가 확실히 설정된 후 WebSocket 연결
-        setTimeout(() => {
-          console.log('🔌 WebSocket 연결 전 사용자 정보 재확인:', userStore.currentMember);
-          if (userStore.currentMember && userStore.currentMember.id !== 0) {
-            initializeWebSocket();
-            fetchUnreadCountOnce();
-          } else {
-            console.warn('⚠️ 사용자 정보가 없어서 WebSocket 연결 지연');
-            // 조금 더 기다려서 재시도
-            setTimeout(() => {
-              if (userStore.currentMember && userStore.currentMember.id !== 0) {
-                console.log('🔄 지연 후 WebSocket 연결 재시도');
-                initializeWebSocket();
-                fetchUnreadCountOnce();
-              }
-            }, 1000);
-          }
-        }, 500); // 500ms로 단축
-      }
-    },
-    { immediate: false }
-);
-
-// 로그인 여부 확인
-const check = async () => {
-  try {
-    console.log('🔍 App.vue - 사용자 인증 체크 시작');
-    console.log('🔍 App.vue - 요청 URL: /api/auth/check');
-
-    const response = await axios.get("/api/auth/check");
-    console.log('🔍 App.vue - HTTP 응답 상태:', response.status);
-    console.log('🔍 App.vue - HTTP 응답 전체:', response);
-    console.log('🔍 App.vue - 서버 응답 데이터:', response.data);
-    console.log('🔍 App.vue - 응답 데이터 타입:', typeof response.data);
-
-    const data = response.data;
-
-    if (!data) {
-      console.log('❌ App.vue - 응답 데이터가 falsy:', data);
-      router.push("/login");
-    } else if (!data.id) {
-      console.log('❌ App.vue - 응답 데이터에 id가 없음:', data);
-      console.log('❌ App.vue - data.id:', data.id);
-      console.log('❌ App.vue - data의 모든 키:', Object.keys(data));
-      router.push("/login");
-    } else {
-      console.log('✅ App.vue - 인증 성공, 사용자 정보 저장');
-      console.log('👤 App.vue - 저장할 사용자 정보:', data);
-      console.log('👤 App.vue - 사용자 ID:', data.id);
-
-      userStore.setCurrentMember(data);
-
-      // 저장 후 확인
-      console.log('✅ App.vue - 저장 후 사용자 정보 확인:', userStore.currentMember);
-      console.log('✅ App.vue - 저장 후 사용자 ID:', userStore.currentMember?.id);
-
-      fetchUnreadCountOnce();
-    }
-  } catch (error) {
-    console.error('❌ App.vue - 인증 체크 오류:', error);
-    console.error('❌ App.vue - 오류 상세:', error.response?.data);
-    console.error('❌ App.vue - HTTP 상태:', error.response?.status);
-    router.push("/login");
-  }
-};
-
-// 초기 알림 개수 조회
-const fetchUnreadCountOnce = async () => {
-  if (!isLoggedIn.value) return;
-
-  try {
-    const response = await axios.get('/api/notifications/unread/count');
-    unreadCount.value = response.data;
-  } catch (error) {
-    console.error('알림 개수 조회 실패:', error);
-  }
-};
-
-// 🆕 현재 페이지가 채팅 페이지인지 확인
-const isCurrentPageChat = () => {
-  return router.currentRoute.value.path === '/chat';
-};
-
-// 🆕 실시간 알림 구독 - 개선된 버전
-// 🔧 App.vue의 subscribeToNotifications 함수 수정
-const subscribeToNotifications = () => {
-  if (!isConnected.value) {
-    setTimeout(subscribeToNotifications, 1000);
+// ✅ WebSocket 초기화 - 완전 개선된 버전
+const initializeWebSocket = async () => {
+  if (!isLoggedIn.value) {
+    console.log('❌ 로그인되지 않음 - WebSocket 초기화 중단');
     return;
   }
 
-  console.log('📡 App.vue - 알림 구독 시작');
-
-  // 🔥 기존 App.vue 전용 구독들만 해제 (Chat.vue 구독은 건드리지 않음)
-  unsubscribe('app-notifications');
-  unsubscribe('app-notification-count');
-  unsubscribe('app-chat-messages');
-
-  // 개인 알림 구독 (댓글, 좋아요, 팔로우) - 고정 ID 사용
-  notificationSubscription.value = subscribe(
-      '/user/queue/notifications',
-      (message) => {
-        const notification = JSON.parse(message.body);
-        console.log('🔔 App.vue - 새 알림 수신:', notification);
-
-        // 토스트 알림 표시
-        showToastNotification(notification);
-
-        // 브라우저 알림 표시
-        showRealtimeNotification(notification);
-      },
-      'app-notifications' // 🆕 고정 ID
-  );
-
-  // 알림 개수 실시간 구독 - 고정 ID 사용
-  countSubscription.value = subscribe(
-      '/user/queue/notification-count',
-      (message) => {
-        const count = JSON.parse(message.body);
-        console.log('🔢 App.vue - 알림 개수 업데이트:', count);
-        unreadCount.value = count;
-      },
-      'app-notification-count' // 🆕 고정 ID
-  );
-
-  // 🆕 채팅 메시지 구독 - 조건부 토스트 표시, 고정 ID 사용
-  chatMessageSubscription.value = subscribe(
-      '/user/queue/chat-messages',
-      (message) => {
-        const chatMessage = JSON.parse(message.body);
-        console.log('💬 App.vue - 새 채팅 메시지 수신:', chatMessage);
-
-        // 🆕 현재 채팅 페이지가 아닌 경우에만 토스트 표시
-        if (!isCurrentPageChat() && toastChatRef.value) {
-          console.log('💬 App.vue - 채팅 토스트 표시');
-          toastChatRef.value.addChatToast(chatMessage);
-        } else {
-          console.log('💬 App.vue - 채팅 페이지이므로 토스트 표시 안함');
-        }
-      },
-      'app-chat-messages' // 🆕 고정 ID - Chat.vue와 다른 ID
-  );
-
-  console.log('✅ App.vue - 모든 알림 구독 완료');
-};
-
-// WebSocket 연결 관리
-const initializeWebSocket = async () => {
-  if (!isLoggedIn.value) return;
-
-  console.log('🔌 App.vue - WebSocket 초기화 시작');
+  console.log('🔌 App.vue WebSocket 초기화 시작');
+  
+  // 기존 연결이 있다면 정리
+  if (isConnected.value) {
+    console.log('🧹 기존 WebSocket 연결 정리');
+    cleanupWebSocket();
+  }
+  
+  // 연결 시작
   connect();
+  
+  // 연결 대기 로직 - 개선된 재시도
+  const waitForConnection = async () => {
+    connectionRetryCount.value++;
+    
+    try {
+      // 최대 10초 대기
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('연결 대기 시간 초과'));
+        }, 10000);
 
-  let attempts = 0;
-  const maxAttempts = 10;
+        const checkInterval = setInterval(() => {
+          if (isConnected.value) {
+            clearTimeout(timeout);
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+      });
 
-  const waitForConnection = () => {
-    attempts++;
-
-    if (isConnected.value) {
-      console.log('✅ App.vue - WebSocket 연결 완료, 알림 구독 시작');
-      setTimeout(subscribeToNotifications, 500);
-    } else if (attempts < maxAttempts) {
-      setTimeout(waitForConnection, 1000);
-    } else {
-      console.warn('⚠️ App.vue - WebSocket 연결 실패, 재연결 시도');
-      checkConnection();
-      forceReconnect();
+      console.log('✅ WebSocket 연결 완료');
+      connectionRetryCount.value = 0; // 성공시 리셋
+      
+      // 구독 시작 (약간의 지연)
+      setTimeout(() => {
+        subscribeToNotifications();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('❌ WebSocket 연결 실패:', error);
+      
+      if (connectionRetryCount.value < maxConnectionRetries.value) {
+        const delay = Math.min(2000 * connectionRetryCount.value, 15000); // 최대 15초
+        console.log(`⏱️ WebSocket 연결 재시도 ${connectionRetryCount.value}/${maxConnectionRetries.value} - ${delay}ms 후`);
+        
+        setTimeout(waitForConnection, delay);
+        
+      } else {
+        console.error('❌ WebSocket 연결 최대 재시도 초과');
+        connectionRetryCount.value = 0;
+        
+        // 사용자에게 알림
+        showConnectionError();
+      }
     }
   };
 
   waitForConnection();
 };
 
-// 🆕 WebSocket 정리 함수 - 개선된 버전
+// ✅ WebSocket 구독 관리 - 완전 개선
+const subscribeToNotifications = () => {
+  if (!isConnected.value) {
+    console.warn('❌ WebSocket 연결되지 않음 - 구독 중단');
+    return;
+  }
+
+  if (!userStore.currentMember?.id) {
+    console.warn('❌ 사용자 정보 없음 - 구독 중단');
+    return;
+  }
+
+  console.log('📡 App.vue WebSocket 구독 시작');
+
+  try {
+    // ✅ 기존 구독 완전 해제 (중복 방지)
+    unsubscribeAll();
+
+    const userId = userStore.currentMember.id;
+    const timestamp = Date.now();
+
+    // ✅ 1. 알림 구독 - 고유 ID 사용  
+    console.log('📡 알림 구독 시작...');
+    const notificationSubId = `app-notifications-${userId}-${timestamp}-1`;
+    
+    subscriptions.value.notifications = subscribe(
+      '/user/queue/notifications',
+      (message) => {
+        try {
+          const newNotification = JSON.parse(message.body);
+          console.log('🔔 App.vue - 새 알림 수신:', newNotification.type, newNotification.notificationId);
+
+          // 알림 목록에 추가 (맨 앞에)
+          notifications.value.unshift(newNotification);
+          
+          // 목록이 너무 길어지면 뒤에서 제거 (메모리 관리)
+          if (notifications.value.length > 100) {
+            notifications.value = notifications.value.slice(0, 100);
+          }
+          
+          // 읽지 않은 알림이면 카운트 증가
+          if (!newNotification.read) {
+            unreadCount.value++;
+          }
+
+          // 토스트 알림 표시
+          showToastNotification(newNotification);
+
+          // 브라우저 알림 표시
+          showRealtimeNotification(newNotification);
+          
+        } catch (parseError) {
+          console.error('❌ 알림 메시지 파싱 실패:', parseError);
+        }
+      },
+      notificationSubId
+    );
+
+    // ✅ 2. 알림 개수 실시간 구독
+    console.log('📡 알림 개수 구독 시작...');
+    const countSubId = `app-notification-count-${userId}-${timestamp}-2`;
+    
+    subscriptions.value.notificationCount = subscribe(
+      '/user/queue/notification-count',
+      (message) => {
+        try {
+          const count = parseInt(message.body);
+          console.log('🔢 App.vue - 알림 개수 업데이트:', count);
+          unreadCount.value = count;
+        } catch (parseError) {
+          console.error('❌ 알림 카운트 파싱 실패:', parseError);
+        }
+      },
+      countSubId
+    );
+
+    // ✅ 3. 채팅 메시지 구독 (토스트 전용) - Chat.vue와 완전 분리
+    console.log('📡 채팅 토스트 구독 시작...');
+    const chatToastSubId = `app-chat-toast-${userId}-${timestamp}-3`;
+    
+    subscriptions.value.chatToast = subscribe(
+      '/user/queue/chat-messages',
+      (message) => {
+        try {
+          const chatMessage = JSON.parse(message.body);
+          console.log('💬 App.vue - 채팅 메시지 수신 (토스트 전용):', {
+            id: chatMessage.id,
+            senderId: chatMessage.senderId,
+            chatRoomId: chatMessage.chatRoomId,
+            currentPage: router.currentRoute.value.path
+          });
+
+          // 🔧 현재 채팅 페이지가 아닌 경우에만 토스트 표시
+          if (!isCurrentPageChat() && toastChatRef.value) {
+            console.log('💬 채팅 토스트 표시');
+            toastChatRef.value.addChatToast(chatMessage);
+          } else {
+            console.log('💬 채팅 페이지에서는 토스트 표시 안함');
+          }
+          
+        } catch (parseError) {
+          console.error('❌ 채팅 메시지 파싱 실패:', parseError);
+        }
+      },
+      chatToastSubId
+    );
+
+    console.log('✅ App.vue WebSocket 구독 완료');
+    subscriptionRetryCount.value = 0; // 성공시 리셋
+    
+    // 🔧 구독 상태 확인
+    setTimeout(() => {
+      const subscriptionStatus = {
+        notifications: !!subscriptions.value.notifications,
+        notificationCount: !!subscriptions.value.notificationCount,
+        chatToast: !!subscriptions.value.chatToast,
+        isConnected: isConnected.value
+      };
+      
+      console.log('🔍 App.vue 구독 상태:', subscriptionStatus);
+      
+      // 구독 실패한 것이 있으면 경고
+      const failedSubs = Object.entries(subscriptionStatus)
+        .filter(([key, status]) => key !== 'isConnected' && !status)
+        .map(([key]) => key);
+      
+      if (failedSubs.length > 0) {
+        console.warn('⚠️ 실패한 구독:', failedSubs);
+      }
+    }, 1000);
+    
+  } catch (error) {
+    console.error('❌ WebSocket 구독 실패:', error);
+    
+    // 구독 재시도 로직
+    if (subscriptionRetryCount.value < maxSubscriptionRetries.value) {
+      subscriptionRetryCount.value++;
+      const delay = 3000 * subscriptionRetryCount.value;
+      
+      console.log(`🔄 WebSocket 구독 재시도 ${subscriptionRetryCount.value}/${maxSubscriptionRetries.value} - ${delay}ms 후`);
+      setTimeout(subscribeToNotifications, delay);
+    } else {
+      console.error('❌ WebSocket 구독 최대 재시도 초과');
+      subscriptionRetryCount.value = 0;
+      
+      // 사용자에게 알림
+      showNotificationError('실시간 알림 연결에 실패했습니다.');
+    }
+  }
+};
+
+// ✅ 구독 해제 함수 완전 개선
+const unsubscribeAll = () => {
+  console.log('🧹 App.vue 구독 해제 시작...');
+
+  Object.entries(subscriptions.value).forEach(([key, subscription]) => {
+    if (subscription) {
+      try {
+        if (typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+        console.log(`✅ ${key} 구독 해제 완료`);
+      } catch (error) {
+        console.warn(`⚠️ ${key} 구독 해제 실패:`, error);
+      }
+      subscriptions.value[key] = null;
+    }
+  });
+
+  console.log('✅ App.vue 구독 해제 완료');
+};
+
+// ✅ WebSocket 완전 정리
 const cleanupWebSocket = () => {
-  console.log('🧹 App.vue - WebSocket 정리 시작');
+  console.log('🧹 App.vue WebSocket 정리 시작');
 
-  // 🆕 명시적 ID로 구독 해제
-  unsubscribe('app-notifications');
-  unsubscribe('app-notification-count');
-  unsubscribe('app-chat-messages');
+  // 연결 모니터링 중지
+  stopConnectionMonitoring();
 
-  // 로컬 참조 정리
-  notificationSubscription.value = null;
-  countSubscription.value = null;
-  chatMessageSubscription.value = null;
+  // 구독 해제
+  unsubscribeAll();
+
+  // 재시도 카운트 리셋
+  connectionRetryCount.value = 0;
+  subscriptionRetryCount.value = 0;
 
   // WebSocket 연결 해제
   disconnect();
 
-  // 알림 관련 상태 초기화
+  // 상태 초기화
   unreadCount.value = 0;
+  notifications.value = [];
   showNotification.value = false;
+  initializationComplete.value = false;
 
-  console.log('✅ App.vue - WebSocket 정리 완료');
+  console.log('✅ App.vue WebSocket 정리 완료');
 };
 
-// 브라우저 알림 표시
-const showRealtimeNotification = (notification) => {
-  if (Notification.permission === 'granted') {
-    new Notification(`🔔 새 알림`, {
-      body: notification.content,
-      icon: '/assets/icon/notification.png',
-      tag: 'health-notification'
+// ✅ 연결 상태 모니터링
+const startConnectionMonitoring = () => {
+  if (connectionMonitor.value) {
+    clearInterval(connectionMonitor.value);
+  }
+
+  connectionMonitor.value = setInterval(() => {
+    if (isLoggedIn.value && !isConnected.value) {
+      console.warn('⚠️ App.vue - WebSocket 연결 끊어짐 감지');
+      
+      // 연결 상태 체크 후 재연결
+      checkConnection().then(() => {
+        if (isConnected.value) {
+          console.log('🔄 App.vue - 연결 복구됨, 재구독 시도');
+          subscribeToNotifications();
+        } else {
+          console.log('🔄 App.vue - 연결 복구 실패, 재초기화 시도');
+          setTimeout(initializeWebSocket, 5000);
+        }
+      });
+    }
+  }, 15000); // 15초마다 체크
+
+  console.log('✅ App.vue 연결 상태 모니터링 시작');
+};
+
+const stopConnectionMonitoring = () => {
+  if (connectionMonitor.value) {
+    clearInterval(connectionMonitor.value);
+    connectionMonitor.value = null;
+    console.log('🛑 App.vue 연결 상태 모니터링 중지');
+  }
+};
+
+// ===== 알림 데이터 관리 =====
+
+// ✅ 알림 목록 로드 (페이징 지원)
+const loadNotifications = async (page = 0, size = 20, append = false) => {
+  if (isLoadingNotifications.value) {
+    console.log('⏳ 이미 알림 로딩 중 - 중복 요청 방지');
+    return;
+  }
+  
+  try {
+    isLoadingNotifications.value = true;
+    console.log(`📋 알림 로드: page=${page}, size=${size}, append=${append}`);
+    
+    const response = await axios.get(`/api/notifications/paged?page=${page}&size=${size}`, {
+      timeout: 10000 // 10초 타임아웃
     });
+    
+    const data = response.data;
+    
+    if (append) {
+      // 무한 스크롤용 추가
+      const newNotifications = data.content.filter(
+        newNotif => !notifications.value.find(existing => existing.notificationId === newNotif.notificationId)
+      );
+      notifications.value.push(...newNotifications);
+      console.log(`✅ ${newNotifications.length}개 알림 추가됨`);
+    } else {
+      // 새로 로드
+      notifications.value = data.content;
+      console.log(`✅ ${data.content.length}개 알림 로드됨`);
+    }
+    
+    notificationPage.value = data.number;
+    hasMoreNotifications.value = !data.last;
+    
+    return data;
+    
+  } catch (error) {
+    console.error('❌ 알림 로드 실패:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      showNotificationError('네트워크 연결이 불안정합니다.');
+    } else if (error.response?.status === 401) {
+      // 인증 실패시 로그인 페이지로
+      router.push('/login');
+    } else {
+      showNotificationError('알림을 불러올 수 없습니다.');
+    }
+    
+    throw error;
+  } finally {
+    isLoadingNotifications.value = false;
   }
 };
 
-// 브라우저 알림 권한 요청
+// ✅ 더 많은 알림 로드 (무한 스크롤용)
+const loadMoreNotifications = async () => {
+  if (!hasMoreNotifications.value || isLoadingNotifications.value) return;
+  
+  try {
+    await loadNotifications(notificationPage.value + 1, notificationPageSize.value, true);
+  } catch (error) {
+    console.error('❌ 추가 알림 로드 실패:', error);
+  }
+};
+
+// ✅ 알림 읽음 처리
+const markNotificationAsRead = async (notificationId) => {
+  try {
+    console.log(`📖 알림 읽음 처리: ${notificationId}`);
+    
+    // 낙관적 업데이트
+    const index = notifications.value.findIndex(n => n.notificationId === notificationId);
+    if (index !== -1 && !notifications.value[index].read) {
+      notifications.value[index] = { ...notifications.value[index], read: true };
+      unreadCount.value = Math.max(0, unreadCount.value - 1);
+    }
+    
+    // API 호출
+    await axios.put(`/api/notifications/${notificationId}/read`, null, {
+      timeout: 5000
+    });
+    
+    console.log('✅ 알림 읽음 처리 완료');
+  } catch (error) {
+    console.error('❌ 알림 읽음 처리 실패:', error);
+    
+    // 실패시 원상복구
+    const index = notifications.value.findIndex(n => n.notificationId === notificationId);
+    if (index !== -1) {
+      notifications.value[index] = { ...notifications.value[index], read: false };
+      unreadCount.value++;
+    }
+  }
+};
+
+// ✅ 알림 삭제 처리
+const deleteNotification = async (notificationId) => {
+  try {
+    console.log(`🗑️ 알림 삭제: ${notificationId}`);
+    
+    // 낙관적 업데이트
+    const index = notifications.value.findIndex(n => n.notificationId === notificationId);
+    let wasUnread = false;
+    
+    if (index !== -1) {
+      wasUnread = !notifications.value[index].read;
+      notifications.value.splice(index, 1);
+      
+      if (wasUnread) {
+        unreadCount.value = Math.max(0, unreadCount.value - 1);
+      }
+    }
+    
+    // API 호출
+    await axios.delete(`/api/notifications/${notificationId}`, {
+      timeout: 5000
+    });
+    
+    console.log('✅ 알림 삭제 완료');
+  } catch (error) {
+    console.error('❌ 알림 삭제 실패:', error);
+    
+    // 실패시 데이터 다시 로드
+    loadNotifications(0, notificationPageSize.value);
+  }
+};
+
+// ✅ 알림 새로고침
+const refreshNotifications = () => {
+  console.log('🔄 알림 새로고침');
+  notifications.value = [];
+  notificationPage.value = 0;
+  hasMoreNotifications.value = true;
+  loadNotifications(0, notificationPageSize.value);
+};
+
+// ✅ 초기 알림 개수 조회
+const fetchInitialUnreadCount = async () => {
+  if (!isLoggedIn.value) return;
+
+  try {
+    console.log('📊 초기 알림 개수 조회');
+    const response = await axios.get('/api/notifications/unread/count', {
+      timeout: 5000
+    });
+    
+    unreadCount.value = response.data;
+    console.log(`📊 읽지 않은 알림: ${unreadCount.value}개`);
+    
+  } catch (error) {
+    console.error('❌ 알림 개수 조회 실패:', error);
+    // 실패해도 치명적이지 않으므로 계속 진행
+  }
+};
+
+// ===== 사용자 상태 변화 감지 =====
+
+// ✅ 로그인/로그아웃 자동 감지 - 완전 개선된 버전
+watch(
+  () => userStore.currentMember.id,
+  (newId, oldId) => {
+    console.log('👤 App.vue - 사용자 상태 변화:', { oldId, newId });
+
+    if (oldId !== 0 && newId === 0) {
+      // 로그아웃 감지
+      console.log('🚪 로그아웃 감지 - 모든 리소스 정리');
+      cleanupWebSocket();
+      
+    } else if (oldId === 0 && newId !== 0) {
+      // 로그인 감지
+      console.log('🔑 로그인 감지 - 시스템 초기화');
+      
+      // 사용자 정보가 완전히 설정될 때까지 대기
+      setTimeout(() => {
+        if (userStore.currentMember?.id) {
+          console.log('🚀 로그인 후 초기화 시작');
+          
+          initializeWebSocket();
+          fetchInitialUnreadCount();
+          
+          // 초기 툴팁 표시
+          setTimeout(() => {
+            showInitialTooltip.value = true;
+            setTimeout(() => {
+              showInitialTooltip.value = false;
+            }, 5000);
+          }, 2000);
+          
+        } else {
+          console.warn('⚠️ 사용자 정보 설정 지연 - 1초 후 재시도');
+          setTimeout(() => {
+            if (userStore.currentMember?.id) {
+              initializeWebSocket();
+              fetchInitialUnreadCount();
+            }
+          }, 1000);
+        }
+      }, 1000);
+    }
+  },
+  { immediate: false }
+);
+
+// ===== 브라우저 알림 =====
+
+// ✅ 브라우저 알림 표시
+const showRealtimeNotification = (notification) => {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const browserNotification = new Notification(`🔔 새 알림`, {
+        body: notification.content,
+        icon: '/assets/icon/notification.png',
+        tag: 'health-notification-' + notification.notificationId,
+        requireInteraction: false,
+        silent: false
+      });
+      
+      // 5초 후 자동 닫기
+      setTimeout(() => {
+        browserNotification.close();
+      }, 5000);
+      
+      // 클릭시 알림창 열기
+      browserNotification.onclick = () => {
+        window.focus();
+        showNotification.value = true;
+        browserNotification.close();
+      };
+      
+    } catch (error) {
+      console.error('❌ 브라우저 알림 표시 실패:', error);
+    }
+  }
+};
+
+// ✅ 브라우저 알림 권한 요청
 const requestNotificationPermission = async () => {
-  if ('Notification' in window && Notification.permission === 'default') {
-    await Notification.requestPermission();
+  if ('Notification' in window) {
+    try {
+      const permission = await Notification.requestPermission();
+      console.log('🔔 브라우저 알림 권한:', permission);
+      
+      if (permission === 'granted') {
+        console.log('✅ 브라우저 알림 활성화됨');
+      }
+    } catch (error) {
+      console.error('❌ 브라우저 알림 권한 요청 실패:', error);
+    }
   }
 };
 
+// ===== UI 상호작용 =====
+
+// ✅ 현재 페이지가 채팅 페이지인지 확인 - 개선된 버전
+const isCurrentPageChat = () => {
+  const currentPath = router.currentRoute.value.path;
+  const isChat = currentPath === '/chat' || currentPath.startsWith('/chat/');
+  
+  // 디버깅용 로그 (필요시 주석 해제)
+  // console.log('📍 페이지 체크:', currentPath, '채팅 페이지:', isChat);
+  
+  return isChat;
+};
+
+// ✅ 캐릭터 토글
 const toggleCharacter = () => {
   nextTick(() => {
     showCharacter.value = !showCharacter.value;
   });
 };
 
+// ✅ 알림 토글
 const toggleNotification = () => {
   nextTick(() => {
     showNotification.value = !showNotification.value;
+    
+    // 알림창 열 때 데이터 로드 (처음에만)
+    if (showNotification.value && notifications.value.length === 0) {
+      console.log('🔔 알림창 열림 - 초기 데이터 로드');
+      loadNotifications(0, notificationPageSize.value);
+    }
   });
 };
 
+// ✅ 알림창 닫기
 const closeNotification = () => {
   showNotification.value = false;
 };
 
-// 🆕 페이지 언로드 시 정리
+// ===== 이벤트 핸들러 =====
+
+// Notification 컴포넌트에서 호출하는 핸들러들
+const handleRefreshNotifications = () => {
+  refreshNotifications();
+};
+
+const handleMarkAsRead = (notificationId) => {
+  markNotificationAsRead(notificationId);
+};
+
+const handleDeleteNotification = (notificationId) => {
+  deleteNotification(notificationId);
+};
+
+// ===== 에러 처리 =====
+
+// ✅ 연결 오류 표시
+const showConnectionError = () => {
+  const message = '실시간 알림 연결에 실패했습니다. 페이지를 새로고침하시겠습니까?';
+  
+  if (window.confirm(message)) {
+    window.location.reload();
+  } else {
+    // 사용자가 새로고침을 원하지 않으면 5분 후 재시도
+    setTimeout(() => {
+      console.log('🔄 5분 후 자동 재시도');
+      if (isLoggedIn.value && !isConnected.value) {
+        initializeWebSocket();
+      }
+    }, 300000);
+  }
+};
+
+// ✅ 알림 오류 표시
+const showNotificationError = (message) => {
+  console.error('❌ 알림 오류:', message);
+  
+  // 토스트 알림으로 표시 (showToastNotification 사용)
+  showToastNotification({
+    type: 'error',
+    title: '알림 오류',
+    content: message
+  });
+};
+
+// ===== 페이지 생명주기 =====
+
+// ✅ 페이지 언로드 처리
 const handleBeforeUnload = () => {
-  console.log('🔄 페이지 언로드 - WebSocket 정리');
+  console.log('🔄 App.vue - 페이지 언로드, 리소스 정리');
   cleanupWebSocket();
 };
 
-// 컴포넌트 마운트
+// ✅ 컴포넌트 마운트
 onMounted(async () => {
   console.log('📱 App.vue 마운트 시작');
 
-  await check();
-
-  if (isLoggedIn.value) {
-    // 초기 말풍선 표시
-    setTimeout(() => {
-      showInitialTooltip.value = true;
-      setTimeout(() => {
-        showInitialTooltip.value = false;
-      }, 5000);
-    }, 1000);
-
-    // WebSocket 초기화
-    await initializeWebSocket();
-
-    // 브라우저 알림 권한 요청
-    requestNotificationPermission();
+  try {
+    // 초기화 완료 플래그 설정
+    initializationComplete.value = false;
+    
+    // 사용자 인증 확인
+    if (isLoggedIn.value) {
+      console.log('👤 로그인 상태 - WebSocket 초기화');
+      
+      // 초기 알림 개수 로드
+      await fetchInitialUnreadCount();
+      
+      // WebSocket 초기화
+      await initializeWebSocket();
+      
+      // 연결 모니터링 시작
+      startConnectionMonitoring();
+      
+      // 브라우저 알림 권한 요청 (지연)
+      setTimeout(requestNotificationPermission, 2000);
+    } else {
+      console.log('🔐 로그인되지 않음 - WebSocket 초기화 생략');
+    }
+    
+    // 페이지 언로드 이벤트 리스너 등록
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // 초기화 완료
+    initializationComplete.value = true;
+    console.log('✅ App.vue 마운트 완료');
+    
+  } catch (error) {
+    console.error('❌ App.vue 마운트 중 오류:', error);
+    
+    // 오류 발생시에도 페이지는 동작하도록
+    initializationComplete.value = true;
   }
-
-  // 🆕 페이지 언로드 이벤트 리스너 등록
-  window.addEventListener('beforeunload', handleBeforeUnload);
-
-  console.log('✅ App.vue 마운트 완료');
 });
 
-// 컴포넌트 해제
+// ✅ 컴포넌트 언마운트
 onBeforeUnmount(() => {
-  console.log('🧹 App.vue 언마운트 - 정리 시작');
+  console.log('🧹 App.vue 언마운트 시작');
 
   // 이벤트 리스너 제거
   window.removeEventListener('beforeunload', handleBeforeUnload);
 
-  // WebSocket 정리
+  // WebSocket 완전 정리
   cleanupWebSocket();
 
   console.log('✅ App.vue 언마운트 완료');
 });
+
+// ===== 디버깅 함수 (개발용) =====
+if (process.env.NODE_ENV === 'development') {
+  window.appDebug = {
+    getState: () => ({
+      isLoggedIn: isLoggedIn.value,
+      isConnected: isConnected.value,
+      unreadCount: unreadCount.value,
+      notificationsCount: notifications.value.length,
+      subscriptions: Object.keys(subscriptions.value).filter(key => subscriptions.value[key]),
+      initializationComplete: initializationComplete.value,
+      connectionRetries: connectionRetryCount.value,
+      subscriptionRetries: subscriptionRetryCount.value
+    }),
+    
+    forceReconnect: () => {
+      console.log('🔧 App.vue 강제 재연결...');
+      cleanupWebSocket();
+      setTimeout(initializeWebSocket, 1000);
+    },
+    
+    testNotification: () => {
+      showToastNotification({
+        type: 'info',
+        title: '테스트',
+        content: '테스트 알림입니다.'
+      });
+    },
+    
+    resetAll: () => {
+      console.log('🔄 App.vue 전체 리셋...');
+      cleanupWebSocket();
+      notifications.value = [];
+      unreadCount.value = 0;
+      setTimeout(() => {
+        if (isLoggedIn.value) {
+          initializeWebSocket();
+          fetchInitialUnreadCount();
+        }
+      }, 1000);
+    }
+  };
+  
+  console.log('🔧 App.vue 디버깅 도구 활성화: window.appDebug');
+}
 </script>
 
 <style>
