@@ -1,5 +1,10 @@
 <template>
   <div class="login-page">
+    <transition name="fade" mode="out-in">
+      <div v-if="!isRegistering" class="logo-container">
+        <img src="/assets/logo.png" alt="Logo" class="logo" />
+      </div>
+    </transition>
     <!-- Rabbit Animation (login only) -->
     <transition name="fade" mode="out-in">
       <RabbitAnimation v-if="!isRegistering" :id-length="state.form.loginId.length" :pw-focused="pwFocused"
@@ -531,6 +536,11 @@ const registerUser = async () => {
 </script>
 
 <style scoped>
+.logo {
+  max-width: 400px;
+  height: auto;
+  filter: brightness(1.1) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
 .login-page {
   position: fixed;
   inset: 0;
