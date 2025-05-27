@@ -16,7 +16,7 @@
 
         <!-- 로딩 표시 -->
         <div v-if="loading" class="loading-indicator">
-          <span>음식을 추천 중이에요...</span>
+          <span>{{ loadingMessage }}</span>
         </div>
 
         <!-- 초기 선택 버튼들 (대화 후 표시) -->
@@ -44,6 +44,16 @@
             이게 뭐야?! 다시 추천해줘!!
           </button>
         </div>
+
+        <!-- 다시 건강체크 버튼 (건강체크 응답 후 표시) -->
+        <div v-if="showHealthRetryButton" class="retry-button-container">
+          <button
+              @click="retryHealthCheck"
+              class="health-retry-button"
+          >
+            다시 건강상태 체크해줘!
+          </button>
+        </div>
       </div>
     </div>
 
@@ -69,7 +79,9 @@ const initialMessage = "안녕하세요! 오늘 식사는 결정하셨나요?";
 const currentMessage = ref(initialMessage);
 const displayedMessage = ref(''); // 화면에 표시될 메시지
 const loading = ref(false); // 로딩 상태 추가
+const loadingMessage = ref('음식을 추천 중이에요...'); // 로딩 메시지
 const showRetryButton = ref(false); // 다시 추천 버튼 표시 여부
+const showHealthRetryButton = ref(false); // 건강체크 다시 버튼 표시 여부
 
 // 애니메이션 관련 변수 추가
 const currentFrame = ref(1);
@@ -81,11 +93,11 @@ const animationSpeed = 30; // 프레임 간 간격 (밀리초)
 // 토끼 애니메이션 함수 추가
 const animateRabbit = () => {
   clearInterval(animationTimer.value);
-  
+
   // 1번 프레임부터 시작
   currentFrame.value = 1;
   isTyping.value = true;
-  
+
   animationTimer.value = setInterval(() => {
     if (currentFrame.value < maxFrames) {
       currentFrame.value++;
@@ -121,7 +133,8 @@ const typeMessage = (message) => {
   let i = 0;
   displayedMessage.value = '';
   showRetryButton.value = false; // 타이핑 시작 시 다시 추천 버튼 숨기기
-  
+  showHealthRetryButton.value = false; // 건강체크 다시 버튼도 숨기기
+
   // 애니메이션 시작 추가
   animateRabbit();
 
@@ -134,7 +147,7 @@ const typeMessage = (message) => {
       scrollToBottom();
     } else {
       clearInterval(typingTimer);
-      
+
       // 타이핑 완료 추가
       isTyping.value = false;
 
@@ -146,9 +159,15 @@ const typeMessage = (message) => {
           scrollToBottom();
         }, 500);
       } else if (options[0].response && message === options[0].response) {
-        // GPT 응답 후 '다시 추천' 버튼 표시
+        // GPT 음식 추천 응답 후 '다시 추천' 버튼 표시
         setTimeout(() => {
           showRetryButton.value = true;
+          scrollToBottom();
+        }, 500);
+      } else if (options[1].response && message === options[1].response) {
+        // 건강체크 응답 후 '다시 건강체크' 버튼 표시
+        setTimeout(() => {
+          showHealthRetryButton.value = true;
           scrollToBottom();
         }, 500);
       }
@@ -177,16 +196,18 @@ const options = [
     response: "" // GPT API 응답으로 채워질 예정
   },
   {
-    label: "앞으로 뭐먹지?",
-    response: "요즘 날씨가 좋으니 샐러드는 어떨까요? 건강도 챙기고 가벼운 식사를 즐겨보세요."
+    label: "건강 상태 체크해줘",
+    response: "" // 건강체크 API 응답으로 채워질 예정
   }
 ];
 
-// GPT API 호출 함수
+// GPT 음식 추천 API 호출 함수
 const callGptRecommendation = async () => {
   loading.value = true;
+  loadingMessage.value = '음식을 추천 중이에요...';
   showOptions.value = false; // 선택지 숨기기
   showRetryButton.value = false; // 다시 추천 버튼 숨기기
+  showHealthRetryButton.value = false; // 건강체크 버튼 숨기기
 
   try {
     const response = await axios.post('/api/gpt/recommendDiet');
@@ -202,9 +223,36 @@ const callGptRecommendation = async () => {
   }
 };
 
+// 건강상태 체크 API 호출 함수
+const callHealthCheck = async () => {
+  loading.value = true;
+  loadingMessage.value = '건강상태를 체크 중이에요...';
+  showOptions.value = false; // 선택지 숨기기
+  showRetryButton.value = false; // 음식 추천 버튼 숨기기
+  showHealthRetryButton.value = false; // 건강체크 버튼 숨기기
+
+  try {
+    const response = await axios.post('/api/gpt/healthCheck');
+
+    // API 응답 저장
+    options[1].response = response.data.nutritionAnalysis;
+    currentMessage.value = response.data.nutritionAnalysis;
+  } catch (error) {
+    console.error('건강상태 체크 API 호출 중 오류 발생:', error);
+    currentMessage.value = "죄송해요, 건강상태 분석 중에 문제가 발생했어요. 잠시 후 다시 시도해주세요.";
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 다시 추천 요청 함수
 const retryRecommendation = () => {
   callGptRecommendation();
+};
+
+// 다시 건강체크 요청 함수
+const retryHealthCheck = () => {
+  callHealthCheck();
 };
 
 // 초기 메시지 타이핑 시작
@@ -222,12 +270,11 @@ watch(currentMessage, (newMessage) => {
 // 선택지 클릭 처리
 const selectOption = (index) => {
   if (index === 0) {
-    // '오늘 뭐먹지?' 선택 시 GPT API 호출
+    // '오늘 뭐먹지?' 선택 시 GPT 음식 추천 API 호출
     callGptRecommendation();
-  } else {
-    // 다른 선택지는 기존 로직 유지
-    showOptions.value = false; // 선택지 먼저 숨기기
-    currentMessage.value = options[index].response;
+  } else if (index === 1) {
+    // '앞으로 뭐먹지?' 선택 시 건강상태 체크 API 호출
+    callHealthCheck();
   }
 };
 
@@ -411,6 +458,27 @@ defineEmits(['close']);
 
 .retry-button:hover {
   background-color: #ffd5d5;
+  transform: scale(1.03);
+}
+
+/* 건강체크 다시 버튼 스타일 */
+.health-retry-button {
+  padding: 8px 15px;
+  background-color: #e8f5e8; /* 약간 녹색 배경 */
+  border: 1px solid #d5ffd5;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #27ae60; /* 녹색 텍스트 */
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  width: 100%;
+  font-weight: bold;
+  animation: pulseButton 2s infinite;
+}
+
+.health-retry-button:hover {
+  background-color: #d5ffd5;
   transform: scale(1.03);
 }
 
