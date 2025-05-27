@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { defineProps } from 'vue';
+import { defineProps, computed } from 'vue';
 import { Radar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -41,8 +41,25 @@ const props = defineProps({
   },
 });
 
+// 동적 최대값 계산
+const maxValue = computed(() => {
+  const dataValues = [
+    props.data.caloriesRate * 100,
+    props.data.proteinRate * 100,
+    props.data.fatRate * 100,
+    props.data.carbRate * 100,
+    props.data.sugarsRate * 100,
+    props.data.fiberRate * 100,
+    props.data.sodiumRate * 100,
+  ];
+
+  const maxDataValue = Math.max(...dataValues);
+  // 100보다 크면 20 단위로 올림, 작으면 100으로 고정
+  return Math.max(100, Math.ceil(maxDataValue / 20) * 20);
+});
+
 // 100% 기준의 데이터 구성
-const radarData = {
+const radarData = computed(() => ({
   labels: ['칼로리', '단백질', '지방', '탄수화물', '당', '식이섬유', '나트륨'],
   datasets: [
     {
@@ -65,9 +82,9 @@ const radarData = {
       borderWidth: 2,
     },
   ],
-};
+}));
 
-const radarOptions = {
+const radarOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: true,
   animation: {
@@ -110,7 +127,8 @@ const radarOptions = {
       callbacks: {
         label: function (context) {
           const value = context.parsed.r;
-          return `${value.toFixed(1)}%`;
+          const status = value >= 100 ? ' ✅' : '';
+          return `${value.toFixed(1)}%${status}`;
         },
       },
     },
@@ -119,14 +137,17 @@ const radarOptions = {
     r: {
       beginAtZero: true,
       min: 0,
-      max: 100,
+      max: maxValue.value, // 동적 최대값 적용
       ticks: {
-        stepSize: 20,
-        callback: (value) => `${value}%`,
+        stepSize: 50,
+        callback: (value) => {
+          return `${value}%`;
+        },
         backdropColor: 'transparent',
         color: '#666',
         font: {
           size: 11,
+          weight: 'normal',
           family: 'Noto Sans KR, sans-serif',
         },
       },
@@ -139,14 +160,21 @@ const radarOptions = {
         },
       },
       grid: {
-        color: 'rgba(200, 200, 200, 0.2)',
+        color: (context) => {
+          if (!context || !context.tick) return 'rgba(200, 200, 200, 0.2)';
+          return context.tick.value === 100 ? '#ff4444' : 'rgba(200, 200, 200, 0.2)';
+        },
+        lineWidth: (context) => {
+          if (!context || !context.tick) return 1;
+          return context.tick.value === 100 ? 2 : 1;
+        },
       },
       angleLines: {
         color: 'rgba(150, 150, 150, 0.15)',
       },
     },
   },
-};
+}));
 
 onMounted(() => {
   observeChartAnimation();
